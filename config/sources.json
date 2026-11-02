@@ -1,0 +1,22 @@
+{
+  "dlc": {
+    "repo": "v2fly/domain-list-community",
+    "branch": "master"
+  },
+  "blackmatrix": {
+    "repo": "blackmatrix7/ios_rule_script",
+    "branch": "master"
+  },
+  "dnsmasq": {
+    "repo": "felixonmars/dnsmasq-china-list",
+    "branch": "master"
+  },
+  "china_ip": {
+    "repo": "gaoyifan/china-operator-ip",
+    "branch": "ip-lists"
+  },
+  "country": {
+    "repo": "iplocate/ip-address-databases",
+    "branch": "main"
+  }
+}

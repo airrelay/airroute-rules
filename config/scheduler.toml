@@ -1,0 +1,3 @@
+globalping_concurrency = 16
+online_seconds = 120
+retry_base_seconds = 60

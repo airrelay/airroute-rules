@@ -1,0 +1,28 @@
+# Credentials stay in private files/environment variables, never in this file.
+base_url = "https://api.globalping.io/v1"
+
+[[accounts]]
+id = "primary"
+token_env = "GLOBALPING_TOKEN_PRIMARY"
+enabled = false
+[accounts.regions]
+us = "US"
+europe = "DE"
+"cn-geo" = "CN"
+"southeast-asia" = "SG"
+
+[[accounts]]
+id = "secondary"
+token_env = "GLOBALPING_TOKEN_SECONDARY"
+enabled = false
+[accounts.regions]
+"hk-mo" = "HK"
+"southeast-asia" = "SG"
+
+[[accounts]]
+id = "tertiary"
+token_env = "GLOBALPING_TOKEN_TERTIARY"
+enabled = false
+[accounts.regions]
+oceania = "AU"
+africa = "ZA"
