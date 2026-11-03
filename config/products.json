@@ -3,9 +3,11 @@
   "policy": {
     "cn_collection": "region/cn",
     "cn_exclusion": "Remove any overlapping overseas predicate; quarantine non-subtractable predicates rather than adding NOT conditions.",
-    "references": "A reference only admits predicates contained in a configured identity catalogue, or narrows broad parents to the proven catalogue children. No independent vote or blind union.",
+    "references": "Reliable named service-specific primary sources may contribute within declared identity/risk bounds. Broad supplemental catalogues remain corroborated with explicit identity catalogues; mirrors/formats never create votes.",
     "ru_domains": "Explicit Russian service identities only, never tld-ru/category-ru or ASN registration country.",
-    "upstream_lineage": "Alternate file formats and mirrors are not independent votes. Domain categories are identity assertions, not geolocation votes."
+    "upstream_lineage": "Alternate file formats and mirrors are not independent votes. Domain categories are identity assertions, not geolocation votes.",
+    "overlap": "Service categories intentionally overlap. Every independent service remains included in one or more corresponding categories; companies/cloud hosting are not physical country or service-identity evidence.",
+    "cloud_tenants": "Never classify all cloud/CDN tenant IPs or shared hosting suffixes as provider-owned products. Explicit service endpoints under shared hosts may retain exact matching only."
   },
   "groups": [
     {
@@ -55,20 +57,256 @@
           "adapter": "microsoft365",
           "regional_suffix": ".cn"
         }
+      ],
+      "required_output": true,
+      "purpose": "Explicit mainland service/access-point rules plus independently cleaned CN IP data; no .cn TLD inference.",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ]
+    },
+    {
+      "id": "region/ru",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-ai-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-bank-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-ecommerce-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-education-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-entertainment-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-forums-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-gov-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-media-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-medicine-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-retail-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-tech-media-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-travel-ru",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ],
+      "required_output": true,
+      "purpose": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ]
+    },
+    {
+      "id": "region/northeast-asia",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-bank-jp",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ],
+      "required_output": true,
+      "purpose": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ]
+    },
+    {
+      "id": "region/hk-mo",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-scholar-hk",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ],
+      "required_output": true,
+      "purpose": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ]
+    },
+    {
+      "id": "region/europe",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-scholar-uk",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ],
+      "required_output": true,
+      "purpose": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ]
+    },
+    {
+      "id": "region/west-asia",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-bank-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-education-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-gov-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-media-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-payment-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-social-media-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-tech-ir",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ],
+      "required_output": true,
+      "purpose": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
       ]
     },
     {
       "id": "provider/apple",
       "name": "Apple",
       "kind": "provider",
-      "routing_value": "Apple account, store and OS services can need a distinct route.",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
           "category": "apple",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         }
       ]
     },
@@ -76,13 +314,26 @@
       "id": "provider/google",
       "name": "Google",
       "kind": "provider",
-      "routing_value": "Google search, account and application endpoints have independent routing value.",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
           "category": "google",
           "attributes": [
             "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "appspot.com",
+            "cloudfunctions.net",
+            "firebaseapp.com",
+            "firebaseio.com",
+            "run.app",
+            "web.app"
           ]
         }
       ]
@@ -91,13 +342,39 @@
       "id": "provider/microsoft",
       "name": "Microsoft",
       "kind": "provider",
-      "routing_value": "Microsoft enterprise and update endpoints can require a distinct route.",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
           "category": "microsoft",
           "attributes": [
             "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "azurewebsites.net",
+            "azurestaticapps.net",
+            "azurecontainer.io",
+            "cloudapp.net",
+            "azureedge.net",
+            "azureedge.us",
+            "azurefd.net",
+            "trafficmanager.net",
+            "windows.net",
+            "azure-api.net",
+            "azure-mobile.net",
+            "azure-devices.net",
+            "cosmosdb.net",
+            "cosmosdb.com",
+            "azurecosmos.net",
+            "azurecosmosdb.com",
+            "azurecosmosdb.net",
+            "azuredatabricks.net",
+            "playfabapi.com"
           ]
         },
         {
@@ -118,37 +395,824 @@
             "globalsign.com",
             "globalsign.net",
             "identrust.com"
+          ],
+          "owned_roots": [
+            "office.com",
+            "office.net",
+            "office365.com",
+            "microsoft365.com",
+            "microsoft.com",
+            "microsoftonline.com",
+            "microsoftonline-p.com",
+            "microsoftonline-p.net",
+            "outlook.com",
+            "outlook.office.com",
+            "outlook.office365.com",
+            "sharepoint.com",
+            "sharepointonline.com",
+            "onedrive.com",
+            "onedrive.live.com",
+            "storage.live.com",
+            "1drv.com",
+            "1drv.ms",
+            "svc.ms",
+            "live.com",
+            "live.net",
+            "skype.com",
+            "lync.com",
+            "skypeforbusiness.com",
+            "msauth.net",
+            "msftauth.net",
+            "msftauthimages.net",
+            "msauthimages.net",
+            "msocdn.com",
+            "officeapps.live.com",
+            "cloud.microsoft"
+          ],
+          "allow_exact_dependencies": false
+        }
+      ]
+    },
+    {
+      "id": "provider/meta",
+      "name": "Meta",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "meta",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "provider/amazon",
+      "name": "Amazon",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "amazon",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "amazonaws.com",
+            "amazonaws.net",
+            "amazonaws.org",
+            "amazonaws.biz",
+            "amazonaws.co.uk",
+            "amazonaws.info",
+            "amazonaws.tv",
+            "amazonaws-china.com",
+            "cloudfront.net",
+            "cloudfront.com",
+            "amplifyapp.com",
+            "awsapprunner.com",
+            "awsglobalaccelerator.com",
+            "elasticbeanstalk.com",
+            "s3.amazonaws.com"
           ]
         }
       ]
     },
     {
-      "id": "service/netflix",
-      "name": "Netflix",
-      "kind": "service",
-      "routing_value": "Account and regional playback restrictions can differ from general media.",
+      "id": "provider/adobe",
+      "name": "Adobe",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
-          "category": "netflix",
+          "category": "adobe",
           "attributes": [
             "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "digicert.com",
+            "entrust.net",
+            "globalsign.com",
+            "verisign.com",
+            "verisign.net",
+            "versign.net"
+          ],
+          "scope_evidence": "The adobe-activation include also lists an external certificate/activation dependency; inclusion in that connectivity/blocking list does not establish Adobe ownership. Retain Adobe identities, exclude external CA roots and the unproven versign.net entry."
+        }
+      ]
+    },
+    {
+      "id": "provider/samsung",
+      "name": "Samsung",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "samsung",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "provider/sony",
+      "name": "Sony",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "sony",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "provider/naver",
+      "name": "Naver",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "naver",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "ncloud.com",
+            "naverncp.com"
           ]
         }
       ]
     },
     {
-      "id": "service/spotify",
-      "name": "Spotify",
-      "kind": "service",
-      "routing_value": "Account region and music playback can require a distinct route.",
+      "id": "provider/kakao",
+      "name": "Kakao",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
-          "category": "spotify",
+          "category": "kakao",
           "attributes": [
             "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "kakaocloud.com",
+            "kakaoilaas.com"
           ]
+        }
+      ]
+    },
+    {
+      "id": "provider/yandex",
+      "name": "Yandex",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "yandex",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "yandexcloud.net"
+          ]
+        }
+      ],
+      "scope_evidence": [
+        {
+          "excluded_root": "yandexcloud.net",
+          "reason": "Object Storage bucket/customer hosting namespace is not Yandex own service identity.",
+          "documentation": "https://yandex.cloud/en/docs/storage/concepts/bucket"
+        }
+      ]
+    },
+    {
+      "id": "provider/vk",
+      "name": "VK Group",
+      "kind": "provider",
+      "purpose": "独立分流其自有服务；不将其云/CDN客户IP或共享托管域根认定为该服务商自身产品。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "mailru-group",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "vkcs.cloud"
+          ]
+        }
+      ],
+      "scope_evidence": [
+        {
+          "excluded_root": "vkcs.cloud",
+          "reason": "Cloud/storage namespace is not sufficient evidence for all customers to be VK products; conservatively excluded. Official storage docs now use vkcloud-storage.ru, so no claim that the old root is a current endpoint.",
+          "documentation": "https://github.com/vk-cs/docs-public/blob/master/docs/ru/storage/s3/faq/faq.md"
+        }
+      ]
+    },
+    {
+      "id": "service/openai",
+      "name": "OpenAI / ChatGPT",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "openai",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "exclude_roots": [
+            "browser-intake-datadoghq.com",
+            "host.livekit.cloud",
+            "turn.livekit.cloud"
+          ]
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/OpenAI/OpenAI.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "openai.com",
+            "openai.org",
+            "chatgpt.com",
+            "chat.com",
+            "oaistatic.com",
+            "oaiusercontent.com",
+            "oaistatsig.com",
+            "sora.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/Ruleset/OpenAi.list",
+          "format": "clash",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "openai.com",
+            "openai.org",
+            "chatgpt.com",
+            "chat.com",
+            "oaistatic.com",
+            "oaiusercontent.com",
+            "oaistatsig.com",
+            "sora.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/claude",
+      "name": "Claude",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "anthropic",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Claude/Claude.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "anthropic.com",
+            "claude.ai",
+            "claude.com",
+            "claude.app",
+            "claude.dev",
+            "claudeusercontent.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/Ruleset/Claude.list",
+          "format": "clash",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "anthropic.com",
+            "claude.ai",
+            "claude.com",
+            "claude.app",
+            "claude.dev",
+            "claudeusercontent.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/gemini",
+      "name": "Gemini / AI Studio",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "google-deepmind",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "ai.google.dev",
+            "aistudio.google.com",
+            "ai.studio",
+            "bard.google.com",
+            "gemini.google",
+            "gemini.google.com",
+            "gemini.gstatic.com",
+            "generativeai.google",
+            "generativelanguage.googleapis.com",
+            "geller-pa.googleapis.com",
+            "proactivebackend-pa.googleapis.com",
+            "robinfrontend-pa.googleapis.com",
+            "makersuite.google.com",
+            "alkalicore-pa.clients6.google.com",
+            "alkalimakersuite-pa.clients6.google.com",
+            "webchannel-alkalimakersuite-pa.clients6.google.com",
+            "geminiweb-pa.clients.google.com",
+            "geminiweb-pa.clients6.google.com",
+            "appsgenaiserver-pa.clients.google.com",
+            "appsgenaiserver-pa.clients6.google.com",
+            "appsgenaiserver-pa.googleapis.com",
+            "cloudaicompanion.googleapis.com",
+            "cloudcode-pa.googleapis.com",
+            "daily-cloudcode-pa.googleapis.com",
+            "aicode.googleapis.com",
+            "aida.googleapis.com"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Gemini/Gemini.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "ai.google.dev",
+            "aistudio.google.com",
+            "ai.studio",
+            "bard.google.com",
+            "gemini.google",
+            "gemini.google.com",
+            "gemini.gstatic.com",
+            "generativeai.google",
+            "generativelanguage.googleapis.com",
+            "geller-pa.googleapis.com",
+            "proactivebackend-pa.googleapis.com",
+            "robinfrontend-pa.googleapis.com",
+            "makersuite.google.com",
+            "alkalicore-pa.clients6.google.com",
+            "alkalimakersuite-pa.clients6.google.com",
+            "webchannel-alkalimakersuite-pa.clients6.google.com",
+            "geminiweb-pa.clients.google.com",
+            "geminiweb-pa.clients6.google.com",
+            "appsgenaiserver-pa.clients.google.com",
+            "appsgenaiserver-pa.clients6.google.com",
+            "appsgenaiserver-pa.googleapis.com",
+            "cloudaicompanion.googleapis.com",
+            "cloudcode-pa.googleapis.com",
+            "daily-cloudcode-pa.googleapis.com",
+            "aicode.googleapis.com",
+            "aida.googleapis.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/Ruleset/Gemini.list",
+          "format": "clash",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "ai.google.dev",
+            "aistudio.google.com",
+            "ai.studio",
+            "bard.google.com",
+            "gemini.google",
+            "gemini.google.com",
+            "gemini.gstatic.com",
+            "generativeai.google",
+            "generativelanguage.googleapis.com",
+            "geller-pa.googleapis.com",
+            "proactivebackend-pa.googleapis.com",
+            "robinfrontend-pa.googleapis.com",
+            "makersuite.google.com",
+            "alkalicore-pa.clients6.google.com",
+            "alkalimakersuite-pa.clients6.google.com",
+            "webchannel-alkalimakersuite-pa.clients6.google.com",
+            "geminiweb-pa.clients.google.com",
+            "geminiweb-pa.clients6.google.com",
+            "appsgenaiserver-pa.clients.google.com",
+            "appsgenaiserver-pa.clients6.google.com",
+            "appsgenaiserver-pa.googleapis.com",
+            "cloudaicompanion.googleapis.com",
+            "cloudcode-pa.googleapis.com",
+            "daily-cloudcode-pa.googleapis.com",
+            "aicode.googleapis.com",
+            "aida.googleapis.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ],
+      "description": "Gemini and AI Studio endpoints; Google DeepMind/Jules/NotebookLM/other Google AI are kept in category/ai but not silently classified as Gemini."
+    },
+    {
+      "id": "service/perplexity",
+      "name": "Perplexity",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "perplexity",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/github",
+      "name": "GitHub",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "github",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/GitHub/GitHub.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "github.com",
+            "github.dev",
+            "github.io",
+            "githubusercontent.com",
+            "githubassets.com",
+            "githubapp.com",
+            "githubcopilot.com",
+            "ghcr.io",
+            "githubstatus.com",
+            "github.blog",
+            "git.io",
+            "ghe.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        },
+        {
+          "source": "github-meta",
+          "format": "official-json",
+          "adapter": "github-meta",
+          "categories": [
+            "website",
+            "packages",
+            "actions",
+            "codespaces"
+          ],
+          "owned_roots": [
+            "github.com",
+            "github.dev",
+            "github.io",
+            "githubassets.com",
+            "githubusercontent.com",
+            "githubapp.com",
+            "githubcopilot.com",
+            "ghcr.io"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "service/gitlab",
+      "name": "GitLab",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "gitlab",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/GitLab/GitLab.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "gitlab.com",
+            "gitlab.net",
+            "gitlab.io",
+            "gitlab-static.net",
+            "gitlabassets.com",
+            "gitlab.cn"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/docker-hub",
+      "name": "Docker Hub / Distribution",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "docker",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "docker.com",
+            "docker.io",
+            "dockerstatic.com"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Docker/Docker.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "docker.com",
+            "docker.io",
+            "dockerstatic.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/huggingface",
+      "name": "Hugging Face",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "huggingface",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/icloud",
+      "name": "iCloud",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "icloud",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "icloud.com",
+            "icloud-content.com",
+            "icloudsetup.com",
+            "me.com",
+            "www-cdn.icloud.com.akadns.net"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        }
+      ],
+      "description": "iCloud and service-specific content/setup roots only; lookalike brand domains in third-party catalogues are not automatically accepted."
+    },
+    {
+      "id": "service/onedrive",
+      "name": "OneDrive",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "onedrive",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/OneDrive/OneDrive.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "1drv.com",
+            "1drv.ms",
+            "livefilestore.com",
+            "onedrive.com",
+            "onedrive.net",
+            "onedrive.org",
+            "onedrive.live.com",
+            "storage.live.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/dropbox",
+      "name": "Dropbox",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "dropbox",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/notion",
+      "name": "Notion",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "notion",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Notion/Notion.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "notion.so",
+            "notion.site",
+            "notion.com",
+            "notion-static.com",
+            "notionusercontent.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
         }
       ]
     },
@@ -156,19 +1220,984 @@
       "id": "service/telegram",
       "name": "Telegram",
       "kind": "service",
-      "routing_value": "Messaging connectivity has independent routing value; server ASN alone is excluded.",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
           "category": "telegram",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Telegram/Telegram.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "telegram.org",
+            "telegram.me",
+            "t.me",
+            "telegra.ph",
+            "tdesktop.com",
+            "telesco.pe",
+            "tx.me"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
         },
         {
           "source": "telegram-endpoints",
           "format": "official-cidr",
           "official_service_ips": true
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/Ruleset/Telegram.list",
+          "format": "clash",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "telegram.org",
+            "telegram.me",
+            "t.me",
+            "telegra.ph",
+            "tdesktop.com",
+            "telesco.pe",
+            "tx.me"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/discord",
+      "name": "Discord",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "discord",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Discord/Discord.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "discord.com",
+            "discord.gg",
+            "discordapp.com",
+            "discordapp.net",
+            "discord.media",
+            "discord.new",
+            "discord.gift",
+            "discordstatus.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/whatsapp",
+      "name": "WhatsApp",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "whatsapp",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Whatsapp/Whatsapp.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "whatsapp.com",
+            "whatsapp.net",
+            "wa.me",
+            "wa.link"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/signal",
+      "name": "Signal",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "signal",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/slack",
+      "name": "Slack",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "slack",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Slack/Slack.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "slack.com",
+            "slack-edge.com",
+            "slack-files.com",
+            "slack-imgs.com",
+            "slack-msgs.com",
+            "slack-redir.net",
+            "slackb.com",
+            "slackdns.com",
+            "slackhq.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/zoom",
+      "name": "Zoom",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "zoom",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/x",
+      "name": "X / Twitter",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "twitter",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/reddit",
+      "name": "Reddit",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "reddit",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/facebook",
+      "name": "Facebook",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "facebook",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/instagram",
+      "name": "Instagram",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "instagram",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "service/youtube",
+      "name": "YouTube",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "youtube",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/YouTube/YouTube.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "youtube.com",
+            "youtube-nocookie.com",
+            "youtu.be",
+            "ytimg.com",
+            "googlevideo.com",
+            "youtubei.googleapis.com",
+            "yt3.ggpht.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/netflix",
+      "name": "Netflix",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "netflix",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Netflix/Netflix.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "netflix.com",
+            "netflix.net",
+            "nflxext.com",
+            "nflximg.com",
+            "nflximg.net",
+            "nflxso.net",
+            "nflxvideo.net",
+            "netflixdnstest0.com",
+            "netflixdnstest1.com",
+            "netflixdnstest2.com",
+            "netflixdnstest3.com",
+            "netflixdnstest4.com",
+            "netflixdnstest5.com",
+            "netflixdnstest6.com",
+            "netflixdnstest7.com",
+            "netflixdnstest8.com",
+            "netflixdnstest9.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/disney-plus",
+      "name": "Disney+",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "disney",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "disneyplus.com",
+            "disney-plus.net",
+            "disneyplus.disney.co.jp",
+            "dssott.com",
+            "bamgrid.com",
+            "disney.api.edge.bamgrid.com",
+            "disney-plus.net",
+            "disney-plus.disney.co.jp",
+            "cdn.registerdisney.go.com",
+            "disneystreaming.com",
+            "disneysubscription.com",
+            "streamingdisney.net"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Disney/Disney.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "disneyplus.com",
+            "disney-plus.net",
+            "disneyplus.disney.co.jp",
+            "dssott.com",
+            "bamgrid.com",
+            "disney.api.edge.bamgrid.com",
+            "disney-plus.net",
+            "disney-plus.disney.co.jp",
+            "cdn.registerdisney.go.com",
+            "disneystreaming.com",
+            "disneysubscription.com",
+            "streamingdisney.net"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ],
+      "description": "Disney+ playback/app service only; legacy Disney corporate/Hulu parks/retail selectors excluded by owned_roots."
+    },
+    {
+      "id": "service/prime-video",
+      "name": "Prime Video",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "primevideo",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/AmazonPrimeVideo/AmazonPrimeVideo.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "primevideo.com",
+            "amazonvideo.com",
+            "aiv-cdn.net",
+            "aiv-delivery.net",
+            "atv-ps.amazon.com",
+            "atv-ps.amazon.co.jp",
+            "atv-ps-eu.amazon.co.uk",
+            "atv-ps-fe.amazon.co.jp",
+            "atv-ps.amazon.de",
+            "avodmp4s3ww-a.akamaihd.net"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/max",
+      "name": "Max / HBO",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "hbo",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/HBO/HBO.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "hbo.com",
+            "hbomax.com",
+            "max.com",
+            "hbonow.com",
+            "hbogola.com",
+            "hbogo.com",
+            "hbogoasia.com",
+            "hbogoasia.sg",
+            "hbogoasia.hk",
+            "hboasia.com",
+            "hboasia1-i.akamaihd.net"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/spotify",
+      "name": "Spotify",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "spotify",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Spotify/Spotify.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "spotify.com",
+            "scdn.co",
+            "spotifycdn.com",
+            "spotifycdn.net",
+            "spotifycodes.com",
+            "spotifyforbrands.com",
+            "spotifyjobs.com",
+            "spotilocal.com",
+            "pscdn.co",
+            "audio-fa.scdn.co"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/apple-music",
+      "name": "Apple Music",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "apple-music",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/AppleMusic/AppleMusic.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "applemusic.com",
+            "music.apple.com",
+            "musickit.net",
+            "aod-ssl.itunes.apple.com",
+            "aod.itunes.apple.com",
+            "audio-ssl.itunes.apple.com",
+            "audio.itunes.apple.com",
+            "mvod.itunes.apple.com",
+            "streamingaudio.itunes.apple.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/steam",
+      "name": "Steam",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "steam",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Steam/Steam.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "steampowered.com",
+            "steamcommunity.com",
+            "steamstatic.com",
+            "steamcontent.com",
+            "steamserver.net",
+            "s.team",
+            "steamgames.com",
+            "steam-chat.com",
+            "steamusercontent.com",
+            "steamuserimages-a.akamaihd.net"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/Ruleset/Steam.list",
+          "format": "clash",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "steampowered.com",
+            "steamcommunity.com",
+            "steamstatic.com",
+            "steamcontent.com",
+            "steamserver.net",
+            "s.team",
+            "steamgames.com",
+            "steam-chat.com",
+            "steamusercontent.com",
+            "steamuserimages-a.akamaihd.net"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/epic-games",
+      "name": "Epic Games",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "epicgames",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Epic/Epic.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "epicgames.com",
+            "epicgames.dev",
+            "epicgamescdn.com",
+            "epicgamesusercontent.com",
+            "epicgames.net",
+            "unrealengine.com",
+            "easyanticheat.net",
+            "fortnite.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/battle-net",
+      "name": "Battle.net / Blizzard",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "blizzard",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Blizzard/Blizzard.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "battle.net",
+            "blizzard.com",
+            "blizzard.net",
+            "blzstatic.cn",
+            "blzstatic.com",
+            "bnet.163.com",
+            "battlenet.com",
+            "battlenet.com.cn",
+            "blizzardgames.cn"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/xbox",
+      "name": "Xbox",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "xbox",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Xbox/Xbox.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "xbox.com",
+            "xboxlive.com",
+            "xboxservices.com",
+            "xboxab.com",
+            "xboxgamepass.com",
+            "xboxlive.cn",
+            "xboxlive.com.cn",
+            "xboxreplay.net"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/playstation",
+      "name": "PlayStation",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "playstation",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/PlayStation/PlayStation.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "playstation.com",
+            "playstation.net",
+            "playstationnetwork.com",
+            "sonyentertainmentnetwork.com",
+            "scea.com",
+            "scee.com",
+            "scei.co.jp"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/nintendo",
+      "name": "Nintendo",
+      "kind": "service",
+      "purpose": "可独立选择的自有服务端点；同时保留在对应类别中。第三方托管依赖只接纳有明确服务范围的主机，不外推共享域根。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "nintendo",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Nintendo/Nintendo.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "nintendo.com",
+            "nintendo.net",
+            "nintendo.co.jp",
+            "nintendo-europe.com",
+            "nintendo.co.uk",
+            "nintendowifi.net",
+            "nintendoswitch.com",
+            "nintendoswitch.com.cn"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/google-drive",
+      "name": "Google Drive / Docs",
+      "kind": "service",
+      "purpose": "Drive 与 Docs 自身端点；排除 www.googleapis.com 和 googleusercontent.com 共享根，不能据此覆盖全部 Google API/托管内容。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/GoogleDrive/GoogleDrive.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "drive.google.com",
+            "docs.google.com",
+            "googledrive.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+        }
+      ]
+    },
+    {
+      "id": "service/microsoft365",
+      "name": "Microsoft 365",
+      "kind": "service",
+      "purpose": "官方 Microsoft 365 connectivity API 的自身产品域名；排除外部 CA/共享云依赖，不接纳整片云IP。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "microsoft365",
+          "format": "official-json",
+          "adapter": "microsoft365",
+          "dependency_roots": [
+            "entrust.net",
+            "geotrust.com",
+            "omniroot.com",
+            "public-trust.com",
+            "symcb.com",
+            "symcd.com",
+            "verisign.com",
+            "verisign.net",
+            "digicert.com",
+            "letsencrypt.org",
+            "globalsign.com",
+            "globalsign.net",
+            "identrust.com"
+          ],
+          "owned_roots": [
+            "office.com",
+            "office.net",
+            "office365.com",
+            "microsoft365.com",
+            "microsoft.com",
+            "microsoftonline.com",
+            "microsoftonline-p.com",
+            "microsoftonline-p.net",
+            "outlook.com",
+            "outlook.office.com",
+            "outlook.office365.com",
+            "sharepoint.com",
+            "sharepointonline.com",
+            "onedrive.com",
+            "onedrive.live.com",
+            "storage.live.com",
+            "1drv.com",
+            "1drv.ms",
+            "svc.ms",
+            "live.com",
+            "live.net",
+            "skype.com",
+            "lync.com",
+            "skypeforbusiness.com",
+            "msauth.net",
+            "msftauth.net",
+            "msftauthimages.net",
+            "msauthimages.net",
+            "msocdn.com",
+            "officeapps.live.com",
+            "cloud.microsoft"
+          ],
+          "allow_exact_dependencies": false
+        }
+      ]
+    },
+    {
+      "id": "service/teams",
+      "name": "Microsoft Teams",
+      "kind": "service",
+      "purpose": "Teams 的明确会议/协作端点；与会议和协作类别有意重叠。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/Teams/Teams.list",
+          "format": "surge",
+          "mode": "primary",
+          "bounded_service": true,
+          "domain_only": true,
+          "owned_roots": [
+            "teams.events.data.microsoft.com",
+            "teams.cdn.live.net",
+            "teams.live.com",
+            "teams.microsoft.com"
+          ],
+          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
         }
       ]
     },
@@ -176,13 +2205,35 @@
       "id": "category/ai",
       "name": "AI 服务",
       "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
           "category": "category-ai-!cn",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "category-ai-chat-!cn",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "category-ai-ru",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
         },
         {
           "source": "blackmatrix",
@@ -221,20 +2272,6 @@
           ]
         },
         {
-          "source": "dlc",
-          "category": "category-ai-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-ai-chat-!cn",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
           "source": "sukka",
           "path": "List/non_ip/ai.conf",
           "format": "surge",
@@ -263,179 +2300,927 @@
             "githubcopilot.com"
           ]
         }
+      ],
+      "includes": [
+        "service/openai",
+        "service/claude",
+        "service/gemini",
+        "service/perplexity",
+        "service/huggingface"
       ]
     },
     {
       "id": "category/development",
-      "name": "开发与软件分发",
+      "name": "开发工具",
       "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
           "category": "category-dev",
           "attributes": [
             "-cn"
-          ]
-        },
-        {
-          "source": "github-meta",
-          "format": "official-json",
-          "adapter": "github-meta",
-          "categories": [
-            "website",
-            "packages",
-            "actions",
-            "codespaces"
           ],
+          "required": true,
+          "exclude_roots": [
+            "appspot.com",
+            "cloudfunctions.net",
+            "firebaseapp.com",
+            "firebaseio.com",
+            "run.app",
+            "web.app"
+          ]
+        }
+      ],
+      "includes": [
+        "service/github",
+        "service/gitlab",
+        "service/docker-hub",
+        "service/huggingface"
+      ]
+    },
+    {
+      "id": "category/packages",
+      "name": "包与容器仓库",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-container",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "npmjs",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "python",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
           "owned_roots": [
-            "github.com",
-            "github.dev",
-            "github.io",
-            "githubassets.com",
-            "githubusercontent.com",
-            "githubapp.com",
-            "githubcopilot.com",
-            "ghcr.io"
-          ]
+            "pypi.org",
+            "pypi.io",
+            "pythonhosted.org"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "dlc",
+          "category": "rust",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "crates.io"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        }
+      ],
+      "includes": [
+        "service/docker-hub",
+        "service/huggingface"
+      ]
+    },
+    {
+      "id": "category/cloud-platform",
+      "name": "云平台自身服务",
+      "kind": "category",
+      "purpose": "云平台控制台、文档、账户及自身控制面；不包含客户计算/对象存储/CDN共享根或厂商全量IP。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "aws",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "aws.amazon.com",
+            "aws.com",
+            "aws.dev",
+            "awsstatic.com",
+            "amazonwebservices.com",
+            "awseducate.com",
+            "awseducate.org",
+            "awseducate.net"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "dlc",
+          "category": "azure",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "azure.com",
+            "azure.microsoft.com",
+            "azuremarketplace.microsoft.com",
+            "azurecomcdn.net",
+            "microsoftazuread-sso.com",
+            "microsoftazuresponsorships.com",
+            "windowsazure.com",
+            "windowsazurestatus.com"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "dlc",
+          "category": "digitalocean",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "digitalocean.com",
+            "digitaloceanstatus.com"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        },
+        {
+          "source": "dlc",
+          "category": "vultr",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "vultr.com",
+            "vultrstatus.com"
+          ],
+          "bounded_service": true,
+          "domain_only": true
         }
       ]
     },
     {
-      "id": "category/gaming",
-      "name": "海外游戏",
+      "id": "category/cloud-storage",
+      "name": "云存储",
       "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
-          "category": "category-games-!cn",
+          "category": "category-netdisk-!cn",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         }
+      ],
+      "includes": [
+        "service/icloud",
+        "service/google-drive",
+        "service/onedrive",
+        "service/dropbox"
       ]
     },
     {
-      "id": "category/media",
-      "name": "资讯媒体",
+      "id": "category/productivity",
+      "name": "办公生产力",
       "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
-          "category": "category-media",
+          "category": "canva",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         },
         {
           "source": "dlc",
-          "category": "category-media-ru",
+          "category": "figma",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         },
         {
           "source": "dlc",
-          "category": "category-tech-media-ru",
+          "category": "myoffice-ru",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "zoho",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
         }
+      ],
+      "includes": [
+        "service/microsoft365",
+        "service/notion",
+        "service/google-drive"
       ]
     },
     {
-      "id": "category/streaming",
-      "name": "流媒体",
+      "id": "category/collaboration",
+      "name": "团队协作",
       "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
       "selectors": [
         {
           "source": "dlc",
-          "category": "youtube",
+          "category": "atlassian",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         },
         {
           "source": "dlc",
-          "category": "disney",
+          "category": "trello",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         },
         {
           "source": "dlc",
-          "category": "twitch",
+          "category": "zendesk",
           "attributes": [
             "-cn"
-          ]
-        },
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/notion",
+        "service/slack",
+        "service/teams",
+        "service/discord"
+      ]
+    },
+    {
+      "id": "category/conferencing",
+      "name": "视频会议",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "webex",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/zoom",
+        "service/teams"
+      ]
+    },
+    {
+      "id": "category/social",
+      "name": "社交",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-social-media-!cn",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/x",
+        "service/reddit",
+        "service/facebook",
+        "service/instagram"
+      ]
+    },
+    {
+      "id": "category/messaging",
+      "name": "即时通信",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-communication",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/telegram",
+        "service/discord",
+        "service/whatsapp",
+        "service/signal",
+        "service/slack",
+        "service/teams"
+      ]
+    },
+    {
+      "id": "category/video-on-demand",
+      "name": "视频点播",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
         {
           "source": "dlc",
           "category": "hulu",
           "attributes": [
             "-cn"
-          ]
-        },
-        {
-          "source": "sukka",
-          "path": "List/non_ip/stream.conf",
-          "format": "surge",
-          "mode": "corroborated",
-          "identity_catalogues": [
-            {
-              "source": "dlc",
-              "categories": [
-                "primevideo",
-                "hbo",
-                "dazn",
-                "tver",
-                "niconico",
-                "netflix",
-                "spotify",
-                "youtube",
-                "disney",
-                "twitch",
-                "hulu"
-              ],
-              "attributes": [
-                "-cn"
-              ]
-            }
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "primevideo",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "hbo",
-          "attributes": [
-            "-cn"
-          ]
+          ],
+          "required": true
         },
         {
           "source": "dlc",
           "category": "dazn",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         },
         {
           "source": "dlc",
           "category": "tver",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
         },
         {
           "source": "dlc",
           "category": "niconico",
           "attributes": [
             "-cn"
-          ]
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "vimeo",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "dailymotion",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "abc",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "espn",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "hotstar",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "starplus",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "discoveryplus",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/youtube",
+        "service/netflix",
+        "service/disney-plus",
+        "service/prime-video",
+        "service/max"
+      ]
+    },
+    {
+      "id": "category/live-streaming",
+      "name": "直播",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "twitch",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "kick",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/youtube"
+      ]
+    },
+    {
+      "id": "category/audio",
+      "name": "音乐音频",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "soundcloud",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "deezer",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "tidal",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "bandcamp",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "pocketcasts",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "apple-podcasts",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "radiko",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "lastfm",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "kkbox",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/spotify",
+        "service/apple-music"
+      ]
+    },
+    {
+      "id": "category/gaming",
+      "name": "海外游戏",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-games-!cn",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "includes": [
+        "service/steam",
+        "service/epic-games",
+        "service/battle-net",
+        "service/xbox",
+        "service/playstation",
+        "service/nintendo"
+      ]
+    },
+    {
+      "id": "category/education",
+      "name": "教育与学术",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-scholar-!cn",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "category-education-ru",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "coursera",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "edx",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "udemy",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "khanacademy",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "duolingo",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "category/media",
+      "name": "新闻资讯媒体",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-media",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "category-media-ru",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "category-tech-media-ru",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "category/search",
+      "name": "搜索与知识",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "bing",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "duckduckgo",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "wikimedia",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        }
+      ],
+      "coverage_gaps": [
+        {
+          "target": "Google Search",
+          "reason": "Named upstream GoogleSearch list only contains DOMAIN-KEYWORD,www.google., which also matches attacker-controlled domains; do not expand all google.com products into a search identity. Google provider is available separately.",
+          "source": "blackmatrix:rule/Surge/GoogleSearch/GoogleSearch.list"
+        }
+      ]
+    },
+    {
+      "id": "category/maps",
+      "name": "地图导航",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "openstreetmap",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "organicmaps",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "mapbox",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "google",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "googlemaps.com"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        }
+      ],
+      "coverage_gaps": [
+        {
+          "target": "Google Maps common Google endpoints",
+          "reason": "Cannot classify generic google.com/googleapis.com as Maps-only. Only explicitly listed Google Maps identity domains accepted; other Maps traffic may require provider/google."
+        }
+      ]
+    },
+    {
+      "id": "category/shopping",
+      "name": "购物",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-ecommerce",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "amazon",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true,
+          "owned_roots": [
+            "amazon.com",
+            "amazon.co.uk",
+            "amazon.co.jp",
+            "amazon.de",
+            "amazon.fr",
+            "amazon.it",
+            "amazon.es",
+            "amazon.ca",
+            "amazon.com.au",
+            "amazon.in",
+            "amazon.com.br",
+            "amazon.com.mx"
+          ],
+          "bounded_service": true,
+          "domain_only": true
+        }
+      ]
+    },
+    {
+      "id": "category/finance",
+      "name": "支付与金融",
+      "kind": "category",
+      "purpose": "按服务用途聚合；类别可以有意重叠，独立服务不会从类别中移除。大陆服务由统一 CN 排除策略处理。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-finance",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "paypal",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "visa",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "dlc",
+          "category": "mastercard",
+          "attributes": [
+            "-cn"
+          ],
+          "required": true
         }
       ]
     },
@@ -450,6 +3235,10 @@
           "category": "yandex",
           "attributes": [
             "-cn"
+          ],
+          "exclude_roots": [
+            "yandexcloud.net",
+            "vkcs.cloud"
           ]
         },
         {
@@ -457,6 +3246,10 @@
           "category": "mailru-group",
           "attributes": [
             "-cn"
+          ],
+          "exclude_roots": [
+            "yandexcloud.net",
+            "vkcs.cloud"
           ]
         },
         {
@@ -564,195 +3357,27 @@
             "-cn"
           ]
         }
-      ]
+      ],
+      "required_output": true,
+      "content_types": [
+        "domain"
+      ],
+      "purpose": "俄罗斯服务身份，而非服务器地理位置；与新闻、金融、教育等用途类别有意重叠。"
     },
     {
-      "id": "region/ru",
-      "kind": "regional-service-identity-and-ip",
-      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "category-ai-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-bank-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-ecommerce-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-education-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-entertainment-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-forums-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-gov-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-media-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-medicine-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-retail-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-tech-media-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-travel-ru",
-          "attributes": [
-            "-cn"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "region/northeast-asia",
-      "kind": "regional-service-identity-and-ip",
-      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "category-bank-jp",
-          "attributes": [
-            "-cn"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "region/hk-mo",
-      "kind": "regional-service-identity-and-ip",
-      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "category-scholar-hk",
-          "attributes": [
-            "-cn"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "region/europe",
-      "kind": "regional-service-identity-and-ip",
-      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "category-scholar-uk",
-          "attributes": [
-            "-cn"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "region/west-asia",
-      "kind": "regional-service-identity-and-ip",
-      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "category-bank-ir",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-education-ir",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-gov-ir",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-media-ir",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-payment-ir",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-social-media-ir",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-tech-ir",
-          "attributes": [
-            "-cn"
-          ]
-        }
+      "id": "category/streaming",
+      "name": "流媒体（视频、直播与音频）",
+      "kind": "category",
+      "purpose": "保留既有流媒体入口，完整聚合视频点播、直播和音乐音频；与细分类别有意重叠。",
+      "content_types": [
+        "domain"
+      ],
+      "required_output": true,
+      "selectors": [],
+      "includes": [
+        "category/video-on-demand",
+        "category/live-streaming",
+        "category/audio"
       ]
     }
   ],
@@ -773,5 +3398,6 @@
       "country": "CN",
       "field_semantics": "Expanded rule-list membership only, not physical-country evidence"
     }
-  ]
+  ],
+  "catalogue_version": "2026-11-03-services-v1"
 }

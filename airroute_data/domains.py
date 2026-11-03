@@ -448,6 +448,9 @@ def _validate_products(value: dict) -> dict:
         raise RuleError("invalid or duplicate product ID")
     if ids.count("region/cn") != 1:
         raise RuleError("exactly one public CN collection is required")
+    for group in value["groups"]:
+        if not isinstance(group.get("includes", []), list) or any(k not in ids for k in group.get("includes", [])):
+            raise RuleError("product includes an unknown group")
     return value
 
 
@@ -482,7 +485,7 @@ def validate_domain_groups(groups: dict[str, list[str]]) -> dict:
     index = _CNIndex(cn)
     checked = 0
     for name, rows in parsed.items():
-        if name == "region/cn":
+        if name == "region/cn" or not name.startswith(("region/", "provider/", "service/", "category/")):
             continue
         for rule in rows:
             if rule.kind in IP_KINDS:
@@ -595,11 +598,34 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
                         path = path / relative if path.is_dir() else path
                     rows, rejected = parse_third_party(path.read_text(encoding="utf-8"), format, f"{source_id}:{selector.get('path', path.name)}", behavior=selector.get("behavior", "classical"))
                     report["quarantined"].extend(rejected)
+                # A curated service list can be a primary identity assertion;
+                # it need not get a second vote from its own upstream mirror.
+                # Its declared match scope is still enforced, especially for
+                # shared cloud/CDN parents and compound predicates.
+                scoped = []
+                excluded = _CNIndex([normalize_rule("DOMAIN-SUFFIX", root) for root in selector.get("exclude_roots", [])]) if selector.get("exclude_roots") else None
+                owned = CoverageIndex(normalize_rule("DOMAIN-SUFFIX", root) for root in selector.get("owned_roots", [])) if selector.get("owned_roots") and format != "official-json" else None
+                for row in rows:
+                    reason = None
+                    if selector.get("domain_only") and row.kind not in DOMAIN_KINDS:
+                        reason = "selector admits domain identities only"
+                    elif selector.get("bounded_service") and (row.kind not in {"DOMAIN", "DOMAIN-SUFFIX"} or "." not in row.value):
+                        reason = "curated service selector requires bounded literal domains"
+                    elif owned is not None and not owned.covers(row):
+                        reason = "outside configured service-owned roots"
+                    elif excluded is not None and excluded.overlaps(row):
+                        reason = "overlaps shared infrastructure or excluded service scope"
+                    if reason:
+                        report["quarantined"].append(_quarantine(row.source, row.line, row.text, reason))
+                    else:
+                        scoped.append(row)
                 prior = CoverageIndex(accepted)
                 report["selectors"].append({"group": name, "source": source_id,
                     "selector": selector.get("category", selector.get("path", selector.get("adapter", format))),
                     "mode": selector.get("mode", "primary"), "lineage": source.get("lineage", source_id),
-                    "input_rules": len(rows), "already_covered": sum(prior.covers(r) for r in rows)})
+                    "input_rules": len(rows), "scope_admitted": len(scoped),
+                    "scope_rejected": len(rows) - len(scoped), "already_covered": sum(prior.covers(r) for r in scoped)})
+                rows = scoped
                 if selector.get("mode") in {"reference", "corroborated"}:
                     references.extend((name, r, selector) for r in rows)
                 else:
@@ -646,6 +672,22 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
         prepared[name].extend(admitted)
         if not admitted and reason != "semantically-covered-by-identity-catalogue" and len(report["quarantined"]) < 1000:
             report["quarantined"].append(_quarantine(rule.source, rule.line, rule.text, reason))
+    # Resolve memberships after all selectors/references, before the same CN
+    # exclusion is applied to both services and their containing categories.
+    definitions = {g["id"]: g for g in products["groups"]}
+    resolved = set()
+    def include(name: str, trail: tuple[str, ...] = ()) -> None:
+        if name in trail:
+            raise RuleError("product include cycle: " + " -> ".join((*trail, name)))
+        if name in resolved:
+            return
+        for child in definitions[name].get("includes", []):
+            include(child, (*trail, name))
+            prepared[name].extend(prepared[child])
+            official_ip_sources.setdefault(name, set()).update(official_ip_sources.get(child, set()))
+        resolved.add(name)
+    for name in definitions:
+        include(name)
     cn: list[Rule] = []
     for rule in prepared.get("region/cn", []):
         if (rule.kind not in {"DOMAIN", "DOMAIN-SUFFIX"} and not
@@ -679,6 +721,8 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
         for rule in rows:
             report["provenance"].setdefault(name, {}).setdefault(rule.text, []).append({"source": rule.source, "line": rule.line, "attributes": sorted(rule.attrs)})
         groups[name] = [r.text for r in minimize(rows)]
+        if group.get("required_output") and not groups[name]:
+            raise RuleError(f"required product has no accepted rules: {name}")
         report["groups"][name]["output_rules"] = len(groups[name])
         support = {}
         for rule in rows:
@@ -690,5 +734,6 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
     report["raw_accepted_rules"] = sum(v["accepted_before_compaction"] for v in report["groups"].values())
     report["reference_sample_limit"] = 1000
     report["output_rules"] = sum(map(len, groups.values()))
+    report["memberships"] = {g["id"]: g["includes"] for g in products["groups"] if g.get("includes")}
     report["exclusion_validation"] = validate_domain_groups(groups)
     return groups, report

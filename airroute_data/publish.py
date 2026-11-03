@@ -87,7 +87,7 @@ def _public_manifest(manifest: dict) -> dict:
     files = []
     for record in manifest["files"]:
         name = record["path"]
-        is_rule = bool(re.fullmatch(r"(region|provider|service|category)/[a-z0-9][a-z0-9-]*\.list", name))
+        is_rule = bool(re.fullmatch(r"(region|provider|service|category|special|dns)/[a-z0-9][a-z0-9-]*\.list", name))
         if name.endswith((".list", ".ardb")) and not (is_rule or name in {"geo.ardb", "asn.ardb"}):
             raise PublicationError("Unexpected rule/database publication path: " + name)
         if is_rule or name in {"geo.ardb", "asn.ardb", "regions.json", "ATTRIBUTION.md"}:

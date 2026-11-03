@@ -1,0 +1,3781 @@
+{
+  "schema": 1,
+  "scope": "Read-only omission checklist of the bundled legacy client directory; not an import/compatibility layer and not a claim that old artifact bytes were revalidated.",
+  "source": {
+    "kind": "AirRoute bundled rule-set manifest",
+    "repository": "https://github.com/airrelay/rules",
+    "commit": "20a3b237005292e60b62603e934b3972348366b4",
+    "manifest_sha256": "0539a3ca85473e4e7a5a2d164d117a1d2fffb98b5e9ffc0a1e6e27cb2cb15817",
+    "entries": 376
+  },
+  "catalogue_version": "2026-11-03-services-v1",
+  "status_meanings": {
+    "retain": "Same intended product identity, newly built data.",
+    "merge": "Reorganized target(s); semantic comparison scope/partial gaps stated explicitly.",
+    "deprecate": "Intentional retirement under current data semantics.",
+    "gap": "Insufficient scoped evidence; no placeholder file."
+  },
+  "summary": {
+    "retain": 28,
+    "merge": 222,
+    "deprecate": 11,
+    "gap": 115
+  },
+  "entries": [
+    {
+      "legacy_id": "region/cn",
+      "legacy_name": "中国大陆",
+      "status": "retain",
+      "targets": [
+        "region/cn"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/hk-mo",
+      "legacy_name": "港澳",
+      "status": "retain",
+      "targets": [
+        "region/hk-mo"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/tw",
+      "legacy_name": "台湾",
+      "status": "retain",
+      "targets": [
+        "region/tw"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/northeast-asia",
+      "legacy_name": "东北亚",
+      "status": "retain",
+      "targets": [
+        "region/northeast-asia"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/southeast-asia",
+      "legacy_name": "东南亚",
+      "status": "retain",
+      "targets": [
+        "region/southeast-asia"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/south-asia",
+      "legacy_name": "南亚",
+      "status": "retain",
+      "targets": [
+        "region/south-asia"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/central-asia",
+      "legacy_name": "中亚",
+      "status": "retain",
+      "targets": [
+        "region/central-asia"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/west-asia",
+      "legacy_name": "西亚",
+      "status": "retain",
+      "targets": [
+        "region/west-asia"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/ru",
+      "legacy_name": "俄罗斯",
+      "status": "retain",
+      "targets": [
+        "region/ru"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/europe",
+      "legacy_name": "欧洲",
+      "status": "retain",
+      "targets": [
+        "region/europe"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/us",
+      "legacy_name": "美国",
+      "status": "retain",
+      "targets": [
+        "region/us"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/north-america-other",
+      "legacy_name": "北美其他",
+      "status": "retain",
+      "targets": [
+        "region/north-america-other"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/latin-america-caribbean",
+      "legacy_name": "拉美与加勒比",
+      "status": "retain",
+      "targets": [
+        "region/latin-america-caribbean"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/oceania",
+      "legacy_name": "大洋洲",
+      "status": "retain",
+      "targets": [
+        "region/oceania"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/africa",
+      "legacy_name": "非洲",
+      "status": "retain",
+      "targets": [
+        "region/africa"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "region/antarctica",
+      "legacy_name": "南极",
+      "status": "retain",
+      "targets": [
+        "region/antarctica"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "category/ai-all",
+      "legacy_name": "全部 AI",
+      "status": "merge",
+      "targets": [
+        "region/cn",
+        "category/ai"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/ai-cn",
+      "legacy_name": "中国大陆 AI",
+      "status": "merge",
+      "targets": [
+        "region/cn"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/ai-overseas",
+      "legacy_name": "海外 AI",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/cdn",
+      "legacy_name": "CDN 与托管网络",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Cloud/CDN customer traffic is not the vendor own service; do not recreate a broad hosting bucket."
+    },
+    {
+      "legacy_id": "category/cloud",
+      "legacy_name": "云服务",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/containers",
+      "legacy_name": "容器与镜像仓库",
+      "status": "merge",
+      "targets": [
+        "category/packages"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/development",
+      "legacy_name": "开发与软件分发",
+      "status": "retain",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "category/education",
+      "legacy_name": "教育与学习",
+      "status": "retain",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "category/gaming",
+      "legacy_name": "游戏与平台",
+      "status": "retain",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "category/mail",
+      "legacy_name": "邮件",
+      "status": "merge",
+      "targets": [
+        "category/messaging",
+        "category/productivity"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/meetings",
+      "legacy_name": "会议与团队协作",
+      "status": "merge",
+      "targets": [
+        "category/conferencing",
+        "category/collaboration"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/messaging",
+      "legacy_name": "即时通信",
+      "status": "retain",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "category/music",
+      "legacy_name": "音乐",
+      "status": "merge",
+      "targets": [
+        "category/audio"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/office-design",
+      "legacy_name": "办公与设计",
+      "status": "merge",
+      "targets": [
+        "category/productivity",
+        "provider/adobe"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/os",
+      "legacy_name": "Linux / BSD 开源发行",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/payments",
+      "legacy_name": "支付",
+      "status": "merge",
+      "targets": [
+        "category/finance"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/podcasts",
+      "legacy_name": "播客",
+      "status": "merge",
+      "targets": [
+        "category/audio"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/remote",
+      "legacy_name": "远程接入",
+      "status": "gap",
+      "targets": [],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/scholar",
+      "legacy_name": "学术与期刊",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/search-knowledge",
+      "legacy_name": "搜索与知识",
+      "status": "merge",
+      "targets": [
+        "category/search"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/shopping-travel",
+      "legacy_name": "购物与出行",
+      "status": "merge",
+      "targets": [
+        "category/shopping"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/social",
+      "legacy_name": "社交与社区",
+      "status": "retain",
+      "targets": [
+        "category/social"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "category/storage",
+      "legacy_name": "网盘与同步",
+      "status": "merge",
+      "targets": [
+        "category/cloud-storage"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "category/video",
+      "legacy_name": "视频与直播",
+      "status": "merge",
+      "targets": [
+        "category/video-on-demand",
+        "category/live-streaming"
+      ],
+      "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
+    },
+    {
+      "legacy_id": "provider/anthropic",
+      "legacy_name": "Anthropic / Claude",
+      "status": "merge",
+      "targets": [
+        "service/claude"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/arena",
+      "legacy_name": "Arena",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/cerebras",
+      "legacy_name": "Cerebras",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category cerebras (legacy bytes unavailable)",
+      "compared_predicates": 1,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/chutes",
+      "legacy_name": "Chutes",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/cline",
+      "legacy_name": "Cline",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/coderabbit",
+      "legacy_name": "CodeRabbit",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/cohere",
+      "legacy_name": "Cohere",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/comfy",
+      "legacy_name": "Comfy",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category comfy (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/context7",
+      "legacy_name": "Context7",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/crewai",
+      "legacy_name": "CrewAI",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/cursor",
+      "legacy_name": "Cursor",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category cursor (legacy bytes unavailable)",
+      "compared_predicates": 5,
+      "best_semantically_covered_predicates": 5,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/deepwiki",
+      "legacy_name": "DeepWiki",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/devin",
+      "legacy_name": "Devin",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/dify",
+      "legacy_name": "Dify",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/elevenlabs",
+      "legacy_name": "ElevenLabs",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category elevenlabs (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/github-copilot",
+      "legacy_name": "GitHub Copilot",
+      "status": "merge",
+      "targets": [
+        "category/ai",
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category github-copilot (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/google-ai",
+      "legacy_name": "Google AI / Gemini / NotebookLM",
+      "status": "merge",
+      "targets": [
+        "service/gemini"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/groq",
+      "legacy_name": "Groq",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category groq (legacy bytes unavailable)",
+      "compared_predicates": 1,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/huggingface",
+      "legacy_name": "Hugging Face",
+      "status": "merge",
+      "targets": [
+        "service/huggingface"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/jetbrains-ai",
+      "legacy_name": "JetBrains AI",
+      "status": "merge",
+      "targets": [
+        "category/ai",
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category jetbrains-ai (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/kiro",
+      "legacy_name": "Kiro",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/langchain",
+      "legacy_name": "LangChain",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/lm-studio",
+      "legacy_name": "LM Studio",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/lovart",
+      "legacy_name": "Lovart",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/manus",
+      "legacy_name": "Manus",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category manus (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/meta-ai",
+      "legacy_name": "Meta AI",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/microsoft-copilot",
+      "legacy_name": "Microsoft Copilot",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/midjourney",
+      "legacy_name": "Midjourney",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/mistral",
+      "legacy_name": "Mistral",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/ollama",
+      "legacy_name": "Ollama",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/openai",
+      "legacy_name": "OpenAI",
+      "status": "merge",
+      "targets": [
+        "service/openai"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/openart",
+      "legacy_name": "OpenArt",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/openclaw",
+      "legacy_name": "OpenClaw",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/opencode",
+      "legacy_name": "OpenCode",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/openrouter",
+      "legacy_name": "OpenRouter",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/perplexity",
+      "legacy_name": "Perplexity",
+      "status": "merge",
+      "targets": [
+        "service/perplexity"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/poe",
+      "legacy_name": "Poe",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category poe (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/qoder",
+      "legacy_name": "Qoder",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/sider",
+      "legacy_name": "Sider",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/tripo3d",
+      "legacy_name": "Tripo3D",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/windsurf",
+      "legacy_name": "Windsurf",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category windsurf (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/xai",
+      "legacy_name": "xAI / Grok",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category xai (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/youmind",
+      "legacy_name": "YouMind",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category youmind (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/akamai",
+      "legacy_name": "Akamai",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Full CDN/customer networks are not vendor own product identity; only independently scoped special endpoints may be generated elsewhere."
+    },
+    {
+      "legacy_id": "provider/aws",
+      "legacy_name": "AWS",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/azure",
+      "legacy_name": "Azure 云与托管网络",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/cloudflare",
+      "legacy_name": "Cloudflare 网络与托管平台",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Full CDN/customer networks are not vendor own product identity; only independently scoped special endpoints may be generated elsewhere."
+    },
+    {
+      "legacy_id": "provider/digitalocean",
+      "legacy_name": "DigitalOcean",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/fastly",
+      "legacy_name": "Fastly",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Full CDN/customer networks are not vendor own product identity; only independently scoped special endpoints may be generated elsewhere."
+    },
+    {
+      "legacy_id": "provider/firebase",
+      "legacy_name": "Firebase",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/heroku",
+      "legacy_name": "Heroku 托管平台",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/hetzner",
+      "legacy_name": "Hetzner",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/netlify",
+      "legacy_name": "Netlify 托管平台",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/oracle",
+      "legacy_name": "Oracle",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/vercel",
+      "legacy_name": "Vercel 托管平台",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/vultr",
+      "legacy_name": "Vultr",
+      "status": "merge",
+      "targets": [
+        "category/cloud-platform"
+      ],
+      "reason": "Only evidenced own control-plane/service endpoints may be retained; shared tenant hosting/CDN scope intentionally not equivalent."
+    },
+    {
+      "legacy_id": "provider/adobe",
+      "legacy_name": "Adobe",
+      "status": "retain",
+      "targets": [
+        "provider/adobe"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "provider/anydesk",
+      "legacy_name": "AnyDesk",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/atlassian",
+      "legacy_name": "Atlassian",
+      "status": "merge",
+      "targets": [
+        "category/collaboration"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category atlassian (legacy bytes unavailable)",
+      "compared_predicates": 11,
+      "best_semantically_covered_predicates": 11,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/canva",
+      "legacy_name": "Canva",
+      "status": "merge",
+      "targets": [
+        "category/productivity"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category canva (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/dropbox",
+      "legacy_name": "Dropbox",
+      "status": "merge",
+      "targets": [
+        "service/dropbox"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/figma",
+      "legacy_name": "Figma",
+      "status": "merge",
+      "targets": [
+        "category/productivity"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category figma (legacy bytes unavailable)",
+      "compared_predicates": 1,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/google-drive",
+      "legacy_name": "Google Drive",
+      "status": "merge",
+      "targets": [
+        "service/google-drive"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/mega",
+      "legacy_name": "MEGA",
+      "status": "merge",
+      "targets": [
+        "category/cloud-storage"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category mega (legacy bytes unavailable)",
+      "compared_predicates": 7,
+      "best_semantically_covered_predicates": 7,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/nomachine",
+      "legacy_name": "NoMachine",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/notion",
+      "legacy_name": "Notion",
+      "status": "merge",
+      "targets": [
+        "service/notion"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/pikpak",
+      "legacy_name": "PikPak",
+      "status": "merge",
+      "targets": [
+        "category/cloud-storage"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category pikpak (legacy bytes unavailable)",
+      "compared_predicates": 7,
+      "best_semantically_covered_predicates": 7,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/rustdesk",
+      "legacy_name": "RustDesk",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/tailscale",
+      "legacy_name": "Tailscale",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/teamviewer",
+      "legacy_name": "TeamViewer",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/terabox",
+      "legacy_name": "TeraBox",
+      "status": "merge",
+      "targets": [
+        "category/cloud-storage"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category terabox (legacy bytes unavailable)",
+      "compared_predicates": 7,
+      "best_semantically_covered_predicates": 7,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/trello",
+      "legacy_name": "Trello",
+      "status": "merge",
+      "targets": [
+        "category/collaboration"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category trello (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/zendesk",
+      "legacy_name": "Zendesk",
+      "status": "merge",
+      "targets": [
+        "category/collaboration"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category zendesk (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/zoho",
+      "legacy_name": "Zoho",
+      "status": "merge",
+      "targets": [
+        "category/productivity"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category zoho (legacy bytes unavailable)",
+      "compared_predicates": 13,
+      "best_semantically_covered_predicates": 13,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/apple",
+      "legacy_name": "Apple",
+      "status": "retain",
+      "targets": [
+        "provider/apple"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "provider/apple-dev",
+      "legacy_name": "Apple 开发者",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category apple-dev (legacy bytes unavailable)",
+      "compared_predicates": 33,
+      "best_semantically_covered_predicates": 33,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/apple-intelligence",
+      "legacy_name": "Apple Intelligence",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/apple-music",
+      "legacy_name": "Apple Music",
+      "status": "merge",
+      "targets": [
+        "service/apple-music"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/apple-podcasts",
+      "legacy_name": "Apple Podcasts",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category apple-podcasts (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/apple-tvplus",
+      "legacy_name": "Apple TV",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category apple-tvplus (legacy bytes unavailable)",
+      "compared_predicates": 8,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/apple-update",
+      "legacy_name": "Apple 更新下载",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/appstore",
+      "legacy_name": "App Store",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/bing",
+      "legacy_name": "Bing",
+      "status": "merge",
+      "targets": [
+        "category/search"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category bing (legacy bytes unavailable)",
+      "compared_predicates": 32,
+      "best_semantically_covered_predicates": 32,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/google",
+      "legacy_name": "Google",
+      "status": "retain",
+      "targets": [
+        "provider/google"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "provider/google-play",
+      "legacy_name": "Google Play",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/googlesearch",
+      "legacy_name": "Google Search",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/icloud",
+      "legacy_name": "iCloud",
+      "status": "merge",
+      "targets": [
+        "service/icloud"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/microsoft",
+      "legacy_name": "Microsoft",
+      "status": "retain",
+      "targets": [
+        "provider/microsoft"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "provider/microsoft-dev",
+      "legacy_name": "Microsoft 开发工具",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category microsoft-dev (legacy bytes unavailable)",
+      "compared_predicates": 72,
+      "best_semantically_covered_predicates": 72,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/microsoft-office",
+      "legacy_name": "Microsoft 365 / Office",
+      "status": "merge",
+      "targets": [
+        "service/microsoft365"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/microsoft-teams",
+      "legacy_name": "Microsoft Teams",
+      "status": "merge",
+      "targets": [
+        "service/teams"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/mozilla",
+      "legacy_name": "Mozilla / Firefox",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category mozilla (legacy bytes unavailable)",
+      "compared_predicates": 77,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/onedrive",
+      "legacy_name": "OneDrive / SharePoint",
+      "status": "merge",
+      "targets": [
+        "service/onedrive"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/outlook",
+      "legacy_name": "Outlook",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/testflight",
+      "legacy_name": "TestFlight",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/windows-update",
+      "legacy_name": "Windows 更新",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/anaconda",
+      "legacy_name": "Anaconda",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category anaconda (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/apache",
+      "legacy_name": "Apache",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/archlinux",
+      "legacy_name": "Arch Linux",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category archlinux (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/azure-container-registry",
+      "legacy_name": "Azure Container Registry",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/canonical",
+      "legacy_name": "Ubuntu / Canonical",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category canonical (legacy bytes unavailable)",
+      "compared_predicates": 12,
+      "best_semantically_covered_predicates": 12,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/chocolatey",
+      "legacy_name": "Chocolatey",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/codeberg",
+      "legacy_name": "Codeberg",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category codeberg (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/dart",
+      "legacy_name": "Dart",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category dart (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/debian",
+      "legacy_name": "Debian",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category debian (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/deno",
+      "legacy_name": "Deno",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/docker",
+      "legacy_name": "Docker",
+      "status": "merge",
+      "targets": [
+        "service/docker-hub"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/fedora",
+      "legacy_name": "Fedora",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category fedora (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/flatpak",
+      "legacy_name": "Flatpak",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category flatpak (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/flutter",
+      "legacy_name": "Flutter",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category flutter (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/freebsd",
+      "legacy_name": "FreeBSD",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/gitbook",
+      "legacy_name": "GitBook",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category gitbook (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/github",
+      "legacy_name": "GitHub",
+      "status": "merge",
+      "targets": [
+        "service/github"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/github-container-registry",
+      "legacy_name": "GitHub Container Registry",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/gitlab",
+      "legacy_name": "GitLab",
+      "status": "merge",
+      "targets": [
+        "service/gitlab"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/gitlab-registry",
+      "legacy_name": "GitLab Registry",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/gnu",
+      "legacy_name": "GNU",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/golang",
+      "legacy_name": "Go",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category golang (legacy bytes unavailable)",
+      "compared_predicates": 8,
+      "best_semantically_covered_predicates": 8,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/google-container-registry",
+      "legacy_name": "Google Container Registry",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/hashicorp",
+      "legacy_name": "HashiCorp",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category hashicorp (legacy bytes unavailable)",
+      "compared_predicates": 8,
+      "best_semantically_covered_predicates": 8,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/haskell",
+      "legacy_name": "Haskell",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category haskell (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/homebrew",
+      "legacy_name": "Homebrew",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category homebrew (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/java",
+      "legacy_name": "Java",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category java (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/jetbrains",
+      "legacy_name": "JetBrains",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category jetbrains (legacy bytes unavailable)",
+      "compared_predicates": 23,
+      "best_semantically_covered_predicates": 23,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/jfrog",
+      "legacy_name": "JFrog",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category jfrog (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/kubernetes",
+      "legacy_name": "Kubernetes",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category kubernetes (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/kubernetes-registry",
+      "legacy_name": "Kubernetes Registry",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/microsoft-container-registry",
+      "legacy_name": "Microsoft Container Registry",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/mongodb",
+      "legacy_name": "MongoDB",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category mongodb (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/msys2",
+      "legacy_name": "MSYS2",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/nginx",
+      "legacy_name": "NGINX",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category nginx (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/nixos",
+      "legacy_name": "NixOS",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category nixos (legacy bytes unavailable)",
+      "compared_predicates": 12,
+      "best_semantically_covered_predicates": 12,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/nodesource",
+      "legacy_name": "NodeSource",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/npmjs",
+      "legacy_name": "npm",
+      "status": "merge",
+      "targets": [
+        "category/development",
+        "category/packages"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category npmjs (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/openwrt",
+      "legacy_name": "OpenWrt",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category openwrt (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/packagist",
+      "legacy_name": "Packagist",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/perl",
+      "legacy_name": "Perl",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category perl (legacy bytes unavailable)",
+      "compared_predicates": 5,
+      "best_semantically_covered_predicates": 5,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/php",
+      "legacy_name": "PHP",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/postgresql",
+      "legacy_name": "PostgreSQL",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/postman",
+      "legacy_name": "Postman",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/python",
+      "legacy_name": "Python / PyPI",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category python (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/qt",
+      "legacy_name": "Qt",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category qt (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/quay",
+      "legacy_name": "Quay",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/readthedocs",
+      "legacy_name": "Read the Docs",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category readthedocs (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/redhat",
+      "legacy_name": "Red Hat",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category redhat (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/redis",
+      "legacy_name": "Redis",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category redis (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/ruby",
+      "legacy_name": "Ruby",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category ruby (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/rust",
+      "legacy_name": "Rust / Cargo",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category rust (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/scala",
+      "legacy_name": "Scala",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category scala (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/scoop",
+      "legacy_name": "Scoop",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/sourcehut",
+      "legacy_name": "SourceHut",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category sourcehut (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/sqlite",
+      "legacy_name": "SQLite",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/stackexchange",
+      "legacy_name": "Stack Exchange / Stack Overflow",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category stackexchange (legacy bytes unavailable)",
+      "compared_predicates": 25,
+      "best_semantically_covered_predicates": 25,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/termux",
+      "legacy_name": "Termux",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category termux (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/thelinuxfoundation",
+      "legacy_name": "Linux Foundation",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category thelinuxfoundation (legacy bytes unavailable)",
+      "compared_predicates": 16,
+      "best_semantically_covered_predicates": 16,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/unity",
+      "legacy_name": "Unity",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category unity (legacy bytes unavailable)",
+      "compared_predicates": 10,
+      "best_semantically_covered_predicates": 10,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/unpkg",
+      "legacy_name": "unpkg",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/yarn",
+      "legacy_name": "Yarn",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/zig",
+      "legacy_name": "Zig",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/blizzard",
+      "legacy_name": "Battle.net / Blizzard",
+      "status": "merge",
+      "targets": [
+        "service/battle-net"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/bohemia",
+      "legacy_name": "Bohemia",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category bohemia (legacy bytes unavailable)",
+      "compared_predicates": 9,
+      "best_semantically_covered_predicates": 9,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/curseforge",
+      "legacy_name": "CurseForge",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category curseforge (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/cygames",
+      "legacy_name": "Cygames",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category cygames (legacy bytes unavailable)",
+      "compared_predicates": 5,
+      "best_semantically_covered_predicates": 5,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/ea",
+      "legacy_name": "EA",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category ea (legacy bytes unavailable)",
+      "compared_predicates": 165,
+      "best_semantically_covered_predicates": 165,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/epicgames",
+      "legacy_name": "Epic Games",
+      "status": "merge",
+      "targets": [
+        "service/epic-games"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/faceit",
+      "legacy_name": "Faceit",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category faceit (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/gaijin",
+      "legacy_name": "Gaijin",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category gaijin (legacy bytes unavailable)",
+      "compared_predicates": 13,
+      "best_semantically_covered_predicates": 13,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/gamesplanet",
+      "legacy_name": "Gamesplanet",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category gamesplanet (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/garena",
+      "legacy_name": "Garena",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category garena (legacy bytes unavailable)",
+      "compared_predicates": 16,
+      "best_semantically_covered_predicates": 16,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/gog",
+      "legacy_name": "GOG",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category gog (legacy bytes unavailable)",
+      "compared_predicates": 7,
+      "best_semantically_covered_predicates": 7,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/humblebundle",
+      "legacy_name": "Humble Bundle",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category humblebundle (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/itchio",
+      "legacy_name": "itch.io",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category itchio (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/konami",
+      "legacy_name": "Konami",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category konami (legacy bytes unavailable)",
+      "compared_predicates": 19,
+      "best_semantically_covered_predicates": 19,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/mihoyo",
+      "legacy_name": "HoYoverse 国际",
+      "status": "merge",
+      "targets": [
+        "region/cn"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category mihoyo (legacy bytes unavailable)",
+      "compared_predicates": 25,
+      "best_semantically_covered_predicates": 16,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/modrinth",
+      "legacy_name": "Modrinth",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category modrinth (legacy bytes unavailable)",
+      "compared_predicates": 1,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/nexon",
+      "legacy_name": "Nexon",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category nexon (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/nexusmods",
+      "legacy_name": "Nexus Mods",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category nexusmods (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/nintendo",
+      "legacy_name": "Nintendo",
+      "status": "merge",
+      "targets": [
+        "service/nintendo"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/osu",
+      "legacy_name": "osu!",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category osu (legacy bytes unavailable)",
+      "compared_predicates": 9,
+      "best_semantically_covered_predicates": 9,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/playstation",
+      "legacy_name": "PlayStation",
+      "status": "merge",
+      "targets": [
+        "service/playstation"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/pubg",
+      "legacy_name": "PUBG",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category pubg (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/riot",
+      "legacy_name": "Riot",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category riot (legacy bytes unavailable)",
+      "compared_predicates": 52,
+      "best_semantically_covered_predicates": 52,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/roblox",
+      "legacy_name": "Roblox",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category roblox (legacy bytes unavailable)",
+      "compared_predicates": 51,
+      "best_semantically_covered_predicates": 51,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/steam",
+      "legacy_name": "Steam",
+      "status": "merge",
+      "targets": [
+        "service/steam"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/supercell",
+      "legacy_name": "Supercell",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category supercell (legacy bytes unavailable)",
+      "compared_predicates": 23,
+      "best_semantically_covered_predicates": 23,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/take-two",
+      "legacy_name": "Take-Two / Rockstar",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category take-two (legacy bytes unavailable)",
+      "compared_predicates": 17,
+      "best_semantically_covered_predicates": 17,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/ubisoft",
+      "legacy_name": "Ubisoft",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category ubisoft (legacy bytes unavailable)",
+      "compared_predicates": 31,
+      "best_semantically_covered_predicates": 31,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/vrchat",
+      "legacy_name": "VRChat",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category vrchat (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/wargaming",
+      "legacy_name": "Wargaming",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category wargaming (legacy bytes unavailable)",
+      "compared_predicates": 12,
+      "best_semantically_covered_predicates": 12,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/wbgames",
+      "legacy_name": "Warner Bros. Games",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category wbgames (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/xbox",
+      "legacy_name": "Xbox",
+      "status": "merge",
+      "targets": [
+        "service/xbox"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/yostar",
+      "legacy_name": "Yostar",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category yostar (legacy bytes unavailable)",
+      "compared_predicates": 8,
+      "best_semantically_covered_predicates": 8,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/acm",
+      "legacy_name": "ACM",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/airbnb",
+      "legacy_name": "Airbnb",
+      "status": "merge",
+      "targets": [
+        "category/shopping"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category airbnb (legacy bytes unavailable)",
+      "compared_predicates": 83,
+      "best_semantically_covered_predicates": 83,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/amazon",
+      "legacy_name": "Amazon 生态（含 AWS）",
+      "status": "retain",
+      "targets": [
+        "provider/amazon"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "provider/archive",
+      "legacy_name": "Internet Archive",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/arxiv",
+      "legacy_name": "arXiv",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/booking",
+      "legacy_name": "Booking",
+      "status": "merge",
+      "targets": [
+        "category/shopping"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category booking (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/coursera",
+      "legacy_name": "Coursera",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category coursera (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/duckduckgo",
+      "legacy_name": "DuckDuckGo",
+      "status": "merge",
+      "targets": [
+        "category/search"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category duckduckgo (legacy bytes unavailable)",
+      "compared_predicates": 44,
+      "best_semantically_covered_predicates": 44,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/duolingo",
+      "legacy_name": "Duolingo",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category duolingo (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/ebay",
+      "legacy_name": "eBay",
+      "status": "merge",
+      "targets": [
+        "category/shopping"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category ebay (legacy bytes unavailable)",
+      "compared_predicates": 326,
+      "best_semantically_covered_predicates": 326,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/edx",
+      "legacy_name": "edX",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category edx (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/elsevier",
+      "legacy_name": "Elsevier",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category elsevier (legacy bytes unavailable)",
+      "compared_predicates": 14,
+      "best_semantically_covered_predicates": 14,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/google-scholar",
+      "legacy_name": "Google Scholar",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category google-scholar (legacy bytes unavailable)",
+      "compared_predicates": 76,
+      "best_semantically_covered_predicates": 76,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/ieee",
+      "legacy_name": "IEEE",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category ieee (legacy bytes unavailable)",
+      "compared_predicates": 54,
+      "best_semantically_covered_predicates": 54,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/mastercard",
+      "legacy_name": "Mastercard",
+      "status": "merge",
+      "targets": [
+        "category/finance"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category mastercard (legacy bytes unavailable)",
+      "compared_predicates": 178,
+      "best_semantically_covered_predicates": 178,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/oreilly",
+      "legacy_name": "O'Reilly",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/paypal",
+      "legacy_name": "PayPal",
+      "status": "merge",
+      "targets": [
+        "category/finance"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category paypal (legacy bytes unavailable)",
+      "compared_predicates": 233,
+      "best_semantically_covered_predicates": 233,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/rakuten",
+      "legacy_name": "Rakuten",
+      "status": "merge",
+      "targets": [
+        "category/shopping"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category rakuten (legacy bytes unavailable)",
+      "compared_predicates": 31,
+      "best_semantically_covered_predicates": 31,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/researchgate",
+      "legacy_name": "ResearchGate",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/shopee",
+      "legacy_name": "Shopee 国际",
+      "status": "merge",
+      "targets": [
+        "category/shopping"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category shopee (legacy bytes unavailable)",
+      "compared_predicates": 19,
+      "best_semantically_covered_predicates": 19,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/shopify",
+      "legacy_name": "Shopify",
+      "status": "merge",
+      "targets": [
+        "category/shopping"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category shopify (legacy bytes unavailable)",
+      "compared_predicates": 8,
+      "best_semantically_covered_predicates": 8,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/springer",
+      "legacy_name": "Springer Nature",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category springer (legacy bytes unavailable)",
+      "compared_predicates": 5,
+      "best_semantically_covered_predicates": 5,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/stripe",
+      "legacy_name": "Stripe",
+      "status": "merge",
+      "targets": [
+        "category/finance"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category stripe (legacy bytes unavailable)",
+      "compared_predicates": 8,
+      "best_semantically_covered_predicates": 8,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/uber",
+      "legacy_name": "Uber",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/udemy",
+      "legacy_name": "Udemy",
+      "status": "merge",
+      "targets": [
+        "category/education"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category udemy (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/visa",
+      "legacy_name": "Visa",
+      "status": "merge",
+      "targets": [
+        "category/finance"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category visa (legacy bytes unavailable)",
+      "compared_predicates": 151,
+      "best_semantically_covered_predicates": 151,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/wikimedia",
+      "legacy_name": "Wikipedia / Wikimedia",
+      "status": "merge",
+      "targets": [
+        "category/search"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category wikimedia (legacy bytes unavailable)",
+      "compared_predicates": 18,
+      "best_semantically_covered_predicates": 18,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/abema",
+      "legacy_name": "ABEMA",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/bahamut",
+      "legacy_name": "巴哈姆特动画疯",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/bandcamp",
+      "legacy_name": "Bandcamp",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category bandcamp (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/bbc",
+      "legacy_name": "BBC",
+      "status": "merge",
+      "targets": [
+        "category/media"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category bbc (legacy bytes unavailable)",
+      "compared_predicates": 27,
+      "best_semantically_covered_predicates": 27,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/bilibili-international",
+      "legacy_name": "Bilibili International",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/catchplay",
+      "legacy_name": "Catchplay",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/crunchyroll",
+      "legacy_name": "Crunchyroll",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/dailymotion",
+      "legacy_name": "Dailymotion",
+      "status": "merge",
+      "targets": [
+        "category/streaming",
+        "category/video-on-demand"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category dailymotion (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/dazn",
+      "legacy_name": "DAZN",
+      "status": "merge",
+      "targets": [
+        "category/streaming",
+        "category/video-on-demand"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category dazn (legacy bytes unavailable)",
+      "compared_predicates": 8,
+      "best_semantically_covered_predicates": 8,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/deezer",
+      "legacy_name": "Deezer",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category deezer (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/discoveryplus",
+      "legacy_name": "Discovery+",
+      "status": "merge",
+      "targets": [
+        "category/streaming",
+        "category/video-on-demand"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category discoveryplus (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/disney",
+      "legacy_name": "Disney+ / Hulu 关联服务",
+      "status": "merge",
+      "targets": [
+        "service/disney-plus"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/emby",
+      "legacy_name": "Emby",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/formula1",
+      "legacy_name": "F1",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/friday",
+      "legacy_name": "friDay",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/hamivideo",
+      "legacy_name": "Hami Video",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/hbo",
+      "legacy_name": "HBO / Max",
+      "status": "merge",
+      "targets": [
+        "service/max"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/hulujp",
+      "legacy_name": "Hulu 日本",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/imdb",
+      "legacy_name": "IMDb",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/itv",
+      "legacy_name": "ITV",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/joox",
+      "legacy_name": "JOOX",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/kick",
+      "legacy_name": "Kick",
+      "status": "merge",
+      "targets": [
+        "category/live-streaming",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category kick (legacy bytes unavailable)",
+      "compared_predicates": 1,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/kkbox",
+      "legacy_name": "KKBOX",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category kkbox (legacy bytes unavailable)",
+      "compared_predicates": 5,
+      "best_semantically_covered_predicates": 5,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/kktv",
+      "legacy_name": "KKTV",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/lastfm",
+      "legacy_name": "Last.fm",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category lastfm (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/litv",
+      "legacy_name": "LiTV",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/moov",
+      "legacy_name": "MOOV",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/mubi",
+      "legacy_name": "MUBI",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/mytvsuper",
+      "legacy_name": "myTVSUPER",
+      "status": "merge",
+      "targets": [
+        "category/media"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category mytvsuper (legacy bytes unavailable)",
+      "compared_predicates": 1,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/netflix",
+      "legacy_name": "Netflix",
+      "status": "merge",
+      "targets": [
+        "service/netflix"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/niconico",
+      "legacy_name": "Niconico",
+      "status": "merge",
+      "targets": [
+        "category/streaming",
+        "category/video-on-demand"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category niconico (legacy bytes unavailable)",
+      "compared_predicates": 9,
+      "best_semantically_covered_predicates": 9,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/now",
+      "legacy_name": "Now",
+      "status": "merge",
+      "targets": [
+        "category/media"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category now (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/overcast",
+      "legacy_name": "Overcast",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/paramountplus",
+      "legacy_name": "Paramount+",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/pbs",
+      "legacy_name": "PBS",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/peacock",
+      "legacy_name": "Peacock",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/plex",
+      "legacy_name": "Plex",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/plutotv",
+      "legacy_name": "Pluto TV",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/pocketcasts",
+      "legacy_name": "Pocket Casts",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category pocketcasts (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/primevideo",
+      "legacy_name": "Prime Video",
+      "status": "merge",
+      "targets": [
+        "service/prime-video"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/qobuz",
+      "legacy_name": "Qobuz",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/radiko",
+      "legacy_name": "Radiko",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category radiko (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/roku",
+      "legacy_name": "Roku",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/sling",
+      "legacy_name": "Sling",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/soundcloud",
+      "legacy_name": "SoundCloud",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category soundcloud (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/spotify",
+      "legacy_name": "Spotify",
+      "status": "merge",
+      "targets": [
+        "service/spotify"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/thetvdb",
+      "legacy_name": "TheTVDB",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/tidal",
+      "legacy_name": "TIDAL",
+      "status": "merge",
+      "targets": [
+        "category/audio",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category tidal (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/tiktok",
+      "legacy_name": "TikTok",
+      "status": "merge",
+      "targets": [
+        "region/cn"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category tiktok (legacy bytes unavailable)",
+      "compared_predicates": 40,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/tmdb",
+      "legacy_name": "TMDB",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/tvb",
+      "legacy_name": "TVB",
+      "status": "merge",
+      "targets": [
+        "category/media"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category tvb (legacy bytes unavailable)",
+      "compared_predicates": 13,
+      "best_semantically_covered_predicates": 13,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/tver",
+      "legacy_name": "TVer",
+      "status": "merge",
+      "targets": [
+        "category/streaming",
+        "category/video-on-demand"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category tver (legacy bytes unavailable)",
+      "compared_predicates": 5,
+      "best_semantically_covered_predicates": 5,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/twitch",
+      "legacy_name": "Twitch",
+      "status": "merge",
+      "targets": [
+        "category/live-streaming",
+        "category/streaming"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category twitch (legacy bytes unavailable)",
+      "compared_predicates": 35,
+      "best_semantically_covered_predicates": 35,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/unext",
+      "legacy_name": "U-NEXT",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/vimeo",
+      "legacy_name": "Vimeo",
+      "status": "merge",
+      "targets": [
+        "category/streaming",
+        "category/video-on-demand"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category vimeo (legacy bytes unavailable)",
+      "compared_predicates": 17,
+      "best_semantically_covered_predicates": 16,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/viu",
+      "legacy_name": "Viu",
+      "status": "merge",
+      "targets": [
+        "category/media"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category viu (legacy bytes unavailable)",
+      "compared_predicates": 7,
+      "best_semantically_covered_predicates": 1,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/viutv",
+      "legacy_name": "ViuTV",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/wetv",
+      "legacy_name": "WeTV",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/youtube",
+      "legacy_name": "YouTube",
+      "status": "merge",
+      "targets": [
+        "service/youtube"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/youtube-music",
+      "legacy_name": "YouTube Music",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/zee",
+      "legacy_name": "Zee",
+      "status": "merge",
+      "targets": [
+        "category/media"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category zee (legacy bytes unavailable)",
+      "compared_predicates": 22,
+      "best_semantically_covered_predicates": 22,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/bluesky",
+      "legacy_name": "Bluesky",
+      "status": "merge",
+      "targets": [
+        "category/social"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category bluesky (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/discord",
+      "legacy_name": "Discord",
+      "status": "merge",
+      "targets": [
+        "service/discord"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/disqus",
+      "legacy_name": "Disqus",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/facebook",
+      "legacy_name": "Facebook",
+      "status": "merge",
+      "targets": [
+        "service/facebook"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/imgur",
+      "legacy_name": "Imgur",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/instagram",
+      "legacy_name": "Instagram",
+      "status": "merge",
+      "targets": [
+        "service/instagram"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/intercom",
+      "legacy_name": "Intercom",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category intercom (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/kakao",
+      "legacy_name": "KakaoTalk",
+      "status": "retain",
+      "targets": [
+        "provider/kakao"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "provider/keybase",
+      "legacy_name": "Keybase",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category keybase (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/line",
+      "legacy_name": "LINE",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category line (legacy bytes unavailable)",
+      "compared_predicates": 20,
+      "best_semantically_covered_predicates": 20,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/linkedin",
+      "legacy_name": "LinkedIn",
+      "status": "merge",
+      "targets": [
+        "category/social"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category linkedin (legacy bytes unavailable)",
+      "compared_predicates": 10,
+      "best_semantically_covered_predicates": 9,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/mailcom",
+      "legacy_name": "Mail.com",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category mailcom (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/mastodon",
+      "legacy_name": "Mastodon",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/matrix",
+      "legacy_name": "Matrix",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category matrix (legacy bytes unavailable)",
+      "compared_predicates": 9,
+      "best_semantically_covered_predicates": 9,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/messenger",
+      "legacy_name": "Messenger",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category messenger (legacy bytes unavailable)",
+      "compared_predicates": 4,
+      "best_semantically_covered_predicates": 4,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/misskey",
+      "legacy_name": "Misskey",
+      "status": "merge",
+      "targets": [
+        "category/social"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category misskey (legacy bytes unavailable)",
+      "compared_predicates": 34,
+      "best_semantically_covered_predicates": 34,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/patreon",
+      "legacy_name": "Patreon",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/pinterest",
+      "legacy_name": "Pinterest",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/pixiv",
+      "legacy_name": "Pixiv",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/protonmail",
+      "legacy_name": "Proton Mail",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category protonmail (legacy bytes unavailable)",
+      "compared_predicates": 9,
+      "best_semantically_covered_predicates": 9,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/quora",
+      "legacy_name": "Quora",
+      "status": "merge",
+      "targets": [
+        "category/ai"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category quora (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "partial"
+    },
+    {
+      "legacy_id": "provider/reddit",
+      "legacy_name": "Reddit",
+      "status": "merge",
+      "targets": [
+        "service/reddit"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/signal",
+      "legacy_name": "Signal",
+      "status": "merge",
+      "targets": [
+        "service/signal"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/slack",
+      "legacy_name": "Slack",
+      "status": "merge",
+      "targets": [
+        "service/slack"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/snap",
+      "legacy_name": "Snapchat",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/teamspeak",
+      "legacy_name": "TeamSpeak",
+      "status": "merge",
+      "targets": [
+        "category/messaging"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category teamspeak (legacy bytes unavailable)",
+      "compared_predicates": 3,
+      "best_semantically_covered_predicates": 3,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/telegram",
+      "legacy_name": "Telegram",
+      "status": "merge",
+      "targets": [
+        "service/telegram"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/threads",
+      "legacy_name": "Threads",
+      "status": "merge",
+      "targets": [
+        "category/social"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category threads (legacy bytes unavailable)",
+      "compared_predicates": 2,
+      "best_semantically_covered_predicates": 2,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/tumblr",
+      "legacy_name": "Tumblr",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "provider/twitter",
+      "legacy_name": "X / Twitter",
+      "status": "merge",
+      "targets": [
+        "service/x"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/viber",
+      "legacy_name": "Viber",
+      "status": "merge",
+      "targets": [
+        "category/messaging",
+        "category/shopping"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category viber (legacy bytes unavailable)",
+      "compared_predicates": 6,
+      "best_semantically_covered_predicates": 6,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/vk",
+      "legacy_name": "VK",
+      "status": "retain",
+      "targets": [
+        "provider/vk"
+      ],
+      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+    },
+    {
+      "legacy_id": "provider/webex",
+      "legacy_name": "Webex",
+      "status": "merge",
+      "targets": [
+        "category/conferencing"
+      ],
+      "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
+      "comparison_source": "current frozen DLC category webex (legacy bytes unavailable)",
+      "compared_predicates": 15,
+      "best_semantically_covered_predicates": 15,
+      "coverage": "complete-for-compared-candidates"
+    },
+    {
+      "legacy_id": "provider/whatsapp",
+      "legacy_name": "WhatsApp",
+      "status": "merge",
+      "targets": [
+        "service/whatsapp"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "provider/zoom",
+      "legacy_name": "Zoom",
+      "status": "merge",
+      "targets": [
+        "service/zoom"
+      ],
+      "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
+    },
+    {
+      "legacy_id": "special/ads",
+      "legacy_name": "广告域名",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Ad blocking is outside this routing/product-identity catalogue; no ad-filter recovery by bulk union."
+    },
+    {
+      "legacy_id": "special/apns",
+      "legacy_name": "Apple APNs",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "special/connectivity",
+      "legacy_name": "门户与联网检测",
+      "status": "merge",
+      "targets": [
+        "special/connectivity"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/downloads",
+      "legacy_name": "软件与内容下载",
+      "status": "merge",
+      "targets": [
+        "category/development"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/encrypted-dns",
+      "legacy_name": "加密 DNS 端点",
+      "status": "merge",
+      "targets": [
+        "special/public-dns"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/fcm",
+      "legacy_name": "Google FCM",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "special/game-downloads",
+      "legacy_name": "游戏平台下载",
+      "status": "merge",
+      "targets": [
+        "category/gaming"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/hijacking",
+      "legacy_name": "已知劫持端点",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Potential security blocklist has a different validation contract and is not silently treated as route identity."
+    },
+    {
+      "legacy_id": "special/httpdns-cn",
+      "legacy_name": "中国大陆 HTTPDNS",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Mainland service entries belong to the single CN collection, no additional CN side collection."
+    },
+    {
+      "legacy_id": "special/lan",
+      "legacy_name": "局域网",
+      "status": "merge",
+      "targets": [
+        "special/lan"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/ntp",
+      "legacy_name": "网络授时",
+      "status": "merge",
+      "targets": [
+        "special/ntp"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/pki",
+      "legacy_name": "Apple/Microsoft 证书验证端点",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "special/private-relay",
+      "legacy_name": "iCloud Private Relay",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "special/private-trackers",
+      "legacy_name": "PT 站点",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "A tracker registry is not a reliable service-ownership assertion; no autonomous blanket restoration."
+    },
+    {
+      "legacy_id": "special/public-trackers",
+      "legacy_name": "公开 BT Tracker",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "A tracker registry is not a reliable service-ownership assertion; no autonomous blanket restoration."
+    },
+    {
+      "legacy_id": "special/speedtest",
+      "legacy_name": "测速服务",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "special/steam-cn-downloads",
+      "legacy_name": "Steam 大陆下载",
+      "status": "merge",
+      "targets": [
+        "region/cn"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/stun",
+      "legacy_name": "STUN 发现端点",
+      "status": "merge",
+      "targets": [
+        "special/stun-turn"
+      ],
+      "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
+    },
+    {
+      "legacy_id": "special/telemetry",
+      "legacy_name": "遥测与跟踪",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "Telemetry suppression is not a service or route identity; broad telemetry collection intentionally retired."
+    },
+    {
+      "legacy_id": "special/wns",
+      "legacy_name": "Windows WNS",
+      "status": "gap",
+      "targets": [],
+      "reason": "No sufficiently scoped product/source mapping established; not emitted as an empty collection."
+    },
+    {
+      "legacy_id": "special/anycast",
+      "legacy_name": "Anycast（高置信度范围）",
+      "status": "deprecate",
+      "targets": [],
+      "reason": "A dedicated Anycast product requires actual address-usage evidence; BGP/ASN/geography disagreement alone is not proof."
+    }
+  ]
+}

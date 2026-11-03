@@ -95,6 +95,8 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     registry = json.loads((config_dir / "regions.json").read_text())
     products = json.loads((config_dir / "products.json").read_text())
     quality = json.loads((config_dir / "quality.json").read_text())
+    special_path = config_dir / "special.json"
+    special_config = json.loads(special_path.read_text()) if special_path.is_file() else None
     output = Path(output)
     if output.exists() and any(output.iterdir()):
         raise ValueError("candidate directory must be empty; never overwrite a version")
@@ -125,6 +127,11 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
                          minimum_prefix_lengths={4: floors["ipv4"], 6: floors["ipv6"]})
     mark("asn")
     domains, domain_report = build_domains([s for s in usable if s.get("role") in {"domains", "domain"}], products)
+    if special_config is not None:
+        from .special import build_special
+        special_groups, special_report = build_special(usable, special_config)
+        domains.update(special_groups)
+        write_json(reports / "special.json", special_report)
     mark("domains")
     groups = country["groups"]
     for region in registry["regions"]:
@@ -146,8 +153,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     write_json(reports / "sources.json", {"used": [stable_source(s) for s in usable], "unavailable_or_withheld": skipped,
                                            "independence": "lineage grouping prevents known duplication; statistical independence is not claimed"})
     # Auxiliary references are audited separately: routing and registries never vote as location truth.
-    auxiliary_sources = [s for s in usable if s not in country_sources and s not in routing_sources
-                         and s.get("role") not in {"domains", "domain"}]
+    auxiliary_sources = [s for s in usable if s.get("role") in {"rir", "geofeed", "cn-reference", "ru-reference"}]
     by_id = {s["id"]: s for s in usable}
     for view in products.get("auxiliary_views", []):
         parent = by_id.get(view["source"])
@@ -186,13 +192,15 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
                                      "The publisher exports rules, ARDB files, registry, manifest and attribution at the release root.\n"
                                      "Build diagnostics stay in Actions artifacts, not the release branch.\n"
                                      "Pin downloads to one release commit and verify manifest lengths and SHA-256.\n", encoding="utf-8")
-    manifest = finalize_candidate(output, snapshot, registry, products, quality, summary, baseline=baseline)
+    manifest = finalize_candidate(output, snapshot, registry, products, quality, summary,
+                                  baseline=baseline, special_config=special_config)
     mark("manifest-and-validation")
     return manifest
 
 
 def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: dict,
-                       quality: dict, summary: dict, *, baseline: Path | None = None) -> dict:
+                       quality: dict, summary: dict, *, baseline: Path | None = None,
+                       special_config: dict | None = None) -> dict:
     """Bind already computed batch outputs, then validate their exact bytes."""
     output = Path(output)
     stable_inputs = sorted([stable_source(s) for s in snapshot["sources"]], key=lambda s: s["id"])
@@ -201,18 +209,46 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
              for p in sorted(output.rglob("*")) if p.is_file() and p != output / "manifest.json"]
     public_files = [r for r in files if not r["path"].startswith("reports/") and r["path"] != "README.md"]
     identity = {"generator": __version__, "inputs": stable_inputs, "registry": registry,
-                "products": products, "quality": quality, "files": public_files}
+                "products": products, "special": special_config, "quality": quality, "files": public_files}
     version = hashlib.sha256(canonical(identity)).hexdigest()[:24]
     from .coverage import profiles
     from .validation import parse_list
     domain_groups = {p.relative_to(output).as_posix()[:-5]: parse_list(p) for p in output.rglob("*.list")}
     domain_health_path = output / "reports/domains.json"
     domain_health = json.loads(domain_health_path.read_text()) if domain_health_path.is_file() else {}
+    catalogue = {}
+    geo_sources = sorted(s["id"] for s in snapshot["sources"] if s.get("role") in {"country", "geo"}
+                         and s.get("status") == "available" and s.get("publish_allowed") is not False)
+    for region in registry["regions"]:
+        catalogue["region/" + region["key"]] = {
+            "name": region["name"], "kind": "region", "required_output": bool(quality.get("per_product", {}).get("minimum_addresses", {}).get("region/" + region["key"])),
+            "purpose": "Cleaned macroregion IP coverage; any domain membership is explicit service identity, not server location.",
+            "content_types": ["domain", "ipv4", "ipv6"], "includes": [],
+            "source_ids": geo_sources, "ip_source_ids": geo_sources, "domain_source_ids": [],
+            "domain_gap": "No justified regional domain selector configured"}
+    for group in products["groups"]:
+        name = group["id"]
+        catalogue[name] = {**catalogue.get(name, {}),
+            "name": group.get("name", catalogue.get(name, {}).get("name", name)),
+            "kind": group.get("kind", name.partition("/")[0]),
+            "purpose": group.get("purpose", group.get("description", group.get("routing_value", group.get("domain_semantics", "Curated service identity membership")))),
+            "content_types": group.get("content_types", ["domain", "ipv4", "ipv6"]),
+            "required_output": group.get("required_output", False),
+            "includes": group.get("includes", []),
+            "source_ids": sorted(set(domain_health.get("groups", {}).get(name, {}).get("source_support_rules", {}))
+                                 | set(catalogue.get(name, {}).get("ip_source_ids", []))),
+            "domain_source_ids": sorted(domain_health.get("groups", {}).get(name, {}).get("source_support_rules", {})),
+            "declared_source_ids": sorted({s["source"] for s in group.get("selectors", [])}),
+            "domain_gap": None if group.get("selectors") or group.get("includes") else "No justified regional domain source"}
+    special_path = output / "reports/special.json"
+    special_health = json.loads(special_path.read_text()) if special_path.is_file() else {}
+    catalogue.update(special_health.get("catalogue", {}))
     manifest = {"schema": 1, "format_version": 1, "version": version, "data_version": version,
                 "generator_version": __version__, "geo_registry_version": registry["version"],
                 "files": files, "source_snapshot": stable_inputs, "summary": summary,
                 "product_coverage": profiles(domain_groups),
-                "selector_health": domain_health.get("selectors", []),
+                "product_catalogue": catalogue,
+                "selector_health": domain_health.get("selectors", []) + special_health.get("selector_health", []),
                 "selector_failures": domain_health.get("unavailable_selectors", []),
                 "regional_domain_semantics": {g["id"]: g["domain_semantics"] for g in products["groups"]
                                               if g["id"].startswith("region/") and g.get("domain_semantics")}}

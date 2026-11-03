@@ -36,10 +36,12 @@ python3.12 -m airroute_data validate .build/candidate
 公开数据包含：
 
 - `region/*.list`：16 个版本化大区；中国大陆只有 **`region/cn.list`** 一个公开集合，先域名再 IP。俄罗斯、东北亚、港澳、欧洲、西亚按显式本地服务/机构清单补充域名；这些域名不表示服务器物理位置。
-- `provider/*.list`、`service/*.list`、`category/*.list`：少量有独立价值的服务及类别；大陆服务与海外集合保守排除。
+- `provider/*.list`、`service/*.list`、`category/*.list`：12 个服务商、38 个独立服务、21 个用途类别和保留的流媒体聚合视图。独立服务通过配置同时包含于对应类别，类别间允许合理重叠；大陆服务与海外集合保守排除。
+- `special/lan.list`：RFC1918、IPv6 ULA、环回、链路本地及标准本地名称。共享地址、组播、广播、文档、基准测试、NAT64 各自单列，不能因“特殊”而全当 LAN；198.18.0.0/15 不在 LAN 中。其他 `special/*.list` 描述连通检测、NTP、STUN/TURN、更新和公共 DNS 端点，均不内置出口动作。
+- `dns/realip.list`：保守的 DNS 返回真实地址例外；`dns/realip-optional.list` 是精确主机的可选兼容扩展。**不是路由集合，不表示直连，不指定解析器**。现有客户端还没有这一名单的专用订阅导入能力，生成后不会自动生效，最小对接见 [LAN 与 Real IP](docs/SPECIAL.md)。
 - `geo.ardb`、`asn.ardb`：ARDB v1 的未压缩随机读取文件。地区 `.list` 和 Geo 文件来自同一份清洗结果；ASN 多起源允许跨组重复。
 - `regions.json`：稳定数值 ID 与大区映射。俄罗斯为独立分组，不重复进入欧洲和亚洲。
-- `manifest.json`：同一数据版本、格式/注册表版本、逐文件长度和 SHA-256。
+- `manifest.json`：同一数据版本、格式/注册表版本、逐文件长度和 SHA-256，以及每个产品的用途、内容类型、来源与包含关系。
 - `ATTRIBUTION.md`：输入版本与来源署名。原始供应商库和凭据不进入公开产物。
 
 完整候选另含 `reports/` 审计报告与构建说明，只保留在本地或 Actions artifact，**不进入 release 分支**。
@@ -68,6 +70,8 @@ region/*.list
 provider/*.list
 service/*.list
 category/*.list
+special/*.list
+dns/*.list
 ```
 
 没有 `versions/`、哈希目录、`current.json` 或运行报告。保留分类目录，直接使用稳定规则路径。manifest 绑定同版本的全部公开文件；整个文件树在同一个 Git 提交中替换。整包下载需先固定 release 的提交 SHA，再从该提交读取 manifest 和文件，防止多个请求跨版本；只使用移动分支 URL 无法保证整包一致。旧数据保留在 Git 历史，回退是正常向前提交。失败、异常覆盖变化、过期源码、旧发布序号或分支竞争不能覆盖成功版本；内容相同不提交。普通非 force push，超时按已保存提交 SHA 对账。
@@ -96,3 +100,5 @@ AIRROUTE_CORE_IP_DATA=/path/to/AirRoute/crates/ip-data/src/lib.rs \
 未指定 Core 源码时，该跨仓库测试明确跳过；普通 Python 格式测试继续运行。已验证的文件读写不代表客户端安装层已接入这份大区注册表、manifest 和原子切换；该边界仍须在客户端另行验证。本仓库不修改客户端或 Core。
 
 实际验证范围与缺源见 [验证记录](docs/VALIDATION.md)。
+
+当前目录扩展的逐项结果、语义覆盖前后比较、旧目录归并及仍未接入客户端的部分见 [最新覆盖验收](docs/COVERAGE.md)。当前验收候选保存在本地；未触发新版 Actions 或更新远端 release。

@@ -46,13 +46,15 @@ class PublicationTests(unittest.TestCase):
         path = self.root / ("candidate-" + version)
         path.mkdir(exist_ok=True)
         from airroute_data.ardb import write_database
-        write_database(path / "geo.ardb", "geo", {1: ["192.0.2.0/24"]}, allowed_geo_ids=[1])
-        write_database(path / "asn.ardb", "asn", {64500: ["192.0.2.0/24"]})
+        # Synthetic geography uses public scope; documentation ranges are
+        # valid ARDB wire examples but cannot be published as location data.
+        write_database(path / "geo.ardb", "geo", {1: ["1.0.1.0/24"]}, allowed_geo_ids=[1])
+        write_database(path / "asn.ardb", "asn", {64500: ["1.0.1.0/24"]})
         (path / "regions.json").write_text(json.dumps({"version": "fixture", "regions": [
             {"id": 1, "key": "cn", "countries": ["CN"]}]}))
         (path / "region").mkdir(exist_ok=True)
         domain = hashlib.sha256(value).hexdigest()[:16] + ".example"
-        (path / "region" / "cn.list").write_text("DOMAIN-SUFFIX," + domain + "\nIP-CIDR,192.0.2.0/24\n")
+        (path / "region" / "cn.list").write_text("DOMAIN-SUFFIX," + domain + "\nIP-CIDR,1.0.1.0/24\n")
         files = []
         for name in ["geo.ardb", "asn.ardb", "regions.json", "region/cn.list"]:
             data = (path / name).read_bytes()
@@ -302,7 +304,7 @@ class PublicationTests(unittest.TestCase):
     def test_direct_publish_validates_semantics_even_when_hashes_are_consistent(self):
         candidate = self.candidate()
         path = candidate / "region" / "cn.list"
-        path.write_text("USER-AGENT,unsupported\nIP-CIDR,192.0.2.0/24\n")
+        path.write_text("USER-AGENT,unsupported\nIP-CIDR,1.0.1.0/24\n")
         manifest = json.loads((candidate / "manifest.json").read_text())
         for record in manifest["files"]:
             if record["path"] == "region/cn.list":

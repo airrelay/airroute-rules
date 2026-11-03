@@ -16,9 +16,11 @@ region/*.list
 provider/*.list
 service/*.list
 category/*.list
+special/*.list
+dns/*.list
 ```
 
-平铺到分支根目录，不再有 `versions/<hash>/`、`current.json`、生成的 README、运行日志或审计报告。地区、服务商、服务和类别目录是规则产品分类，不是版本层级。发布器以封闭白名单导出，重建整个发布树；已经下线的文件也会删除，不因增量复制残留。
+平铺到分支根目录，不再有 `versions/<hash>/`、`current.json`、生成的 README、运行日志或审计报告。地区、服务商、服务、类别、特殊用途及 DNS 名单目录是产品分类，不是版本层级；`dns/*.list` 不得被客户端误装为路由订阅。发布器以封闭白名单导出，重建整个发布树；已经下线的文件也会删除，不因增量复制残留。manifest 的 `product_catalogue` 标记用途、来源、内容类型、可选性与包含关系，客户端旧内置目录不会因此自动更新。
 
 `manifest.json` 记录数据版本、格式/大区注册表版本、来源版本与公开文件摘要；`regions.json` 解释 Geo 的数值 ID；`ATTRIBUTION.md` 保留上游许可要求的署名。这三份是数据配套文件。完整争议明细、辅助对照和解析诊断留在本地候选及 Actions artifact，不进入 release。来源原始数据库、凭据及缓存不发布。
 

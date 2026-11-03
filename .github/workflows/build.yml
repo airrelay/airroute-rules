@@ -73,6 +73,7 @@ jobs:
             .build/candidate/reports/domains.json
             .build/candidate/reports/sources.json
             .build/candidate/reports/auxiliary.json
+            .build/candidate/reports/special.json
           if-no-files-found: ignore
           retention-days: 7
       # Raw source archives and account-gated vendor databases are deliberately

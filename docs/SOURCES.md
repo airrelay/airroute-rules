@@ -12,7 +12,7 @@
 | [IP2Location LITE DB1](https://lite.ip2location.com/database/db1-ip-country) | IPv4/IPv6两份CSV ZIP，十进制起止地址 | 免费账户及 `IP2LOCATION_TOKEN`；LITE下载已迁至IP2Location.com。当前DB1页显示半月更新，FAQ/下载器仍建议每月首周随机一天下载，以实际载体为准 | `ip_from,ip_to,country_code,country_name` 为国家位置估计；IPv6按128位解释，不能按数值大小猜族。免费署名/share-alike条款；无凭据明确缺源 |
 | [IPLocate Country](https://github.com/iplocate/ip-address-databases) | 官方Country CSV ZIP，双栈；固定commit的LFS media原文件 | 无账户/令牌，无逐IP API；每日发布链 | `network,continent_code,country_code,country_name` 是国家位置估计；不能替换成ASN-holder country。CC BY-SA4.0，随产物署名 |
 
-免费不代表没有分发条件。[GeoLite EULA](https://www.maxmind.com/en/geolite/eula) 和[适用义务说明](https://support.maxmind.com/knowledge-base/articles/who-is-covered-by-the-geolite-end-user-license-agreement) 要求维护更新、删除旧版本，并向再分发使用者传递相应义务。当前长期保存不可变release的策略不自动满足这些义务，因此MaxMind默认 `publish_allowed=false`：可获取/分析，不参与公开Geo派生。不是仅增加一行署名就宣称解决。未来调整需要同时解决保留期限与使用条款；不绕过或购买额外许可。
+免费不代表没有分发条件。[GeoLite EULA](https://www.maxmind.com/en/geolite/eula) 和[适用义务说明](https://support.maxmind.com/knowledge-base/articles/who-is-covered-by-the-geolite-end-user-license-agreement) 要求维护更新、删除旧版本，并向再分发使用者传递相应义务。当前 release 分支虽然平铺文件，但 Git 历史仍保留旧派生数据，不自动满足这些义务，因此 MaxMind 默认 `publish_allowed=false`：可获取/分析，不参与公开 Geo 派生。不是仅增加一行署名就宣称解决。未来调整需要同时解决保留期限与使用条款；不绕过或购买额外许可。
 
 [IP2Location官方下载器](https://www.ip2location.com/free/downloader)定义现行端点、令牌与HTTPS重定向。实际download code如发生变更应修订配置，不能猜测或绕过登录权限。官方免费频率要求优先于本项目计划。
 
@@ -32,7 +32,7 @@
 
 | 来源 | 核验的血缘及维护 | 本项目用途 |
 | --- | --- | --- |
-| [17mon/china_ip_list](https://github.com/17mon/china_ip_list) | IPIP.NET；README明示通常季度更新、包括WHOIS但未宣告地址、骨干网可模糊化；CC BY-NC-SA4.0 | 内部覆盖/冲突审计，默认不进入公开派生，不简单并入大陆 |
+| [17mon/china_ip_list](https://github.com/17mon/china_ip_list) | IPIP.NET；README明示通常季度更新、包括WHOIS但未宣告地址、骨干网可模糊化；CC BY-NC-SA4.0 | 下载留存状态和血缘，`publish_allowed=false`；当前不进入公开派生，也不进入辅助覆盖计算。不能把“已下载”说成“已经用于融合/核查” |
 | [misakaio/chnroutes2](https://github.com/misakaio/chnroutes2) | 每小时更新，feed含AS917、AS906、AS131477、AS138195等；CC BY-SA | CN路由背景而非位置真值，单项目及格式只算一个血缘 |
 | [gaoyifan/china-operator-ip](https://github.com/gaoyifan/china-operator-ip) | 运营商ASN/BGP分类，`ip-lists`生成分支含 `china.txt`、`china6.txt`，代码MIT | 双栈运营商路由覆盖比较，同一生成链不拆票 |
 | [blackmatrix7 China/ChinaMax](https://github.com/blackmatrix7/ios_rule_script) | 选择Surge原始列表；ChinaMax_Domain实际路径 `rule/Surge/ChinaMax/ChinaMax_Domain.list` | 域名身份及IP来源参考，不把ChinaMax扩展当位置证明，不按格式镜像加票 |
@@ -66,4 +66,14 @@ RU从当轮可用全球位置估计提取，结合RIPE登记、RIS/RouteViews/ge
 - [runetfreedom/russia-domains-list](https://github.com/runetfreedom/russia-domains-list)的可访问范围信息不等于服务器位置或服务身份，且所核页面未给出可直接用于本项目公开派生的清晰许可；未并入。被封锁清单更不能当俄罗斯服务清单。
 - [dnsmasq-china-list](https://github.com/felixonmars/dnsmasq-china-list)的加速名单可能仅凭NS位于大陆或国内DNS响应进入；这个条件不足以给其所有域名确定服务身份，因此没有作为独立CN票数或对ChinaMax无条件背书。
 
-Sukka AI/stream、blackmatrix和ACL4SSR已实际解析到选择器，但补充准入受明确身份目录约束；相同内容、格式、镜像、可能的共同上游不重复计证。未知血缘如实保留风险说明，不编造逐行上游关系。五家地域来源的账号与许可条件未因新增官方服务目录而改变；仍不能把两个真实国家库说成五源。
+Sukka AI/stream、blackmatrix和ACL4SSR实际解析到选择器；宽泛聚合清单按明确身份目录审查，具名服务主来源按对应服务归属和共享基础设施约束准入，不再将全部新增条目一律视为 reference-only。相同内容、格式、镜像、可能的共同上游不重复计证。未知血缘如实保留风险说明，不编造逐行上游关系。五家地域来源的账号与许可条件未因新增官方服务目录而改变；仍不能把两个真实国家库说成五源。
+
+## 产品目录、LAN 与 Real IP 来源核查
+
+- blackmatrix7 选择固定 commit 的具名 Surge 服务文件，覆盖 Google Drive、OneDrive、Teams、Claude、Gemini、GitHub/GitLab、Docker、Notion、通信、流媒体和游戏服务；它们是对应服务候选，不授予云客户、共享 CDN 或整个 ASN 服务身份。Microsoft 365 仍优先官方端点 JSON；没有同名第三方文件不猜路径。
+- ACL4SSR 补充 Claude、Gemini、GoogleFCM、Microsoft、Steam、Telegram 与局域网文本；它和 DLC/blackmatrix 可能共享原料，不因发行者增加而成为多票。Sukka 继续使用已核实的 AI 与 stream 生成文本，广泛媒体根域只在已有服务身份范围内使用。
+- [IANA IPv4 特殊用途注册表](https://www.iana.org/assignments/iana-ipv4-special-registry/)和[IPv6 注册表](https://www.iana.org/assignments/iana-ipv6-special-registry/)下载 CSV，记录 RFC 引用和地址语义，供 LAN/特殊集合一致性核对。IANA 特殊用途并不等于 LAN：共享地址、组播、文档、基准测试、转换及协议专用空间分别处理，不默认 DIRECT。
+- LAN 参考 DLC `private`、blackmatrix `rule/Surge/Lan/Lan.list`、ACL `Clash/LocalAreaNetwork.list` 和 [MetaCubeX 生成的 Mihomo private.yaml](https://github.com/MetaCubeX/meta-rules-dat/blob/meta/geo/geosite/private.yaml)。后者包含公网路由器/控制面板名称；“出现在 private 列表”不足以让整个平台变成本地名称。这些是衍生参考，不是四份独立投票。
+- [DustinWin fakeip-filter](https://github.com/DustinWin/ruleset_geodata/blob/mihomo-ruleset/fakeip-filter.list)实际发布在 `mihomo-ruleset` 分支。其[项目 README](https://github.com/DustinWin/ruleset_geodata)将来源追溯至 DLC `category-ntp`、`category-stun` 以及 [ShellCrash 自定义名单](https://github.com/DustinWin/ShellCrash/blob/dev/public/fake_ip_filter.list)。选取可表达的域名语义并逐项说明兼容原因，不能把其中的 `*`、宽泛平台后缀和任意时间通配全部纳入默认 Real IP。输出是 DNS 地址模式输入，不是解析器选择或流量出口。
+
+核查基线为 2026-11-03 release 数据版本 `ecd4792280df834aa809bd55`：28 个普通规则文件、17,589 条跨集合域名规则（有重叠，不是唯一域名数），国家库实际只有 DB-IP 与 IPLocate 两条血缘；MaxMind、IPinfo、IP2Location 均为 `missing-credentials`。RIS 双栈、RouteViews、IPtoASN、APNIC/RIPE 登记、misaka/gaoyifan/ChinaMax 和 Vultr geofeed 确已获取并参与各自 ASN/辅助报告；17mon 仅下载后保留未用状态。但**辅助报告并不赋予这些资料物理位置投票权**。新集合的最终条数以本轮真实构建报告为准，不以源配置条目数量宣称完成。

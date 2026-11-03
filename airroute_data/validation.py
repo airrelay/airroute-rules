@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+from bisect import bisect_right
 from pathlib import Path, PurePosixPath
 
 from .ardb import read_database
@@ -118,10 +119,20 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
     geo = read_database(candidate / "geo.ardb", "geo", allowed_geo_ids=ids)
     asn = read_database(candidate / "asn.ardb", "asn")
     intervals = []
+    from .geo import SPECIAL
+    excluded = {family: [(int(n.network_address), int(n.broadcast_address)) for n in nets]
+                for family, nets in SPECIAL.items()}
+    excluded_starts = {family: [a for a, _ in rows] for family, rows in excluded.items()}
+    v6_start = int(ipaddress.IPv6Address("2000::"))
+    v6_end = int(ipaddress.IPv6Address("3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"))
     for group, prefixes in geo.items():
         for prefix in prefixes:
             network = ipaddress.ip_network(prefix)
-            intervals.append((network.version, int(network.network_address), int(network.broadcast_address), group))
+            family, start, end = network.version, int(network.network_address), int(network.broadcast_address)
+            at = bisect_right(excluded_starts[family], end) - 1
+            if (at >= 0 and excluded[family][at][1] >= start) or (family == 6 and not v6_start <= start <= end <= v6_end):
+                raise ValueError("non-geographic special address in Geo output")
+            intervals.append((family, start, end, group))
     previous = None
     for interval in sorted(intervals):
         family, start, end, group = interval
@@ -140,6 +151,9 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
                      for p in candidate.rglob("*.list")}
     from .domains import validate_domain_groups
     validate_domain_groups(domain_groups)
+    if any(name.startswith(("special/", "dns/")) for name in domain_groups):
+        from .special import validate_special_groups
+        validate_special_groups(domain_groups)
     summary = manifest["summary"]
     actual_geo_count = sum(map(len, geo.values()))
     actual_asn_count = sum(map(len, asn.values()))
@@ -169,7 +183,10 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
     if baseline is not None:
         previous = json.loads((Path(baseline) / "manifest.json").read_text())["summary"]
         # Compare resolved address coverage, not CIDR count: merging can change counts legitimately.
-        for key in ("geo_v4_addresses", "geo_v6_addresses", "domain_rules", "asn_prefixes"):
+        # Domain copies across intentionally overlapping product categories are
+        # not new matching scope. Per-product language comparison below guards
+        # domains; a global sum would reject legitimate catalogue memberships.
+        for key in ("geo_v4_addresses", "geo_v6_addresses", "asn_prefixes"):
             old = int(previous.get(key, 0)); new = int(summary.get(key, 0))
             if old and new < old * policy.get("minimum_retained_fraction", 0.70):
                 errors.append(f"abnormal coverage collapse: {key}")

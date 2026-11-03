@@ -1,0 +1,1010 @@
+{
+  "schema": 1,
+  "version": "2026-11-special-v1",
+  "policy": {
+    "address_mode_not_route": true,
+    "no_network_during_build": true,
+    "iana_baseline": "Selected RFC-defined allocations, checked against frozen IANA registry when available; absence is reported",
+    "optional_realip": "Only explicit endpoint matches. DLC role catalogues and derived DustinWin lists are one lineage, not independent votes."
+  },
+  "evidence": {
+    "iana4": {
+      "url": "https://www.iana.org/assignments/iana-ipv4-special-registry/",
+      "semantics": "Registered special purpose, not a route action",
+      "lineage": "IANA/IETF"
+    },
+    "iana6": {
+      "url": "https://www.iana.org/assignments/iana-ipv6-special-registry/",
+      "semantics": "Registered special purpose, not a route action",
+      "lineage": "IANA/IETF"
+    },
+    "rfc1918": {
+      "url": "https://www.rfc-editor.org/rfc/rfc1918",
+      "semantics": "Private IPv4 address allocation",
+      "lineage": "IANA/IETF"
+    },
+    "rfc4193": {
+      "url": "https://www.rfc-editor.org/rfc/rfc4193",
+      "semantics": "IPv6 unique-local allocation",
+      "lineage": "IANA/IETF"
+    },
+    "rfc4291": {
+      "url": "https://www.rfc-editor.org/rfc/rfc4291",
+      "semantics": "IPv6 loopback, link-local and multicast",
+      "lineage": "IANA/IETF"
+    },
+    "rfc1112": {
+      "url": "https://www.rfc-editor.org/rfc/rfc1112",
+      "semantics": "IPv4 multicast allocation",
+      "lineage": "IANA/IETF"
+    },
+    "rfc3927": {
+      "url": "https://www.rfc-editor.org/rfc/rfc3927",
+      "semantics": "IPv4 link-local",
+      "lineage": "IANA/IETF"
+    },
+    "rfc6761": {
+      "url": "https://www.rfc-editor.org/rfc/rfc6761",
+      "semantics": "localhost special-use name; .test/.example/.invalid not LAN services",
+      "lineage": "IANA/IETF"
+    },
+    "rfc6762": {
+      "url": "https://www.rfc-editor.org/rfc/rfc6762",
+      "semantics": ".local multicast-DNS name; list does not implement mDNS",
+      "lineage": "IANA/IETF"
+    },
+    "rfc8375": {
+      "url": "https://www.rfc-editor.org/rfc/rfc8375",
+      "semantics": ".home.arpa residential local namespace",
+      "lineage": "IANA/IETF"
+    },
+    "rfc7050": {
+      "url": "https://www.rfc-editor.org/rfc/rfc7050",
+      "semantics": "ipv4only.arpa address answers used for Pref64 discovery",
+      "lineage": "IANA/IETF"
+    },
+    "windows-ncsi": {
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/troubleshoot-ncsi-guidance",
+      "semantics": "Exact NCSI DNS/HTTP connectivity-test endpoints",
+      "lineage": "Microsoft"
+    },
+    "apple-network": {
+      "url": "https://support.apple.com/en-us/101555",
+      "semantics": "Apple explicitly documented connectivity, time and software-update hostnames",
+      "lineage": "Apple"
+    },
+    "google-ntp": {
+      "url": "https://developers.google.com/time/guides",
+      "semantics": "Explicit time synchronization hostnames, not all Google domains",
+      "lineage": "Google"
+    },
+    "webrtc-sample": {
+      "url": "https://github.com/webrtc/samples/blob/gh-pages/src/content/peerconnection/trickle-ice/js/main.js",
+      "semantics": "Published STUN endpoint in the WebRTC sample; no execution by this builder",
+      "lineage": "WebRTC/Google"
+    },
+    "google-dns": {
+      "url": "https://developers.google.com/speed/public-dns/docs/using",
+      "semantics": "Google Public DNS resolver identities only",
+      "lineage": "Google"
+    },
+    "cloudflare-dns": {
+      "url": "https://developers.cloudflare.com/1.1.1.1/ip-addresses/",
+      "semantics": "Cloudflare public resolver identities only",
+      "lineage": "Cloudflare"
+    },
+    "cloudflare-doh": {
+      "url": "https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/",
+      "semantics": "DNS over HTTPS endpoint identity",
+      "lineage": "Cloudflare"
+    },
+    "dlc-private": {
+      "url": "https://github.com/v2fly/domain-list-community/blob/master/data/private",
+      "semantics": "Mixed community private list, audited against explicit local-purpose policy; not blindly copied",
+      "lineage": "DLC/private"
+    },
+    "dlc-ntp": {
+      "url": "https://github.com/v2fly/domain-list-community/blob/master/data/category-ntp",
+      "semantics": "Community NTP endpoint role, does not prove real-IP is required by every endpoint",
+      "lineage": "DLC/category-ntp"
+    },
+    "dlc-stun": {
+      "url": "https://github.com/v2fly/domain-list-community/blob/master/data/category-stun",
+      "semantics": "Community STUN endpoint role, not a whole-platform identity",
+      "lineage": "DLC/category-stun"
+    },
+    "dustinwin": {
+      "url": "https://github.com/DustinWin/ruleset_geodata/tree/mihomo-ruleset",
+      "semantics": "Optional compatibility candidates derived from DLC and ShellCrash; not an independent vote",
+      "lineage": "DLC+ShellCrash/DustinWin"
+    },
+    "surge": {
+      "url": "https://manual.nssurge.com/book/understanding-surge/en/understanding-surge-en.pdf",
+      "semantics": "Always-real-IP controls returned address mode, not traffic routing or a proof that every UDP service requires it",
+      "lineage": "Surge"
+    }
+  },
+  "groups": [
+    {
+      "id": "special/lan",
+      "name": "私网与本地网络",
+      "purpose": "RFC1918/ULA/loopback/link-local and standard local names; no implied DIRECT action",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "IP-CIDR",
+          "value": "10.0.0.0/8",
+          "evidence": [
+            "iana4",
+            "rfc1918"
+          ],
+          "reason": "private-use IPv4"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "172.16.0.0/12",
+          "evidence": [
+            "iana4",
+            "rfc1918"
+          ],
+          "reason": "private-use IPv4"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "192.168.0.0/16",
+          "evidence": [
+            "iana4",
+            "rfc1918"
+          ],
+          "reason": "private-use IPv4"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "127.0.0.0/8",
+          "evidence": [
+            "iana4"
+          ],
+          "reason": "loopback, host-local rather than LAN-forwardable"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "169.254.0.0/16",
+          "evidence": [
+            "iana4",
+            "rfc3927"
+          ],
+          "reason": "link-local IPv4"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "fc00::/7",
+          "evidence": [
+            "iana6",
+            "rfc4193"
+          ],
+          "reason": "unique-local IPv6"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "::1/128",
+          "evidence": [
+            "iana6",
+            "rfc4291"
+          ],
+          "reason": "loopback or link-local IPv6"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "fe80::/10",
+          "evidence": [
+            "iana6",
+            "rfc4291"
+          ],
+          "reason": "loopback or link-local IPv6"
+        },
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "localhost",
+          "evidence": [
+            "rfc6761"
+          ],
+          "reason": "standard local namespace; resolver protocol handling remains a client responsibility"
+        },
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "local",
+          "evidence": [
+            "rfc6762"
+          ],
+          "reason": "standard local namespace; resolver protocol handling remains a client responsibility"
+        },
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "home.arpa",
+          "evidence": [
+            "rfc8375"
+          ],
+          "reason": "standard local namespace; resolver protocol handling remains a client responsibility"
+        }
+      ]
+    },
+    {
+      "id": "special/shared",
+      "name": "运营商共享地址",
+      "purpose": "RFC6598 CGNAT/shared address space; not RFC1918 LAN",
+      "content_types": [
+        "ipv4"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "IP-CIDR",
+          "value": "100.64.0.0/10",
+          "evidence": [
+            "iana4"
+          ],
+          "reason": "shared address space; may also be used by an overlay"
+        }
+      ]
+    },
+    {
+      "id": "special/multicast",
+      "name": "组播",
+      "purpose": "Multicast address spaces, not unicast LAN",
+      "content_types": [
+        "ipv4",
+        "ipv6"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "IP-CIDR",
+          "value": "224.0.0.0/4",
+          "evidence": [
+            "rfc1112"
+          ],
+          "reason": "IPv4 multicast"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "ff00::/8",
+          "evidence": [
+            "rfc4291"
+          ],
+          "reason": "IPv6 multicast"
+        }
+      ]
+    },
+    {
+      "id": "special/broadcast",
+      "name": "受限广播",
+      "purpose": "Limited IPv4 broadcast only",
+      "content_types": [
+        "ipv4"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "IP-CIDR",
+          "value": "255.255.255.255/32",
+          "evidence": [
+            "iana4"
+          ],
+          "reason": "limited broadcast, not all 240/4"
+        }
+      ]
+    },
+    {
+      "id": "special/benchmark",
+      "name": "基准测试地址",
+      "purpose": "Benchmark allocations, possibly used for Fake IP; never automatically LAN bypass",
+      "content_types": [
+        "ipv4",
+        "ipv6"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "IP-CIDR",
+          "value": "198.18.0.0/15",
+          "evidence": [
+            "iana4"
+          ],
+          "reason": "benchmarking and possible Fake IP pool"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "2001:2::/48",
+          "evidence": [
+            "iana6"
+          ],
+          "reason": "IPv6 benchmarking"
+        }
+      ]
+    },
+    {
+      "id": "special/documentation",
+      "name": "文档地址",
+      "purpose": "Documentation networks; not reachable geographic or LAN evidence",
+      "content_types": [
+        "ipv4",
+        "ipv6"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "IP-CIDR",
+          "value": "192.0.2.0/24",
+          "evidence": [
+            "iana4"
+          ],
+          "reason": "documentation"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "198.51.100.0/24",
+          "evidence": [
+            "iana4"
+          ],
+          "reason": "documentation"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "203.0.113.0/24",
+          "evidence": [
+            "iana4"
+          ],
+          "reason": "documentation"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "2001:db8::/32",
+          "evidence": [
+            "iana6"
+          ],
+          "reason": "documentation"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "3fff::/20",
+          "evidence": [
+            "iana6"
+          ],
+          "reason": "documentation"
+        }
+      ]
+    },
+    {
+      "id": "special/nat64",
+      "name": "NAT64 前缀",
+      "purpose": "Well-known and local-use translation prefix allocations, not ordinary LAN",
+      "content_types": [
+        "ipv6"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "IP-CIDR6",
+          "value": "64:ff9b::/96",
+          "evidence": [
+            "iana6"
+          ],
+          "reason": "translation prefix, not a route policy"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "64:ff9b:1::/48",
+          "evidence": [
+            "iana6"
+          ],
+          "reason": "translation prefix, not a route policy"
+        }
+      ]
+    },
+    {
+      "id": "special/local-name-compat",
+      "name": "社区本地名称",
+      "purpose": "Optional .lan/.localdomain convention; not an IETF guarantee and not a resolver implementation",
+      "content_types": [
+        "domain"
+      ],
+      "optional": true,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "lan",
+          "evidence": [
+            "dlc-private"
+          ],
+          "reason": "community local naming convention; opt-in only"
+        },
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "localdomain",
+          "evidence": [
+            "dlc-private"
+          ],
+          "reason": "community local naming convention; opt-in only"
+        }
+      ]
+    },
+    {
+      "id": "special/connectivity",
+      "name": "系统连通性与门户检测",
+      "purpose": "Explicit official test hosts; no entire platform suffix",
+      "content_types": [
+        "domain"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN",
+          "value": "dns.msftncsi.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "www.msftconnecttest.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "ipv6.msftconnecttest.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "www.msftncsi.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "ipv6.msftncsi.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "captive.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "Apple captive portal connectivity validation"
+        }
+      ]
+    },
+    {
+      "id": "special/ntp",
+      "name": "时间同步端点",
+      "purpose": "Explicit endpoint role only; does not mandate Real IP or choose a resolver",
+      "content_types": [
+        "domain"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN",
+          "value": "time.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time-ios.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time-macos.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time1.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time2.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time3.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time4.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "documented NTP endpoint"
+        }
+      ]
+    },
+    {
+      "id": "special/stun-turn",
+      "name": "STUN/TURN 端点",
+      "purpose": "Explicit STUN/TURN endpoint roles only; no arbitrary keyword or whole-platform match",
+      "content_types": [
+        "domain"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN",
+          "value": "stun.l.google.com",
+          "evidence": [
+            "webrtc-sample"
+          ],
+          "reason": "STUN endpoint published by WebRTC sample"
+        }
+      ]
+    },
+    {
+      "id": "special/software-update",
+      "name": "软件更新端点",
+      "purpose": "Documented Apple update hosts; no assumption that software update requires Real IP",
+      "content_types": [
+        "domain"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN",
+          "value": "mesu.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented OS software-update endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "swscan.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented OS software-update endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "swquery.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented OS software-update endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "swdownload.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented OS software-update endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "swcdn.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented OS software-update endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "swdist.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "documented OS software-update endpoint"
+        }
+      ]
+    },
+    {
+      "id": "special/public-dns",
+      "name": "公共 DNS 端点",
+      "purpose": "Specific public resolver identities, not instructions to select one",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN",
+          "value": "dns.google",
+          "evidence": [
+            "google-dns"
+          ],
+          "reason": "public DNS endpoint"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "8.8.8.8/32",
+          "evidence": [
+            "google-dns"
+          ],
+          "reason": "public DNS resolver address"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "8.8.4.4/32",
+          "evidence": [
+            "google-dns"
+          ],
+          "reason": "public DNS resolver address"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "2001:4860:4860::8888/128",
+          "evidence": [
+            "google-dns"
+          ],
+          "reason": "public DNS resolver address"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "2001:4860:4860::8844/128",
+          "evidence": [
+            "google-dns"
+          ],
+          "reason": "public DNS resolver address"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "cloudflare-dns.com",
+          "evidence": [
+            "cloudflare-doh"
+          ],
+          "reason": "public DNS endpoint"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "1.1.1.1/32",
+          "evidence": [
+            "cloudflare-dns"
+          ],
+          "reason": "public DNS resolver address"
+        },
+        {
+          "kind": "IP-CIDR",
+          "value": "1.0.0.1/32",
+          "evidence": [
+            "cloudflare-dns"
+          ],
+          "reason": "public DNS resolver address"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "2606:4700:4700::1111/128",
+          "evidence": [
+            "cloudflare-dns"
+          ],
+          "reason": "public DNS resolver address"
+        },
+        {
+          "kind": "IP-CIDR6",
+          "value": "2606:4700:4700::1001/128",
+          "evidence": [
+            "cloudflare-dns"
+          ],
+          "reason": "public DNS resolver address"
+        }
+      ]
+    },
+    {
+      "id": "dns/realip",
+      "name": "真实 DNS 地址例外",
+      "purpose": "A/AAAA response address mode only; independent from DNS resolver and traffic route",
+      "content_types": [
+        "domain"
+      ],
+      "optional": false,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "localhost",
+          "evidence": [
+            "rfc6761"
+          ],
+          "reason": "standard local namespace; resolver protocol handling remains a client responsibility"
+        },
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "local",
+          "evidence": [
+            "rfc6762"
+          ],
+          "reason": "standard local namespace; resolver protocol handling remains a client responsibility"
+        },
+        {
+          "kind": "DOMAIN-SUFFIX",
+          "value": "home.arpa",
+          "evidence": [
+            "rfc8375"
+          ],
+          "reason": "standard local namespace; resolver protocol handling remains a client responsibility"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "dns.msftncsi.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "NCSI validates the returned DNS address, so a synthetic Fake IP changes the test"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "ipv4only.arpa",
+          "evidence": [
+            "rfc7050"
+          ],
+          "reason": "address contents carry NAT64 prefix discovery meaning; synthesizing unrelated Fake IP changes that meaning"
+        }
+      ]
+    },
+    {
+      "id": "dns/realip-optional",
+      "name": "可选真实 DNS 兼容扩展",
+      "purpose": "Opt-in endpoint compatibility candidates, not universal protocol requirements; never entire platform roots",
+      "content_types": [
+        "domain"
+      ],
+      "optional": true,
+      "minimum_rules": 1,
+      "entries": [
+        {
+          "kind": "DOMAIN",
+          "value": "www.msftconnecttest.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "ipv6.msftconnecttest.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "www.msftncsi.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "ipv6.msftncsi.com",
+          "evidence": [
+            "windows-ncsi"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "captive.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Apple captive portal connectivity validation"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time-ios.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time-macos.apple.com",
+          "evidence": [
+            "apple-network"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time1.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time2.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time3.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "time4.google.com",
+          "evidence": [
+            "google-ntp"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "stun.l.google.com",
+          "evidence": [
+            "webrtc-sample"
+          ],
+          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: STUN endpoint published by WebRTC sample"
+        },
+        {
+          "kind": "DOMAIN",
+          "value": "xnotify.xboxlive.com",
+          "evidence": [
+            "dustinwin"
+          ],
+          "reason": "optional community Xbox compatibility exception, not the whole Xbox platform and not independently verified NAT necessity"
+        }
+      ]
+    }
+  ],
+  "selectors": [
+    {
+      "source": "dlc",
+      "category": "category-ntp",
+      "group": "special/ntp",
+      "role": "ntp",
+      "admit": "exact-only",
+      "optional_realip": true
+    },
+    {
+      "source": "dlc",
+      "category": "category-stun",
+      "group": "special/stun-turn",
+      "role": "stun-turn",
+      "admit": "exact-only",
+      "optional_realip": true
+    }
+  ],
+  "audit_inputs": [
+    {
+      "source": "dlc",
+      "category": "private",
+      "purpose": "local-name-candidates"
+    },
+    {
+      "source": "blackmatrix",
+      "path": "rule/Surge/Lan/Lan.list",
+      "format": "surge",
+      "purpose": "local-name-candidates"
+    },
+    {
+      "source": "acl4ssr",
+      "path": "Clash/LocalAreaNetwork.list",
+      "format": "clash",
+      "purpose": "local-name-candidates"
+    },
+    {
+      "source": "metacubex-private",
+      "format": "mihomo",
+      "behavior": "domain",
+      "purpose": "local-name-candidates"
+    },
+    {
+      "source": "dustinwin-fakeip",
+      "format": "mihomo",
+      "behavior": "domain",
+      "purpose": "realip-compatibility"
+    }
+  ],
+  "gaps": [
+    {
+      "scope": "game NAT",
+      "status": "partial",
+      "reason": "Only a narrow opt-in community Xbox endpoint; platform-wide Battle.net/Steam/Nintendo exemptions have no sufficient default evidence."
+    },
+    {
+      "scope": "VPN/overlay",
+      "status": "not-globally-generalizable",
+      "reason": "Tailnet-specific MagicDNS names and VPN server addresses depend on user configuration; do not exempt all ts.net/tailscale.com/UDP/VPN."
+    },
+    {
+      "scope": "reverse lookup / mDNS",
+      "status": "client-protocol-boundary",
+      "reason": "PTR handling, mDNS transport and split-DNS are not implemented by normal A/AAAA match data; no reverse zones in realip."
+    },
+    {
+      "scope": "Real IP subscription",
+      "status": "client-integration-required",
+      "reason": "Current RealIpRule has inline DNS expressions but no external list subscription field; an explicit domain-list importer is required."
+    }
+  ]
+}

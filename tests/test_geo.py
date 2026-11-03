@@ -77,6 +77,13 @@ class GeoTests(unittest.TestCase):
         self.assertFalse(result['groups'])
         self.assertEqual(result['report']['segments']['auxiliary_rows_ignored'],1)
 
+    def test_iana_documentation_and_benchmark_never_acquire_geography(self):
+        for prefix in ('3fff::/20', '2001:2::/48'):
+            with self.subTest(prefix=prefix):
+                result = self.fusion([CountryRecord.network(prefix, 'CN', 'a'),
+                                      CountryRecord.network(prefix, 'CN', 'b')])
+                self.assertFalse(result['groups'])
+
     def test_empty_data_reports_contract_gaps_not_overseas(self):
         with tempfile.TemporaryDirectory() as d:
             result=self.fusion([],details_path=Path(d)/'issues.jsonl')
