@@ -27,6 +27,39 @@ def write_list(path: Path, rules: list[str]) -> None:
     path.write_text("\n".join(rules) + ("\n" if rules else ""), encoding="utf-8")
 
 
+def shard_issue_report(path: Path, max_bytes: int = 32 * 1024 * 1024) -> list[dict]:
+    """Lossless bounded JSONL parts for ordinary Git's per-blob size limits."""
+    path = Path(path)
+    directory = path.with_suffix("")
+    directory.mkdir(exist_ok=False)
+    parts = []
+    output = None
+    size = count = 0
+    def close_part() -> None:
+        if output is not None:
+            output.close()
+            parts.append({"path": output_path.relative_to(path.parent).as_posix(), "bytes": size, "records": count})
+    try:
+        with path.open("rb") as source:
+            for line in source:
+                if not line.endswith(b"\n") or len(line) > max_bytes:
+                    raise ValueError("issue record is incomplete or exceeds shard size")
+                if output is None or size + len(line) > max_bytes:
+                    close_part()
+                    output_path = directory / f"part-{len(parts)+1:05}.jsonl"
+                    output = output_path.open("xb")
+                    size = count = 0
+                output.write(line); size += len(line); count += 1
+        if output is None:
+            output_path = directory / "part-00001.jsonl"
+            output = output_path.open("xb")
+        close_part(); output = None
+    finally:
+        if output is not None:output.close()
+    path.unlink()
+    return parts
+
+
 def source_path(snapshot_path: Path, source: dict) -> Path:
     # Snapshot paths are produced by acquire; no following links outside the frozen input.
     path = safe_file(snapshot_path.parent, source["path"])
@@ -85,6 +118,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     country = fuse_country(itertools.chain.from_iterable(parse_country(s["format"], Path(s["path"]), s) for s in country_sources),
                            registry, min_lineages=quality.get("minimum_country_lineages", 2),
                            details_path=reports / "geo-issues.jsonl")
+    country["report"]["issue_files"] = shard_issue_report(reports / "geo-issues.jsonl")
     mark("geo")
     floors = quality.get("asn_minimum_source_prefix_length", {"ipv4": 8, "ipv6": 12})
     routes = fuse_routes(itertools.chain.from_iterable(parse_routes(s["format"], Path(s["path"]), s) for s in routing_sources),
@@ -151,10 +185,19 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
                                      "Load both ARDB files and lists from that version and verify manifest lengths and SHA-256.\n"
                                      "Geo groups are macro-regions, not arbitrary country lookup. Unknown addresses are omitted and reported.\n"
                                      "No active measurements are performed.\n", encoding="utf-8")
+    manifest = finalize_candidate(output, snapshot, registry, products, quality, summary, baseline=baseline)
+    mark("manifest-and-validation")
+    return manifest
+
+
+def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: dict,
+                       quality: dict, summary: dict, *, baseline: Path | None = None) -> dict:
+    """Bind already computed batch outputs, then validate their exact bytes."""
+    output = Path(output)
     stable_inputs = sorted([stable_source(s) for s in snapshot["sources"]], key=lambda s: s["id"])
     # Version binds output bytes, not wall clock or irrelevant source-code documentation changes.
     files = [{"path": p.relative_to(output).as_posix(), "bytes": p.stat().st_size, "sha256": file_digest(p)}
-             for p in sorted(output.rglob("*")) if p.is_file()]
+             for p in sorted(output.rglob("*")) if p.is_file() and p != output / "manifest.json"]
     identity = {"generator": __version__, "inputs": stable_inputs, "registry": registry,
                 "products": products, "quality": quality, "files": files}
     version = hashlib.sha256(canonical(identity)).hexdigest()[:24]
@@ -165,5 +208,4 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     # A failed validation leaves the complete local candidate and diagnostic report for inspection;
     # publish() independently validates again and will not move a remote pointer.
     validate_candidate(output, baseline=baseline, quality=quality)
-    mark("manifest-and-validation")
     return manifest

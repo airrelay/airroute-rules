@@ -282,6 +282,32 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(pushes, [])
         self.assertEqual(git(self.remote, "rev-parse", "release"), first["commit"])
 
+    def test_oversized_artifact_fails_before_hashing_or_git(self):
+        candidate = self.candidate()
+        report = candidate / "oversized-report.jsonl"
+        size = module.MAX_ARTIFACT_BYTES + 1
+        with report.open("wb") as stream:
+            stream.truncate(size)  # Sparse fixture; no 95 MiB allocation or download.
+        manifest_path = candidate / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        # The oversized file is last, so a one-pass hash loop would still waste
+        # work on earlier files. The entire size inventory must run first.
+        manifest["files"].append({"path": report.name, "bytes": size, "sha256": "0" * 64})
+        manifest_path.write_text(json.dumps(manifest))
+        with patch.object(module, "_digest", side_effect=AssertionError("must not hash")):
+            with patch.object(module, "_git", side_effect=AssertionError("must not access Git")):
+                with self.assertRaisesRegex(module.PublicationError, "95 MiB publication limit"):
+                    self.publish(candidate, self.source, self.sha)
+
+    def test_oversized_manifest_fails_before_read_or_git(self):
+        candidate = self.candidate()
+        with (candidate / "manifest.json").open("r+b") as stream:
+            stream.truncate(module.MAX_ARTIFACT_BYTES + 1)
+        with patch.object(module, "_digest", side_effect=AssertionError("must not hash")):
+            with patch.object(module, "_git", side_effect=AssertionError("must not access Git")):
+                with self.assertRaisesRegex(module.PublicationError, "95 MiB publication limit: manifest.json"):
+                    self.publish(candidate, self.source, self.sha)
+
 
 if __name__ == "__main__":
     unittest.main()

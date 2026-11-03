@@ -22,6 +22,8 @@ versions/<data_version>/...报告及注册表
 
 版本号由数据和配置决定，不由工作流时间或源码中无关的文档变化决定。版本目录禁止原地改写；相同版本的 manifest 不一致即失败。入口已经指向相同 manifest 时不创建提交。
 
+[GitHub 普通 Git 仓库会拒绝超过 100 MiB 的单个文件](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)。本项目在任何哈希读取或 Git 操作前，先核查完整候选清单，按每个文件 **95 MiB** 留出余量并失败关闭，manifest 和报告也不例外。较大的 JSONL 报告无损拆成有序分片并用索引绑定；Geo / ASN 仍是不整体压缩的独立二进制文件。保持 `release` 分支交付，不改用 Git LFS 或 GitHub Releases 绕过约定。
+
 ## 并发、异常和恢复
 
 Actions 的仓库级并发组禁止两个工作流同时发布。发布前重新核对远端 `main` 等于本次 `SOURCE_SHA`，过期工作流拒绝推送。`release` 以观测到的提交为父提交；竞争更新导致正常 Git non-fast-forward 拒绝，绝不通过 force、重置或重新生成旧提交绕过。

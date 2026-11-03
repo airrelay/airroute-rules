@@ -89,9 +89,10 @@ class ArdbTests(unittest.TestCase):
         with self.assertRaises(FormatError):
             write_database(self.path, "asn", {1: ["not-a-network"]})
 
-    def test_corrupt_goldens_all_fail_strict_python_validation(self):
+    def test_invalid_registry_and_noncanonical_goldens_fail_producer_validation(self):
         entries = json.loads((GOLDEN / "manifest.json").read_text())
-        for case in entries["corrupt"]:
+        cases = entries["corrupt"] + entries["registry_mismatches"] + entries["producer_noncanonical"]
+        for case in cases:
             with self.subTest(case=case["file"]), self.assertRaises(FormatError):
                 read_database(GOLDEN / case["file"], case["kind"], allowed_geo_ids=[1, 9, 16])
 
@@ -155,12 +156,34 @@ class CoreReaderInterop(unittest.TestCase):
     def test_geo_registry_check_is_a_separate_client_installation_boundary(self):
         # Numeric ID 17 is structurally valid. The raw Core format reader has
         # no registry baked into it; the installation wrapper must supply one.
-        path = GOLDEN / "corrupt-unknown-geo.ardb"
+        path = GOLDEN / "registry-unknown-geo.ardb"
         rejected = subprocess.run([str(self.binary), "geo", str(path), "1,9,16"], capture_output=True, text=True)
         self.assertNotEqual(rejected.returncode, 0)
         structurally_valid = subprocess.run([str(self.binary), "geo", str(path), "1,9,17"], capture_output=True, text=True)
         self.assertEqual(structurally_valid.returncode, 0)
         self.assertIn("17\t\n", structurally_valid.stdout)
+
+    def test_v1_wire_allows_shared_payload_but_producer_policy_rejects_it(self):
+        path = GOLDEN / "producer-noncanonical-payload-alias.ardb"
+        # The wire contract independently addresses each range; a second group
+        # may point at exactly the same valid bytes. This is not damaged data.
+        result = subprocess.run([str(self.binary), "geo", str(path), "1,9,16"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        groups = dict(row.split("\t", 1) for row in result.stdout.splitlines())
+        self.assertEqual(groups["1"].split(",")[0], "192.0.2.0/24")
+        self.assertEqual(groups["9"], "192.0.2.0/24")
+        with self.assertRaisesRegex(FormatError, "overlapping payloads"):
+            read_database(path, "geo", allowed_geo_ids=[1, 9, 16])
+        # Such a Geo duplicates CN/RU membership semantically as well. The
+        # separately exercised publication validator rejects that overlap even
+        # when the same addresses use separate canonical physical blocks.
+
+    def test_v1_wire_does_not_require_producer_dense_eof_policy(self):
+        path = GOLDEN / "producer-noncanonical-trailing-bytes.ardb"
+        result = subprocess.run([str(self.binary), "geo", str(path), "1,9,16"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with self.assertRaisesRegex(FormatError, "trailing"):
+            read_database(path, "geo", allowed_geo_ids=[1, 9, 16])
 
     def test_actual_core_rejects_common_corrupt_samples(self):
         manifest = json.loads((GOLDEN / "manifest.json").read_text())

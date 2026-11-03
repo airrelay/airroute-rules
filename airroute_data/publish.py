@@ -16,6 +16,8 @@ import shutil
 import subprocess
 from typing import Any
 
+MAX_ARTIFACT_BYTES = 95 * 1024 * 1024  # Headroom below GitHub's 100 MiB Git blob cap.
+
 
 class PublicationError(RuntimeError):
     pass
@@ -91,6 +93,8 @@ def validate_candidate(candidate: Path) -> dict:
     manifest_path = candidate / "manifest.json"
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise PublicationError("Candidate manifest is missing or is a symlink")
+    if manifest_path.stat().st_size > MAX_ARTIFACT_BYTES:
+        raise PublicationError("Artifact exceeds 95 MiB publication limit: manifest.json")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("schema") != 1 or manifest.get("format_version") != 1:
         raise PublicationError("Unsupported publication manifest")
@@ -99,6 +103,7 @@ def validate_candidate(candidate: Path) -> dict:
     if not isinstance(files, list) or not files:
         raise PublicationError("Candidate has no files")
     inventory = {"manifest.json"}
+    checked = []
     for record in files:
         name = record.get("path")
         if not isinstance(name, str):
@@ -112,13 +117,22 @@ def validate_candidate(candidate: Path) -> dict:
         path = candidate / name
         if any(parent.is_symlink() for parent in [path, *path.parents] if parent != candidate.parent):
             raise PublicationError("Candidate file symlink is forbidden")
-        if not path.is_file() or path.stat().st_size != record.get("bytes"):
+        if not path.is_file():
             raise PublicationError("Candidate file length mismatch: " + name)
-        if _digest(path) != record.get("sha256"):
-            raise PublicationError("Candidate file checksum mismatch: " + name)
+        size = path.stat().st_size
+        if size > MAX_ARTIFACT_BYTES:
+            raise PublicationError("Artifact exceeds 95 MiB publication limit: " + name)
+        if size != record.get("bytes"):
+            raise PublicationError("Candidate file length mismatch: " + name)
+        checked.append((path, record))
     actual = {str(p.relative_to(candidate)) for p in candidate.rglob("*") if p.is_file() or p.is_symlink()}
     if actual != inventory:
         raise PublicationError("Candidate contains unlisted files")
+    # Reject all oversized/missing/unlisted files before reading any large
+    # payload or touching Git. Limits apply to reports as well as Geo/ASN.
+    for path, record in checked:
+        if _digest(path) != record.get("sha256"):
+            raise PublicationError("Candidate file checksum mismatch: " + record["path"])
     return manifest
 
 

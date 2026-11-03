@@ -64,14 +64,6 @@
       "sha256": "2b823f9a1d8209ff2045e3198fe784482b9be29d7e4ea15d81fcbeb3fdedfa4c"
     },
     {
-      "core_rejects": false,
-      "file": "corrupt-unknown-geo.ardb",
-      "kind": "geo",
-      "reason": "ID not in the golden Geo registry",
-      "registry_wrapper_rejects": true,
-      "sha256": "1d8dfb9f2cb032e2880a9514c38bb7e4115024a0742c998e96da86f4e42d9bef"
-    },
-    {
       "core_rejects": true,
       "file": "corrupt-empty-offset.ardb",
       "kind": "geo",
@@ -84,13 +76,6 @@
       "kind": "geo",
       "reason": "offset addition overflow",
       "sha256": "381c4f31942d230e1ed52c73765bd07452de7544e7c7b1cb71791f162d9acf6c"
-    },
-    {
-      "core_rejects": true,
-      "file": "corrupt-payload-alias.ardb",
-      "kind": "geo",
-      "reason": "overlapping group payload blocks",
-      "sha256": "7c2d7802467ff71f2239862bc947a48806793ba3cef3e38d79af1d59338e99b0"
     },
     {
       "core_rejects": true,
@@ -140,13 +125,6 @@
       "kind": "geo",
       "reason": "truncated payload",
       "sha256": "c55ad6beed60361229c548beeacb03a59e6033c66e7540e8fcfcc833387f91fa"
-    },
-    {
-      "core_rejects": false,
-      "file": "corrupt-trailing-bytes.ardb",
-      "kind": "geo",
-      "reason": "unreferenced trailing data",
-      "sha256": "ce8df021a5f7e8363192ab44b3ef9c01c6d1e36fcb84321497146204180ffb6f"
     }
   ],
   "format_version": 1,
@@ -188,5 +166,36 @@
     }
   ],
   "notice": "Synthetic RFC5737/RFC3849 documentation addresses only; these are not production geolocation claims.",
+  "producer_noncanonical": [
+    {
+      "core_rejects": false,
+      "file": "producer-noncanonical-payload-alias.ardb",
+      "kind": "geo",
+      "producer_rejects": true,
+      "reason": "valid v1 shared payload; outside producer compact non-alias layout",
+      "sha256": "7c2d7802467ff71f2239862bc947a48806793ba3cef3e38d79af1d59338e99b0",
+      "wire_valid": true
+    },
+    {
+      "core_rejects": false,
+      "file": "producer-noncanonical-trailing-bytes.ardb",
+      "kind": "geo",
+      "producer_rejects": true,
+      "reason": "valid bounded v1 references with trailing bytes; outside producer compact layout",
+      "sha256": "ce8df021a5f7e8363192ab44b3ef9c01c6d1e36fcb84321497146204180ffb6f",
+      "wire_valid": true
+    }
+  ],
+  "registry_mismatches": [
+    {
+      "core_rejects": false,
+      "file": "registry-unknown-geo.ardb",
+      "kind": "geo",
+      "reason": "ID not in the golden Geo registry",
+      "registry_wrapper_rejects": true,
+      "sha256": "1d8dfb9f2cb032e2880a9514c38bb7e4115024a0742c998e96da86f4e42d9bef",
+      "wire_valid": true
+    }
+  ],
   "schema_version": 1
 }

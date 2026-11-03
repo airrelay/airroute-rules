@@ -59,6 +59,8 @@ def parse_list(path: Path) -> list[str]:
 def validate_candidate(candidate: Path, baseline: Path | None = None,
                        quality: dict | None = None) -> dict:
     candidate = Path(candidate)
+    if (candidate / "manifest.json").stat().st_size > 95 * 1024 * 1024:
+        raise ValueError("manifest exceeds ordinary Git publication size limit")
     manifest = json.loads((candidate / "manifest.json").read_text())
     if manifest.get("schema") != 1 or manifest.get("format_version") != 1:
         raise ValueError("unsupported manifest")
@@ -81,12 +83,38 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
         if name in names or name == "manifest.json":
             raise ValueError("duplicate or recursive artifact manifest")
         names.add(name)
+        if type(record["bytes"]) is not int or not 0 <= record["bytes"] <= 95 * 1024 * 1024:
+            raise ValueError("artifact exceeds ordinary Git publication size limit")
         path = safe_file(candidate, name)
         if not path.is_file() or path.stat().st_size != record["bytes"] or file_digest(path) != record["sha256"]:
             raise ValueError(f"artifact digest/length mismatch: {name}")
     actual = {str(p.relative_to(candidate).as_posix()) for p in candidate.rglob("*") if p.is_file()}
     if actual != names | {"manifest.json"}:
         raise ValueError("unmanifested or missing candidate files")
+    issue_report = candidate / "reports/geo.json"
+    if issue_report.exists():
+        issues = json.loads(issue_report.read_text())
+        if "issue_files" not in issues:
+            raise ValueError("complete issue report needs a shard index")
+        seen = set(); total = 0
+        for part in issues["issue_files"]:
+            name = part["path"]
+            import re
+            if not re.fullmatch(r"geo-issues/part-[0-9]{5,}\.jsonl", name):
+                raise ValueError("noncanonical issue shard path")
+            if name in seen:raise ValueError("duplicate issue shard")
+            seen.add(name)
+            path = safe_file(candidate / "reports", name)
+            if path.stat().st_size != part["bytes"]:raise ValueError("issue shard size mismatch")
+            with path.open("rb") as stream:
+                count = sum(block.count(b"\n") for block in iter(lambda: stream.read(1024 * 1024), b""))
+            if count != part["records"]:raise ValueError("issue shard record count mismatch")
+            total += count
+        if total != issues["issue_intervals"]:
+            raise ValueError("incomplete issue report")
+        physical = {p.relative_to(candidate / "reports").as_posix()
+                    for p in (candidate / "reports/geo-issues").glob("*.jsonl")}
+        if physical != seen:raise ValueError("unindexed issue shard")
     geo = read_database(candidate / "geo.ardb", "geo", allowed_geo_ids=ids)
     asn = read_database(candidate / "asn.ardb", "asn")
     intervals = []
