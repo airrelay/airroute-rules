@@ -1,6 +1,20 @@
 # 产品目录、LAN 与 Real IP 扩展验收（2026-11-03）
 
-本节是**当前代码的本地完整候选**，版本 `3065e9cdfb0f783fba954d3b`；对照本次开始时实际抓取的 release `ecd4792280df834aa809bd55`。尚未推送源码、运行新版 Actions 或更新 GitHub release 分支。后面的早期记录仅对应各自注明的历史版本。
+本节是**当前代码的本地完整候选**，版本 `3065e9cdfb0f783fba954d3b`；对照本次开始时实际抓取的 release `ecd4792280df834aa809bd55`。此本地候选之后已完成真实 Actions 和 release 发布，见下一节；本地回放与 CI 采用不同 BGP 快照，数据版本不混用。后面的早期记录仅对应各自注明的历史版本。
+
+## GitHub Actions 与真实发布验收
+
+[Actions #4](https://github.com/airrelay/airroute-rules/actions/runs/41640819396) 实际成功：源码提交 `2015a45df65371b46993357aabe3eb7717352e39`；数据版本 `aa9a000d61cfdf7abd982e42`；release 提交 `5edd6824d5baf94f0910b04f1b40ad82eac7b6c8`，已用 `ls-remote` 核对。build 18 分 6 秒，publish 2 分 1 秒，整体 20 分 15 秒；纯数据构建与校验 962.590 秒，未采集 Linux 峰值内存，不用本地数字代替。两个 check-run 的注解数均为 0。
+
+Linux 实际执行 199 项测试，明确跳过一个需要外部 Core 源码的互操作测试类；本地 204 项包含该测试。另对**真正发布**的 Geo / ASN 逐组做 Python 和固定实际 Core 读取器比对，全部相同：Geo 16 组 / 1,064,990 前缀，ASN 88,609 组 / 734,023 前缀。Core 源码 SHA256 仍为 `8be67dd0d6ecefd72e23d30aa095a845b77495795f4ae52a352e02c8aae8dfb4`。
+
+实际导出共 108 个文件，包含 103 个非空 `.list`。下载 Git 分支后对所有文件独立重算长度与 SHA-256，再通过完整格式、用途、CN 排除、包含关系及覆盖回归校验。103 个列表与本地候选摘要全部相同；Geo 摘要不变。ASN 随 RIS v4/v6 和 Route Views 新快照变化，保留 82,868 个多起源区间，不把这种输入变化称为算法收益。
+
+通过固定 release 提交的公开 HTTPS 地址下载 manifest、Geo、ASN、LAN、默认/可选 Real IP、中国大陆及 Teams 文件，均返回 200，长度和摘要与实际发布 manifest 一致。公开树没有 reports、versions、current 指针或哈希版本目录。manifest 绑定本次源码提交和同一数据版本。
+
+实际来源仍只有 DB-IP / IPLocate 两条地域血缘，三家账号来源缺凭据，17mon withheld、BGP.tools disabled；没有关键域名选择器失效，IANA 双栈核对通过。LAN 11、默认 Real IP 5、可选扩展 441 条均真实发布。客户端订阅导入、旧内置目录和运行时 DNS 行为的边界仍按 SPECIAL 说明，不由成功上传代替接入。
+
+本地真实远端验收证据位于 `.build/catalogue-ci/`：`release-verification.json`、`core-verification.json`、`http-verification.json`、Actions 下载的 build-report 和成功截图。它们不进入 release。下面保留首次本地构建与更早来源扩充的精确记录。
 
 ## 当前实际交付
 
@@ -80,7 +94,7 @@ ASN 为 88,601 组 / 733,800 个 CIDR，保留 82,900 个多起源区间；IPv4 
 
 Python 与当前实际 Core 读取器另对**两份完整新二进制**逐组比对，Geo 16 组、ASN 88,601 组全部语义摘要相同；绑定 Core 源码 SHA256 `8be67dd0d6ecefd72e23d30aa095a845b77495795f4ae52a352e02c8aae8dfb4`。这是文件互操作，不是客户端安装、目录接入或 DNS 行为验收。
 
-完整离线计算与校验 232.065 秒，最大 RSS 1,028,784,128 字节，macOS / Python 3.12.16 / 同一冻结输入暖缓存；不是 Linux Actions 运行结果或前后性能基准。第一次最终构建磁盘不足已保留日志，仅移除本次废弃重复候选后重跑，未跳过来源或数据。新代码在隔离本地 bare Git 中从实际旧 release 转换为 108 个公开文件（103 个列表），普通 push 成功并核对 SHA；同候选再次发布返回 unchanged，无 reports / versions / hash 层。真实远端和新版 Actions 尚未更新。
+完整离线计算与校验 232.065 秒，最大 RSS 1,028,784,128 字节，macOS / Python 3.12.16 / 同一冻结输入暖缓存；不是 Linux Actions 运行结果或前后性能基准。第一次最终构建磁盘不足已保留日志，仅移除本次废弃重复候选后重跑，未跳过来源或数据。新代码在隔离本地 bare Git 中从实际旧 release 转换为 108 个公开文件（103 个列表），普通 push 成功并核对 SHA；同候选再次发布返回 unchanged，无 reports / versions / hash 层。后续真实远端和新版 Actions 验收另列于本文开头，不以这次本地 Git 测试代替。
 
 本地证据：`.build/catalogue-verified/`、`catalogue-comparison.json`、`catalogue-source-contribution.json`、`catalogue-verified-build-report.json`、`catalogue-verified-tests-final.log`、`catalogue-core-report.json`、`catalogue-git-report.json`。内部审计不进入 release。
 

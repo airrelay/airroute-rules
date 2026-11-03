@@ -101,4 +101,4 @@ AIRROUTE_CORE_IP_DATA=/path/to/AirRoute/crates/ip-data/src/lib.rs \
 
 实际验证范围与缺源见 [验证记录](docs/VALIDATION.md)。
 
-当前目录扩展的逐项结果、语义覆盖前后比较、旧目录归并及仍未接入客户端的部分见 [最新覆盖验收](docs/COVERAGE.md)。当前验收候选保存在本地；未触发新版 Actions 或更新远端 release。
+当前目录扩展的逐项结果、语义覆盖前后比较、旧目录归并及仍未接入客户端的部分见 [最新覆盖验收](docs/COVERAGE.md)。本地与真实 Actions / release 的验收分别记录，源码提交、数据版本和远端校验见该报告。
