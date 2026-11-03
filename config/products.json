@@ -1,0 +1,299 @@
+{
+  "schema": 1,
+  "policy": {
+    "cn_collection": "region/cn",
+    "cn_exclusion": "Remove any overlapping overseas predicate; quarantine non-subtractable predicates rather than adding NOT conditions.",
+    "references": "Corroboration only. Shared CDNs, CAs, payment services and an entire ASN are not proof of product ownership.",
+    "ru_domains": "Explicit Russian service identities only, never tld-ru/category-ru or ASN registration country.",
+    "upstream_lineage": "Alternate file formats and mirrors are not independent votes. Domain categories are identity assertions, not geolocation votes."
+  },
+  "groups": [
+    {
+      "id": "region/cn",
+      "name": "中国大陆",
+      "kind": "regional-domain-and-ip",
+      "description": "Explicit mainland service/access-point rules plus independently cleaned CN IP data; no .cn TLD inference.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "geolocation-cn",
+          "attributes": [
+            "-!cn"
+          ],
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/ChinaMax/ChinaMax_Domain.list",
+          "format": "surge-domainset",
+          "mode": "reference"
+        }
+      ]
+    },
+    {
+      "id": "provider/apple",
+      "name": "Apple",
+      "kind": "provider",
+      "routing_value": "Apple account, store and OS services can need a distinct route.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "apple",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "provider/google",
+      "name": "Google",
+      "kind": "provider",
+      "routing_value": "Google search, account and application endpoints have independent routing value.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "google",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "provider/microsoft",
+      "name": "Microsoft",
+      "kind": "provider",
+      "routing_value": "Microsoft enterprise and update endpoints can require a distinct route.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "microsoft",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "microsoft365",
+          "format": "official-json",
+          "adapter": "microsoft365"
+        }
+      ]
+    },
+    {
+      "id": "service/netflix",
+      "name": "Netflix",
+      "kind": "service",
+      "routing_value": "Account and regional playback restrictions can differ from general media.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "netflix",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "service/spotify",
+      "name": "Spotify",
+      "kind": "service",
+      "routing_value": "Account region and music playback can require a distinct route.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "spotify",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "service/telegram",
+      "name": "Telegram",
+      "kind": "service",
+      "routing_value": "Messaging connectivity has independent routing value; server ASN alone is excluded.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "telegram",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "category/ai",
+      "name": "AI 服务",
+      "kind": "category",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-ai-!cn",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/OpenAI/OpenAI.list",
+          "format": "surge",
+          "mode": "reference"
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/Ruleset/OpenAi.list",
+          "format": "clash",
+          "mode": "reference"
+        }
+      ]
+    },
+    {
+      "id": "category/development",
+      "name": "开发与软件分发",
+      "kind": "category",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-dev",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "category/gaming",
+      "name": "海外游戏",
+      "kind": "category",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-games-!cn",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "category/media",
+      "name": "资讯媒体",
+      "kind": "category",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-media",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "category/streaming",
+      "name": "流媒体",
+      "kind": "category",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "youtube",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "disney",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "twitch",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "hulu",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "sukka",
+          "path": "List/non_ip/stream.conf",
+          "format": "surge",
+          "mode": "reference"
+        }
+      ]
+    },
+    {
+      "id": "category/ru-services",
+      "name": "俄罗斯服务",
+      "kind": "service-identity-category",
+      "description": "Russian service identities; does not locate servers, users or every .ru domain in Russia.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "yandex",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "mailru-group",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "kaspersky",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "sber",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "selectel",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    }
+  ],
+  "auxiliary_views": [
+    {
+      "source": "blackmatrix",
+      "id": "blackmatrix-china-ip",
+      "path": "rule/Surge/China/China.list",
+      "format": "surge-cidr-reference",
+      "country": "CN",
+      "field_semantics": "Rule-list membership only, not physical-country evidence"
+    },
+    {
+      "source": "blackmatrix",
+      "id": "blackmatrix-chinamax-ip",
+      "path": "rule/Surge/ChinaMax/ChinaMax.list",
+      "format": "surge-cidr-reference",
+      "country": "CN",
+      "field_semantics": "Expanded rule-list membership only, not physical-country evidence"
+    }
+  ]
+}

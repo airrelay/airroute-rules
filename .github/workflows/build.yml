@@ -1,0 +1,109 @@
+name: Produce AirRoute data
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a validated candidate to the release branch
+        type: boolean
+        default: true
+
+# A newer queued workflow never runs alongside an older publisher. A source
+# commit fence and a normal Git fast-forward check independently reject staleness.
+concurrency:
+  group: airroute-data-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Correctness and isolated publication tests
+        run: python -m unittest discover -s tests -v
+      - name: Read the previous successful coverage manifest
+        run: |
+          python -c "from pathlib import Path; from airroute_data.publish import prepare_baseline; prepare_baseline(Path('.'), Path('.build/previous'))"
+      - name: Freeze available source inputs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MAXMIND_ACCOUNT_ID: ${{ secrets.MAXMIND_ACCOUNT_ID }}
+          MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+          IP2LOCATION_TOKEN: ${{ secrets.IP2LOCATION_TOKEN }}
+        run: python -m airroute_data snapshot --output .build/snapshot
+      - name: Build and validate the complete candidate
+        shell: bash
+        run: |
+          baseline=()
+          if [ -f .build/previous/manifest.json ]; then baseline=(--baseline .build/previous); fi
+          python -m airroute_data build --snapshot .build/snapshot/snapshot.json --output .build/candidate --report .build/build-report.json "${baseline[@]}"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .build/candidate/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Keep acquisition provenance and validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: build-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .build/snapshot/snapshot.json
+            .build/build-report.json
+            .build/candidate/reports/geo.json
+            .build/candidate/reports/asn.json
+            .build/candidate/reports/domains.json
+            .build/candidate/reports/sources.json
+            .build/candidate/reports/auxiliary.json
+          if-no-files-found: ignore
+          retention-days: 7
+      # Raw source archives and account-gated vendor databases are deliberately
+      # not uploaded. The candidate contains public derivatives and provenance.
+
+  publish:
+    needs: build
+    if: github.event_name == 'schedule' || inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .build/candidate
+      - name: Revalidate downloaded data and publish one atomic release commit
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          PUBLICATION_SEQUENCE: ${{ github.run_number }}
+          PUBLICATION_ATTEMPT: ${{ github.run_attempt }}
+        run: python -m airroute_data publish --candidate .build/candidate --repo . --source-sha "$SOURCE_SHA" --sequence "$PUBLICATION_SEQUENCE" --attempt "$PUBLICATION_ATTEMPT"
+      - name: Preserve publication identity if transport failed
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: publication-journal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .git/airroute-publish/*/pending.json
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7

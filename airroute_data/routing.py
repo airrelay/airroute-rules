@@ -1,0 +1,462 @@
+"""Passive routing snapshots, multi-origin ASN groups and auxiliary evidence.
+
+RIBs describe routing visibility, not target physical location. A new build reads
+only its fixed current snapshots; absent/withdrawn routes from older builds are
+not carried over. Incremental UPDATE files cannot be mistaken for a full RIB.
+"""
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+import bz2
+import csv
+import gzip
+import ipaddress
+import json
+from pathlib import Path
+import re
+import struct
+from typing import BinaryIO, Iterable, Iterator
+
+from .geo import bounds, country_code, event_stream, intervals_to_cidrs, open_text, public_intervals, _append_interval
+
+
+@dataclass(frozen=True)
+class RoutingRecord:
+    version: int
+    start: int
+    end: int
+    asns: tuple[int, ...]
+    source: str
+    collector: str = ""
+    semantics: str = "routing-origin"
+    peer_count: int | None = None
+    origin_prefix_length: int | None = None
+
+    @classmethod
+    def network(cls, network: str, asns: Iterable[int], source: str,
+                collector: str = "", *, peer_count: int | None = None,
+                raw_prefix_claim: bool = True) -> "RoutingRecord":
+        family, start, end = bounds(network)
+        if peer_count is not None and (isinstance(peer_count, bool) or not isinstance(peer_count, int) or peer_count < 0):
+            raise ValueError("invalid routing peer count")
+        # bounds() has already validated the prefix; avoid parsing each MRT
+        # row twice just to retain its original length.
+        original_length = (int(network.rsplit("/", 1)[1]) if "/" in network else (32 if family == 4 else 128)) if raw_prefix_claim else None
+        return cls(family, start, end, valid_asns(asns), source, collector,
+                   peer_count=peer_count, origin_prefix_length=original_length)
+
+
+@dataclass(frozen=True)
+class AuxiliaryRecord:
+    version: int
+    start: int
+    end: int
+    source: str
+    kind: str
+    country: str | None = None
+    status: str = ""
+    lineage: str = ""
+
+
+def valid_asns(values: Iterable[int | str]) -> tuple[int, ...]:
+    result = sorted({int(str(v).removeprefix("AS")) for v in values})
+    if any(not 0 < v < 2**32 for v in result):
+        raise ValueError("ASN outside u32 or AS0")
+    return tuple(result)
+
+
+def _asn_set(value: str) -> tuple[int, ...]:
+    # RIS dumps may publish AS sets with braces/comma separators. Do not choose
+    # the first origin and silently discard the rest.
+    fields = re.split(r"[\s,{}|]+", value.strip())
+    return valid_asns(v for v in fields if v)
+
+
+def parse_source(format: str, path: str | Path, source: dict) -> Iterator[RoutingRecord | AuxiliaryRecord]:
+    path = Path(path); sid = str(source["id"])
+    collector = str(source.get("collector", sid))
+    if format in ("routeviews-mrt", "ris-mrt", "mrt-rib"):
+        yield from parse_mrt(path, sid, collector)
+        return
+    if format in ("ris-whois", "riswhois"):
+        # Current RIS dump is a tabular origin-prefix-peercount summary. RPSL
+        # blocks are also supported for captured documented whois responses.
+        with open_text(path) as stream:
+            network, origins = None, []
+            for raw in stream:
+                line = raw.strip()
+                if not line or line.startswith(("%", "#")):
+                    if network and origins:
+                        yield RoutingRecord.network(network, origins, sid, collector)
+                    network, origins = None, []
+                    continue
+                if line.startswith(("route:", "route6:")):
+                    network = line.split(":", 1)[1].strip()
+                elif line.startswith("origin:"):
+                    origins.extend(_asn_set(line.split(":", 1)[1]))
+                elif "/" in line and not line.startswith(("descr:", "remarks:")):
+                    fields = line.split()
+                    prefix_index = next((i for i, field in enumerate(fields) if "/" in field), None)
+                    if prefix_index is None: continue
+                    if prefix_index == 0 and len(fields) > 1:
+                        prefix, asn = fields[0], fields[1]
+                    elif prefix_index > 0:
+                        prefix, asn = fields[prefix_index], " ".join(fields[:prefix_index])
+                    else: raise ValueError("RIS dump has no origin")
+                    peer_count = int(fields[prefix_index + 1]) if prefix_index > 0 and len(fields) > prefix_index + 1 else (
+                        int(fields[2]) if prefix_index == 0 and len(fields) > 2 else None)
+                    yield RoutingRecord.network(prefix, _asn_set(asn), sid, collector, peer_count=peer_count)
+            if network and origins:
+                yield RoutingRecord.network(network, origins, sid, collector)
+        return
+    if format in ("iptoasn-tsv", "iptoasn"):
+        with open_text(path) as stream:
+            for fields in csv.reader(stream, delimiter="\t"):
+                if not fields or fields[0].startswith("#"): continue
+                if len(fields) < 3: raise ValueError("IPtoASN needs first IP, last IP, ASN")
+                family, start, end = bounds(fields[0], fields[1], source.get("ip_version"))
+                if fields[2] == "0": continue  # Dataset explicitly says not announced.
+                yield RoutingRecord(family, start, end, _asn_set(fields[2]), sid, collector)
+        return
+    if format in ("iplocate-asn-csv", "bgp-tools-jsonl"):
+        with open_text(path) as stream:
+            rows = (json.loads(line) for line in stream if line.strip()) if format == "bgp-tools-jsonl" else csv.DictReader(stream)
+            for row in rows:
+                network = row.get("network", row.get("CIDR", row.get("prefix")))
+                origins = row.get("asns", row.get("ASN", row.get("asn")))
+                if network is None or origins is None: raise ValueError("routing row lacks network/ASN")
+                if isinstance(origins, (int, str)): origins = _asn_set(str(origins))
+                yield RoutingRecord.network(network, origins, sid, collector,
+                                            raw_prefix_claim=format == "bgp-tools-jsonl")
+        return
+    if format in ("rir-delegated", "delegated"):
+        with open_text(path) as stream:
+            for raw in stream:
+                row = raw.strip().split("|")
+                if len(row) < 7 or raw.startswith("#") or row[2] not in ("ipv4", "ipv6") or row[1] == "*": continue
+                cc = country_code(row[1]); status = row[6]
+                if row[2] == "ipv4":
+                    start = int(ipaddress.IPv4Address(row[3])); end = start + int(row[4]) - 1
+                    if end >= 2**32: raise ValueError("delegated IPv4 allocation overflows")
+                    family = 4
+                else: family, start, end = bounds(row[3] + "/" + row[4])
+                yield AuxiliaryRecord(family, start, end, sid, "registration", cc, status,
+                                      str(source.get("lineage", sid)))
+        return
+    if format in ("geofeed-csv", "geofeed"):
+        with open_text(path) as stream:
+            for row in csv.reader(stream):
+                if not row or row[0].strip().startswith("#"): continue
+                if len(row) < 2: raise ValueError("geofeed needs prefix and country")
+                family, start, end = bounds(row[0].strip())
+                yield AuxiliaryRecord(family, start, end, sid, "operator-geofeed", country_code(row[1]),
+                                      "operator-assertion", str(source.get("lineage", sid)))
+        return
+    if format == "surge-cidr-reference":
+        with open_text(path) as stream:
+            for raw in stream:
+                line = raw.split("#", 1)[0].strip()
+                if not line or line.startswith((";", "//")): continue
+                parts = [part.strip() for part in line.split(",")]
+                kind = parts[0].upper()
+                # Extract only top-level explicit CIDR rules. An AND/NOT line
+                # containing an IP-CIDR substring is never flattened or mined.
+                if kind not in ("IP-CIDR", "IP-CIDR6", "IP6-CIDR"): continue
+                if len(parts) < 2: raise ValueError("CIDR reference rule lacks its address")
+                family, start, end = bounds(parts[1])
+                if family != (4 if kind == "IP-CIDR" else 6):
+                    raise ValueError("CIDR reference rule has mismatched address family")
+                yield AuxiliaryRecord(family, start, end, sid, "route-list",
+                                      source.get("country", "CN"), "rule-reference-only",
+                                      str(source.get("lineage", sid)))
+        return
+    if format in ("cidr-list", "china-route-list"):
+        with open_text(path) as stream:
+            for raw in stream:
+                line = raw.split("#", 1)[0].strip()
+                if not line: continue
+                # Reference Surge/Clash CIDR lists without policy inference.
+                parts = line.split(",")
+                network = parts[1].strip() if parts[0].upper() in ("IP-CIDR", "IP-CIDR6", "IP6-CIDR") and len(parts) > 1 else line
+                family, start, end = bounds(network)
+                yield AuxiliaryRecord(family, start, end, sid, "route-list", source.get("country", "CN"),
+                                      "routing-membership-only", str(source.get("lineage", sid)))
+        return
+    raise ValueError(f"unsupported routing/auxiliary format: {format}")
+
+
+def _read_exact(stream: BinaryIO, size: int) -> bytes:
+    data = stream.read(size)
+    if len(data) != size: raise ValueError("truncated MRT record")
+    return data
+
+
+def _prefix(payload: bytes, offset: int, family: int) -> tuple[str, int]:
+    if offset >= len(payload): raise ValueError("truncated MRT prefix")
+    bits = payload[offset]; offset += 1
+    width = 4 if family == 4 else 16
+    if bits > width * 8: raise ValueError("MRT prefix exceeds family")
+    length = (bits + 7) // 8
+    if offset + length > len(payload): raise ValueError("truncated MRT address")
+    packed = payload[offset:offset+length] + b"\0" * (width - length)
+    ip = (ipaddress.IPv4Address if family == 4 else ipaddress.IPv6Address)(packed)
+    return str(ipaddress.ip_network(f"{ip}/{bits}", strict=True)), offset + length
+
+
+def _origin_path(payload: bytes, width: int) -> tuple[int, ...]:
+    offset, last = 0, ()
+    while offset < len(payload):
+        if offset + 2 > len(payload): raise ValueError("truncated AS_PATH segment")
+        kind, count = payload[offset:offset+2]; offset += 2
+        length = count * width
+        if offset + length > len(payload): raise ValueError("truncated AS_PATH ASNs")
+        values = [int.from_bytes(payload[i:i+width], "big") for i in range(offset, offset+length, width)]
+        offset += length
+        if kind == 1: last = valid_asns(values)  # AS_SET: all origins possible.
+        elif kind == 2 and values: last = valid_asns([values[-1]])
+        elif kind not in (3, 4): raise ValueError("unsupported AS_PATH segment kind")
+        # Confederation members do not replace externally visible origin.
+    return last
+
+
+def _attributes(payload: bytes, as4: bool) -> tuple[int, ...]:
+    offset, ordinary, fourbyte = 0, (), ()
+    while offset < len(payload):
+        if offset + 3 > len(payload): raise ValueError("truncated BGP attribute")
+        flags, kind = payload[offset:offset+2]; offset += 2
+        size_width = 2 if flags & 0x10 else 1
+        if offset + size_width > len(payload): raise ValueError("truncated BGP attribute length")
+        length = int.from_bytes(payload[offset:offset+size_width], "big"); offset += size_width
+        value = payload[offset:offset+length]
+        if len(value) != length: raise ValueError("truncated BGP attribute body")
+        offset += length
+        if kind == 2: ordinary = _origin_path(value, 4 if as4 else 2)
+        elif kind == 17: fourbyte = _origin_path(value, 4)
+    # AS4_PATH reconstructs AS_TRANS in legacy two-octet paths (RFC6793).
+    if not as4 and 23456 in ordinary and fourbyte: return fourbyte
+    return ordinary
+
+
+def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[RoutingRecord]:
+    """Decode current TABLE_DUMP_V2 unicast RIBs, including four-byte ASN/ADD-PATH.
+
+    Only peer-index and full RIB records are accepted. UPDATE streams must be
+    replayed from a known initial RIB; this batch producer intentionally rejects
+    them rather than accidentally resurrecting withdrawn routes.
+    """
+    path = Path(path)
+    opener = gzip.open if path.suffix == ".gz" else bz2.open if path.suffix == ".bz2" else open
+    peers: list[tuple[bool, str, int]] = []
+    with opener(path, "rb") as stream:
+        while header := stream.read(12):
+            if len(header) != 12: raise ValueError("truncated MRT header")
+            _timestamp, kind, subtype, length = struct.unpack("!IHHI", header)
+            if length > 64 * 1024 * 1024: raise ValueError("oversized MRT record")
+            payload = _read_exact(stream, length)
+            if kind != 13: raise ValueError("only TABLE_DUMP_V2 full RIB snapshots are supported")
+            if subtype == 1:
+                if len(payload) < 8: raise ValueError("truncated MRT peer index")
+                view_len = int.from_bytes(payload[4:6], "big"); offset = 6 + view_len
+                if offset + 2 > len(payload): raise ValueError("truncated MRT peer index view")
+                count = int.from_bytes(payload[offset:offset+2], "big"); offset += 2; peers = []
+                for _ in range(count):
+                    if offset + 5 > len(payload): raise ValueError("truncated MRT peer")
+                    peer_type = payload[offset]; as4 = bool(peer_type & 2)
+                    if peer_type & ~3: raise ValueError("unsupported MRT peer flags")
+                    size = 1 + 4 + (16 if peer_type & 1 else 4) + (4 if as4 else 2)
+                    if offset + size > len(payload): raise ValueError("truncated MRT peer address/ASN")
+                    addr_width = 16 if peer_type & 1 else 4
+                    addr = str(ipaddress.ip_address(payload[offset+5:offset+5+addr_width]))
+                    peer_asn = int.from_bytes(payload[offset+5+addr_width:offset+size], "big")
+                    peers.append((as4, addr, peer_asn)); offset += size
+                if offset != len(payload): raise ValueError("trailing MRT peer bytes")
+                continue
+            if subtype not in (2, 4, 6, 8, 10, 12):
+                # IPv4/IPv6 multicast are not unicast routing membership.
+                if subtype in (3, 5, 9, 11): continue
+                raise ValueError("unsupported MRT RIB subtype")
+            addpath = subtype in (8, 10, 12)
+            if len(payload) < 4: raise ValueError("truncated MRT RIB sequence")
+            offset = 4
+            if subtype in (6, 12):
+                if offset + 3 > len(payload): raise ValueError("truncated MRT generic AFI/SAFI")
+                afi, safi = struct.unpack_from("!HB", payload, offset); offset += 3
+                if afi not in (1, 2) or safi != 1: continue
+                family = 4 if afi == 1 else 6
+            else: family = 4 if subtype in (2, 8) else 6
+            prefix, offset = _prefix(payload, offset, family)
+            if offset + 2 > len(payload): raise ValueError("truncated MRT entry count")
+            count = int.from_bytes(payload[offset:offset+2], "big"); offset += 2
+            for _ in range(count):
+                if offset + 8 + (4 if addpath else 0) > len(payload): raise ValueError("truncated MRT RIB entry")
+                peer = int.from_bytes(payload[offset:offset+2], "big"); offset += 6
+                if peer >= len(peers): raise ValueError("MRT RIB references unknown peer")
+                if addpath: offset += 4
+                attr_len = int.from_bytes(payload[offset:offset+2], "big"); offset += 2
+                attrs = payload[offset:offset+attr_len]
+                if len(attrs) != attr_len: raise ValueError("truncated MRT entry attributes")
+                offset += attr_len
+                # RFC6396 section4.3.4: TABLE_DUMP_V2 AS_PATH is always
+                # four-octet, even when the peer-index ASN itself is two-octet.
+                origins = _attributes(attrs, True)
+                if origins:
+                    _, peer_ip, peer_asn = peers[peer]
+                    view = f"{collector}/AS{peer_asn}@{peer_ip}"
+                    yield RoutingRecord.network(prefix, origins, source, view)
+            if offset != len(payload): raise ValueError("trailing MRT RIB bytes")
+
+
+def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
+                minimum_prefix_lengths: dict[int, int] | None = None) -> dict:
+    """Longest matching prefix per collector, union all current origin views.
+
+    A /25 from one collector does not erase a covering /24 observed by another.
+    Overlapping source records at equal specificity retain every origin.
+    """
+    active = {}; previous = previous_family = None
+    floors = {4: 8, 6: 12}
+    if minimum_prefix_lengths is not None:
+        for family, floor in minimum_prefix_lengths.items():
+            family = int(family)
+            if family not in (4, 6) or isinstance(floor, bool) or not isinstance(floor, int) or not 1 <= floor <= (32 if family == 4 else 128):
+                raise ValueError("invalid ASN ownership minimum prefix length")
+            floors[family] = floor
+    groups = defaultdict(list); routed_union = []; counts = Counter(); collectors = set(); source_rows = Counter()
+    quarantined, quarantine_rows, quarantine_by_source = [], 0, Counter()
+    def normalized():
+        nonlocal quarantine_rows
+        for rec in records:
+            source_rows[rec.source] += 1
+            if not isinstance(rec, RoutingRecord) or rec.semantics != "routing-origin":
+                counts["auxiliary_rows_not_asn_membership"] += 1; continue
+            valid_asns(rec.asns)
+            if not rec.asns: continue
+            if rec.origin_prefix_length == 0:
+                # A default route offered by a peer is forwarding reachability,
+                # not ownership of every otherwise unannounced address.
+                counts[f"ipv{rec.version}_default_routes_ignored"] += 1
+                continue
+            width = 32 if rec.version == 4 else 128
+            size = rec.end - rec.start + 1
+            if rec.origin_prefix_length is not None and rec.origin_prefix_length < floors[rec.version]:
+                # Public ASN data describe admitted address membership, not
+                # every observed catch-all announcement. This conservative
+                # guard is explicit product policy, not a geographic claim.
+                quarantine_rows += 1
+                quarantine_by_source[rec.source] += 1
+                counts[f"ipv{rec.version}_superaggregate_claims_quarantined"] += 1
+                counts[f"ipv{rec.version}_quarantined_address_sum_per_claim"] += size
+                if len(quarantined) < 100:
+                    address = ipaddress.IPv4Address if rec.version == 4 else ipaddress.IPv6Address
+                    detail = {"source": rec.source, "collector": rec.collector or rec.source,
+                              "family": rec.version, "start": str(address(rec.start)), "end": str(address(rec.end)),
+                              "asns": list(rec.asns), "peer_count": rec.peer_count,
+                              "reason": "observed-superaggregate-not-admitted-as-AS-owned-range",
+                              "minimum_prefix_length": floors[rec.version]}
+                    if size & (size - 1) == 0 and rec.start % size == 0:
+                        detail["prefix"] = f"{address(rec.start)}/{width - size.bit_length() + 1}"
+                    quarantined.append(detail)
+                continue
+            for start, end in public_intervals(rec.version, rec.start, rec.end):
+                yield rec.version, start, end, {"asns": rec.asns, "view": rec.collector or rec.source,
+                                             "span": str(rec.end-rec.start), "source": rec.source}
+    with event_stream(normalized()) as points:
+        for family, point, changes in points:
+            if family != previous_family: active.clear(); previous = None
+            if active and previous is not None and point > previous:
+                views = defaultdict(list)
+                for value in active.values(): views[value["view"]].append(value)
+                origins = set()
+                for view, values in views.items():
+                    collectors.add(view)
+                    smallest = min(int(v["span"]) for v in values)
+                    for value in values:
+                        if int(value["span"]) == smallest: origins.update(value["asns"])
+                _append_interval(routed_union, family, previous, point - 1)
+                counts[f"ipv{family}_routed_addresses"] += point - previous
+                if len(origins) > 1:
+                    counts[f"ipv{family}_multi_origin_addresses"] += point - previous
+                    counts["multi_origin_segments"] += 1
+                for asn in origins: _append_interval(groups[asn], family, previous, point-1)
+            for rid, delta, payload in changes:
+                if delta < 0: active.pop(rid, None)
+                else: active[rid] = payload
+            previous, previous_family = point, family
+    result = {asn: intervals_to_cidrs(ranges) for asn, ranges in sorted(groups.items())}
+    return {"groups": result, "routed_prefixes": intervals_to_cidrs(routed_union),
+            "report": {"policy": "current-snapshot-longest-match-per-view-origin-union",
+        "source_rows": dict(sorted(source_rows.items())), "coverage": dict(counts),
+        "ownership_admission": {"minimum_prefix_lengths": {f"ipv{k}": v for k, v in floors.items()},
+                                "policy": "Original observed BGP prefix claims broader than the configured floor are quarantined, not treated as AS-owned address space. Derived provider intervals may losslessly coalesce many distinct prefixes and are not reinterpreted as a single BGP announcement. This guard does not claim that an observation is false or establish location.",
+                                "quarantined_claim_rows": quarantine_rows,
+                                "quarantined_by_source": dict(sorted(quarantine_by_source.items())),
+                                "claim_details": quarantined,
+                                "claim_details_truncated": quarantine_rows > len(quarantined)},
+        "collector_views": sorted(collectors), "asn_groups": len(result),
+        "prefixes": sum(len(v) for v in result.values()),
+        "meaning": "Observed origin membership; not registration country, physical location or RPKI geographic truth.",
+        "withdrawals": "No earlier snapshot routes are carried forward. Missing in the fixed current sources means absent from this output, not proof of global withdrawal.",
+        "summary_limitation": "RISwhois aggregates origin/prefix peer counts and does not retain each peer view; only full MRT RIBs support peer-specific longest matching. Default routes never imply ASN ownership."}}
+
+
+def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int, list[str]], registry: dict) -> dict:
+    """Compare supplemental lists with cleaned geography without adding votes."""
+    names = {r["id"]: r["key"] for r in registry["regions"]}
+    by_source = defaultdict(Counter)
+    # Two sorted interval streams, using the same external sorter avoids per-IP work.
+    def combined():
+        for rec in records:
+            for start, end in public_intervals(rec.version, rec.start, rec.end):
+                yield rec.version, start, end, {"source": rec.source, "kind": rec.kind,
+                                              "country": rec.country}
+        for rid, prefixes in geo_groups.items():
+            for prefix in prefixes:
+                f, a, b = bounds(prefix)
+                yield f, a, b, {"region": names[rid]}
+    active={}; previous=previous_family=None
+    with event_stream(combined()) as points:
+        for family, point, changes in points:
+            if family != previous_family: active.clear(); previous=None
+            if previous is not None and point>previous and active:
+                regions={v['region'] for v in active.values() if 'region' in v}
+                auxiliary={v['source']:v for v in active.values() if 'source' in v}
+                for sid,v in auxiliary.items():
+                    count=point-previous
+                    by_source[sid][f'ipv{family}_candidate_addresses']+=count
+                    by_source[sid][f'ipv{family}_'+('unknown' if not regions else 'region_'+next(iter(regions)))+'_addresses']+=count
+            for rid,delta,payload in changes:
+                if delta<0:active.pop(rid,None)
+                else:active[rid]=payload
+            previous,previous_family=point,family
+    return {"semantics":"Auxiliary list membership is reported only; never unioned into location truth.",
+            "sources":{k:dict(v) for k,v in sorted(by_source.items())}}
+
+
+def audit_auxiliary(sources: Iterable[dict], geo_groups: dict[int, list[str]], registry: dict,
+                    routing_prefixes: Iterable[str] | None = None) -> dict:
+    sources = list(sources)
+    if routing_prefixes is not None and any(source["id"] == "bgp-visible" for source in sources):
+        raise ValueError("bgp-visible is reserved for the current routing snapshot union")
+    counts = Counter()
+    def records():
+        for source in sources:
+            for record in parse_source(source["format"], source["path"], source):
+                if not isinstance(record, AuxiliaryRecord):
+                    raise ValueError("auxiliary source returned routing membership")
+                counts[record.source] += 1
+                yield record
+        if routing_prefixes is not None:
+            counts["bgp-visible"] = 0
+            for prefix in routing_prefixes:
+                family, start, end = bounds(prefix)
+                counts["bgp-visible"] += 1
+                yield AuxiliaryRecord(family, start, end, "bgp-visible", "routing-visibility", None,
+                                      "observed-in-current-inputs", "current-routing-snapshots-union")
+    report = summarize_auxiliary(records(), geo_groups, registry)
+    report["input_rows"] = dict(sorted(counts.items()))
+    report["lineage"] = {s["id"]: s.get("lineage", s["id"]) for s in sources}
+    if routing_prefixes is not None:
+        report["lineage"]["bgp-visible"] = "current-routing-snapshots-union"
+    report["country_note"] = "CN/RU labels on route or delegated lists describe list/registration semantics, not target country confirmation."
+    return report

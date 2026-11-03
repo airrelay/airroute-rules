@@ -1,22 +1,520 @@
 {
-  "dlc": {
-    "repo": "v2fly/domain-list-community",
-    "branch": "master"
-  },
-  "blackmatrix": {
-    "repo": "blackmatrix7/ios_rule_script",
-    "branch": "master"
-  },
-  "dnsmasq": {
-    "repo": "felixonmars/dnsmasq-china-list",
-    "branch": "master"
-  },
-  "china_ip": {
-    "repo": "gaoyifan/china-operator-ip",
-    "branch": "ip-lists"
-  },
-  "country": {
-    "repo": "iplocate/ip-address-databases",
-    "branch": "main"
-  }
+  "schema": 1,
+  "verified_at": "2026-11-03",
+  "independence_policy": "Publisher identity is not statistical independence. Votes group by configured lineage; mirrors and known derivatives reuse their upstream lineage. Hidden cross-vendor overlap remains unknown.",
+  "sources": [
+    {
+      "id": "maxmind",
+      "role": "country",
+      "format": "maxmind-country-csv",
+      "lineage": "maxmind-geolite",
+      "publisher": "MaxMind",
+      "field_semantics": "country geoname_id is an IP location estimate; registered_country_geoname_id is registration and is never a location fallback",
+      "transport": "http",
+      "url": "https://download.maxmind.com/geoip/databases/GeoLite2-Country-CSV/download?suffix=zip",
+      "filename": "GeoLite2-Country-CSV.zip",
+      "compression": "zip",
+      "auth": {
+        "basic": [
+          "MAXMIND_ACCOUNT_ID",
+          "MAXMIND_LICENSE_KEY"
+        ]
+      },
+      "requires_env": [
+        "MAXMIND_ACCOUNT_ID",
+        "MAXMIND_LICENSE_KEY"
+      ],
+      "access": "Free account and license key; at most30 database downloads/day; keep updated and apply EULA to derived redistribution, including old-data deletion obligations",
+      "update_frequency": "Tuesday and Friday, plus exceptional updates",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "GeoLite EULA + CC-BY-SA-4.0 elements",
+      "publish_allowed": false,
+      "publication_reason": "Default evaluation only: retaining immutable historical release directories conflicts with mandatory deletion of obsolete GeoLite data unless an appropriate policy/agreement is established",
+      "documentation": "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/",
+      "terms": "https://www.maxmind.com/en/geolite/eula"
+    },
+    {
+      "id": "dbip",
+      "role": "country",
+      "format": "dbip-country-csv",
+      "lineage": "dbip-lite",
+      "publisher": "DB-IP",
+      "field_semantics": "ip_start,ip_end,country ISO3166 IP geolocation estimate; Lite coverage/accuracy reduced; missing is not overseas",
+      "transport": "http",
+      "url": "https://download.db-ip.com/free/dbip-country-lite-{YYYY-MM}.csv.gz",
+      "filename": "dbip-country.csv.gz",
+      "compression": "gzip",
+      "access": "Free public full download, no account/token; attribution required",
+      "update_frequency": "monthly",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "CC-BY-4.0",
+      "publish_allowed": true,
+      "documentation": "https://db-ip.com/db/lite.php",
+      "format_documentation": "https://db-ip.com/db/format/ip-to-country-lite/csv.html",
+      "payload_glob": "*.csv"
+    },
+    {
+      "id": "ipinfo",
+      "role": "country",
+      "format": "ipinfo-lite-csv",
+      "lineage": "ipinfo-lite",
+      "publisher": "IPinfo",
+      "field_semantics": "network,country_code country-level IP location estimate, separate from asn/as_name/as_domain; latest network schema not legacy country_asn schema",
+      "transport": "http",
+      "url": "https://ipinfo.io/data/ipinfo_lite.csv.gz?token={env:IPINFO_TOKEN}",
+      "filename": "ipinfo-lite.csv.gz",
+      "compression": "gzip",
+      "requires_env": [
+        "IPINFO_TOKEN"
+      ],
+      "access": "Free IPinfo account/token for full database; token-free100-row samples are test data and must not substitute for full coverage",
+      "update_frequency": "daily",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "CC-BY-SA-4.0",
+      "publish_allowed": true,
+      "documentation": "https://ipinfo.io/developers/ipinfo-lite-database",
+      "payload_glob": "*.csv"
+    },
+    {
+      "id": "ip2location",
+      "role": "country",
+      "format": "ip2location-db1-csv",
+      "lineage": "ip2location-lite",
+      "publisher": "IP2Location",
+      "field_semantics": "DB1 decimal ip_from,ip_to,country_code,country_name is an IP location estimate; IPv4 and IPv6 numeric widths differ",
+      "transport": "http_files",
+      "files": [
+        {
+          "url": "https://www.ip2location.com/download?token={env:IP2LOCATION_TOKEN}&file=DB1LITE",
+          "name": "DB1LITE.zip",
+          "compression": "zip"
+        },
+        {
+          "url": "https://www.ip2location.com/download?token={env:IP2LOCATION_TOKEN}&file=DB1LITEIPV6",
+          "name": "DB1LITEIPV6.zip",
+          "compression": "zip"
+        }
+      ],
+      "requires_env": [
+        "IP2LOCATION_TOKEN"
+      ],
+      "access": "Free account/download token; legacy LITE portal now redirects downloads to IP2Location.com; no bypass of authenticated download",
+      "update_frequency": "Current DB1 page advertises twice-monthly; downloader/FAQ still monthly. Once per month during first week unless upstream policy confirms higher cadence.",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "CC-BY-SA-4.0 with attribution terms",
+      "publish_allowed": true,
+      "documentation": "https://lite.ip2location.com/database/db1-ip-country",
+      "format_documentation": "https://www.ip2location.com/free/downloader"
+    },
+    {
+      "id": "iplocate",
+      "role": "country",
+      "format": "iplocate-country-csv",
+      "lineage": "iplocate-country",
+      "publisher": "IPLocate",
+      "field_semantics": "network,continent_code,country_code,country_name is country-level IP location estimate; ASN-holder country is separate and not used",
+      "transport": "github_files",
+      "repo": "iplocate/ip-address-databases",
+      "ref": "main",
+      "paths": [
+        "ip-to-country/ip-to-country.csv.zip"
+      ],
+      "compression": "zip",
+      "access": "Free public full Country CSV/IPv4+IPv6; no API calls or account needed",
+      "update_frequency": "daily",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "CC-BY-SA-4.0",
+      "publish_allowed": true,
+      "documentation": "https://github.com/iplocate/ip-address-databases",
+      "payload_glob": "*.csv"
+    },
+    {
+      "id": "ris-v4",
+      "role": "routing",
+      "format": "ris-whois",
+      "lineage": "ripe-ris",
+      "publisher": "RIPE NCC",
+      "field_semantics": "Observed BGP prefix and origin-AS set across RIS views; registration/physical location not inferred",
+      "transport": "http",
+      "url": "https://www.ris.ripe.net/dumps/riswhoisdump.IPv4.gz",
+      "filename": "ris-v4.txt.gz",
+      "compression": "gzip",
+      "access": "Public dump; no per-target WHOIS query",
+      "update_frequency": "generated on request from current RIS tables",
+      "address_families": [
+        4
+      ],
+      "license": "RIPE NCC public data terms",
+      "publish_allowed": true,
+      "documentation": "https://www.ris.ripe.net/docs/ris-whois/",
+      "payload_glob": "*.txt"
+    },
+    {
+      "id": "ris-v6",
+      "role": "routing",
+      "format": "ris-whois",
+      "lineage": "ripe-ris",
+      "publisher": "RIPE NCC",
+      "field_semantics": "Observed BGP IPv6 prefix and origin-AS set; no country assertion",
+      "transport": "http",
+      "url": "https://www.ris.ripe.net/dumps/riswhoisdump.IPv6.gz",
+      "filename": "ris-v6.txt.gz",
+      "compression": "gzip",
+      "access": "Public dump",
+      "update_frequency": "generated on request",
+      "address_families": [
+        6
+      ],
+      "license": "RIPE NCC public data terms",
+      "publish_allowed": true,
+      "documentation": "https://www.ris.ripe.net/docs/ris-whois/",
+      "payload_glob": "*.txt"
+    },
+    {
+      "id": "routeviews",
+      "role": "routing",
+      "format": "routeviews-mrt",
+      "lineage": "routeviews",
+      "publisher": "University of Oregon RouteViews",
+      "field_semantics": "A collector RIB snapshot, not authoritative universal visibility; multiple origin ASNs retained; new snapshots replace rather than append obsolete routes",
+      "transport": "directory_latest",
+      "url": "https://archive.routeviews.org/route-views2/bgpdata/{YYYY.MM}/RIBS/",
+      "filename_regex": "rib\\.[0-9]{8}\\.[0-9]{4}\\.bz2",
+      "filename": "routeviews.mrt.bz2",
+      "compression": "bzip2",
+      "access": "Free public MRT RIB; hundreds of MB, parser accepts TABLE_DUMP_V2/IPV4+IPV6 RIB families",
+      "update_frequency": "every2hours",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "RouteViews public research archive terms",
+      "publish_allowed": true,
+      "documentation": "https://archive.routeviews.org/",
+      "payload_glob": "*.mrt"
+    },
+    {
+      "id": "iptoasn-v4",
+      "role": "routing",
+      "format": "iptoasn-tsv",
+      "lineage": "iptoasn",
+      "publisher": "IPtoASN",
+      "field_semantics": "range_start,range_end,AS_number,country_code,description; country is ASN/registration context and never a geo vote; may lose MOAS compared with raw RIB",
+      "transport": "http",
+      "url": "https://iptoasn.com/data/ip2asn-v4.tsv.gz",
+      "filename": "iptoasn-v4.tsv.gz",
+      "compression": "gzip",
+      "access": "Free public bulk download; old public lookup API discontinued",
+      "update_frequency": "hourly",
+      "address_families": [
+        4
+      ],
+      "license": "PDDL-1.0",
+      "publish_allowed": true,
+      "documentation": "https://iptoasn.com/",
+      "payload_glob": "*.tsv"
+    },
+    {
+      "id": "iptoasn-v6",
+      "role": "routing",
+      "format": "iptoasn-tsv",
+      "lineage": "iptoasn",
+      "publisher": "IPtoASN",
+      "field_semantics": "IPv6 ASN ranges; country is non-geolocation context",
+      "transport": "http",
+      "url": "https://iptoasn.com/data/ip2asn-v6.tsv.gz",
+      "filename": "iptoasn-v6.tsv.gz",
+      "compression": "gzip",
+      "access": "Free bulk download",
+      "update_frequency": "hourly",
+      "address_families": [
+        6
+      ],
+      "license": "PDDL-1.0",
+      "publish_allowed": true,
+      "documentation": "https://iptoasn.com/",
+      "payload_glob": "*.tsv"
+    },
+    {
+      "id": "rir-apnic",
+      "role": "rir",
+      "format": "rir-delegated",
+      "lineage": "rir-apnic",
+      "publisher": "APNIC",
+      "field_semantics": "Resource allocation/assignment status and registry country, not physical IP location",
+      "transport": "http",
+      "url": "https://ftp.apnic.net/stats/apnic/delegated-apnic-latest",
+      "filename": "delegated-apnic.txt",
+      "access": "Public delegated statistics",
+      "update_frequency": "daily",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "RIR statistics terms",
+      "publish_allowed": true,
+      "documentation": "https://ftp.apnic.net/stats/apnic/"
+    },
+    {
+      "id": "rir-ripe",
+      "role": "rir",
+      "format": "rir-delegated",
+      "lineage": "rir-ripencc",
+      "publisher": "RIPE NCC",
+      "field_semantics": "Registry holder/allocation country, not physical location; relevant RU registration evidence only",
+      "transport": "http",
+      "url": "https://ftp.ripe.net/pub/stats/ripencc/delegated-ripencc-latest",
+      "filename": "delegated-ripencc.txt",
+      "access": "Public delegated statistics",
+      "update_frequency": "daily",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "RIPE NCC public data terms",
+      "publish_allowed": true,
+      "documentation": "https://ftp.ripe.net/pub/stats/ripencc/"
+    },
+    {
+      "id": "cn-17mon",
+      "role": "cn-reference",
+      "format": "cidr-list",
+      "lineage": "ipip-17mon",
+      "publisher": "IPIP.NET",
+      "field_semantics": "Quarterly China list can include unannounced WHOIS allocations and deliberately fuzz backbone ranges; neither route truth nor physical truth",
+      "transport": "github_files",
+      "repo": "17mon/china_ip_list",
+      "ref": "master",
+      "paths": [
+        "china_ip_list.txt"
+      ],
+      "access": "Public; noncommercial share-alike license, audit only by default",
+      "update_frequency": "quarterly advertised, inspect actual revision",
+      "address_families": [
+        4
+      ],
+      "license": "CC-BY-NC-SA-4.0",
+      "publish_allowed": false,
+      "documentation": "https://github.com/17mon/china_ip_list"
+    },
+    {
+      "id": "cn-misaka",
+      "role": "cn-reference",
+      "format": "cidr-list",
+      "lineage": "misaka-bgp",
+      "publisher": "Misaka",
+      "field_semantics": "Aggregated CN BGP route list from AS917/AS906/AS131477/AS138195 feeds; contextual clue, no physical location vote",
+      "transport": "github_files",
+      "repo": "misakaio/chnroutes2",
+      "ref": "master",
+      "paths": [
+        "chnroutes.txt"
+      ],
+      "access": "Public",
+      "update_frequency": "hourly",
+      "address_families": [
+        4
+      ],
+      "license": "CC-BY-SA-4.0",
+      "publish_allowed": true,
+      "documentation": "https://github.com/misakaio/chnroutes2"
+    },
+    {
+      "id": "cn-gaoyifan-v4",
+      "role": "cn-reference",
+      "format": "cidr-list",
+      "lineage": "gaoyifan-bgp",
+      "publisher": "gaoyifan",
+      "field_semantics": "Chinese operator ASN/BGP classification; not a physical-country oracle",
+      "transport": "github_files",
+      "repo": "gaoyifan/china-operator-ip",
+      "ref": "ip-lists",
+      "paths": [
+        "china.txt"
+      ],
+      "access": "Public generated branch",
+      "update_frequency": "daily",
+      "address_families": [
+        4
+      ],
+      "license": "MIT",
+      "publish_allowed": true,
+      "documentation": "https://github.com/gaoyifan/china-operator-ip"
+    },
+    {
+      "id": "cn-gaoyifan-v6",
+      "role": "cn-reference",
+      "format": "cidr-list",
+      "lineage": "gaoyifan-bgp",
+      "publisher": "gaoyifan",
+      "field_semantics": "IPv6 operator classification, shares upstream with its IPv4 counterpart, no extra independent vote",
+      "transport": "github_files",
+      "repo": "gaoyifan/china-operator-ip",
+      "ref": "ip-lists",
+      "paths": [
+        "china6.txt"
+      ],
+      "access": "Public generated branch",
+      "update_frequency": "daily",
+      "address_families": [
+        6
+      ],
+      "license": "MIT",
+      "publish_allowed": true,
+      "documentation": "https://github.com/gaoyifan/china-operator-ip"
+    },
+    {
+      "id": "dlc",
+      "role": "domains",
+      "format": "dlc",
+      "lineage": "domain-list-community",
+      "publisher": "v2fly community",
+      "field_semantics": "Service/category assertions and include/attributes/exact/suffix/keyword/regexp syntax; country TLD alone is not service identity",
+      "transport": "github_archive",
+      "repo": "v2fly/domain-list-community",
+      "ref": "master",
+      "access": "Free public repository fixed to one commit",
+      "update_frequency": "continuous",
+      "license": "MIT",
+      "publish_allowed": true,
+      "documentation": "https://github.com/v2fly/domain-list-community"
+    },
+    {
+      "id": "blackmatrix",
+      "role": "domains",
+      "format": "surge",
+      "lineage": "blackmatrix-community",
+      "publisher": "blackmatrix7",
+      "field_semantics": "Third-party service rules; copied formats and upstream inherited material are one lineage, conditions are not flattened",
+      "transport": "github_files",
+      "repo": "blackmatrix7/ios_rule_script",
+      "ref": "master",
+      "paths": [
+        "rule/Surge/China/China.list",
+        "rule/Surge/ChinaMax/ChinaMax.list",
+        "rule/Surge/ChinaMax/ChinaMax_Domain.list",
+        "rule/Surge/OpenAI/OpenAI.list"
+      ],
+      "access": "Public selected Surge files; no MITM/UA modules",
+      "update_frequency": "continuous",
+      "license": "Repository source licenses and attribution; reference/corroboration only",
+      "publish_allowed": true,
+      "documentation": "https://github.com/blackmatrix7/ios_rule_script"
+    },
+    {
+      "id": "acl4ssr",
+      "role": "domains",
+      "format": "clash",
+      "lineage": "acl4ssr-community",
+      "publisher": "ACL4SSR",
+      "field_semantics": "Selected Clash third-party assertions, reference only; mirrors/formats do not add votes",
+      "transport": "github_files",
+      "repo": "ACL4SSR/ACL4SSR",
+      "ref": "master",
+      "paths": [
+        "Clash/Ruleset/OpenAi.list"
+      ],
+      "access": "Public selected list",
+      "update_frequency": "continuous",
+      "license": "GPL-3.0 source; reference only",
+      "publish_allowed": true,
+      "documentation": "https://github.com/ACL4SSR/ACL4SSR"
+    },
+    {
+      "id": "sukka",
+      "role": "domains",
+      "format": "surge",
+      "lineage": "sukka-generated",
+      "publisher": "Sukka",
+      "field_semantics": "Generated service/category rules combine multiple upstreams; not an independent corroborating vote",
+      "transport": "github_files",
+      "repo": "SukkaLab/ruleset.skk.moe",
+      "ref": "master",
+      "paths": [
+        "List/non_ip/stream.conf",
+        "List/non_ip/ai.conf"
+      ],
+      "access": "Public selected non-IP list; no modules or rewrites",
+      "update_frequency": "continuous",
+      "license": "Repository licenses apply; reference only",
+      "publish_allowed": true,
+      "documentation": "https://github.com/SukkaLab/ruleset.skk.moe"
+    },
+    {
+      "id": "geofeed-vultr",
+      "role": "geofeed",
+      "format": "geofeed-csv",
+      "lineage": "vultr-operator",
+      "publisher": "Vultr",
+      "field_semantics": "Operator self-published RFC8805 location assertion only, not independently verified physical truth",
+      "transport": "http",
+      "url": "https://geofeed.constant.com/",
+      "filename": "vultr-geofeed.csv",
+      "access": "Public geofeed",
+      "update_frequency": "operator managed",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "Operator public geofeed terms",
+      "publish_allowed": true,
+      "documentation": "https://geofeed.constant.com/"
+    },
+    {
+      "id": "bgptools",
+      "role": "routing",
+      "format": "bgp-tools-jsonl",
+      "lineage": "bgp-tools",
+      "publisher": "bgp.tools",
+      "field_semantics": "CIDR,ASN,Hits table visibility; origin and viewpoint counts, not physical location",
+      "transport": "http",
+      "url": "https://bgp.tools/table.jsonl",
+      "filename": "table.jsonl",
+      "enabled": false,
+      "user_agent_env": "BGPTOOLS_USER_AGENT",
+      "requires_env": [
+        "BGPTOOLS_USER_AGENT"
+      ],
+      "access": "Official table export, identifying contact User-Agent required, never more often than30minutes; disabled until identity configured",
+      "update_frequency": "30minutes or slower; daily build is sufficient",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "bgp.tools export terms",
+      "publish_allowed": true,
+      "documentation": "https://bgp.tools/kb/api"
+    },
+    {
+      "id": "microsoft365",
+      "role": "domains",
+      "format": "official-json",
+      "lineage": "microsoft365-official",
+      "publisher": "Microsoft",
+      "field_semantics": "Office365 worldwide endpoint inventory URLs/IPs with serviceArea,required,category fields; only corresponding product endpoints, not every Microsoft CDN/domain",
+      "transport": "http",
+      "url": "https://endpoints.office.com/endpoints/worldwide?clientrequestid=8d847468-f249-4aba-a240-684e4bbcbd25",
+      "filename": "microsoft365.json",
+      "access": "Public official endpoint catalogue; static request ID identifies data download, no user credentials",
+      "update_frequency": "daily check, service releases typically monthly with out-of-band changes",
+      "license": "Microsoft public endpoint documentation/data terms",
+      "publish_allowed": true,
+      "documentation": "https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-ip-web-service"
+    }
+  ]
 }

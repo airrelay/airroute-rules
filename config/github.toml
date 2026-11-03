@@ -1,6 +1,0 @@
-# Create this repository manually, then connect GitHub in the console.
-repository = "example/rules"
-branch = "main"
-enabled = false
-# Optional OAuth App client ID; enable Device Flow in that application's settings.
-client_id = ""

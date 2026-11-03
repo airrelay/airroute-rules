@@ -1,4 +1,0 @@
-[env]
-# The controller does not use SQLite's process-wide allocation statistics.
-# Avoid their global allocator mutex; retain SQLite's normal thread safety.
-LIBSQLITE3_FLAGS = "-DSQLITE_DEFAULT_MEMSTATUS=0"
