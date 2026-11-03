@@ -1,0 +1,5 @@
+DOMAIN,dns.msftncsi.com
+DOMAIN,ipv4only.arpa
+DOMAIN-SUFFIX,home.arpa
+DOMAIN-SUFFIX,local
+DOMAIN-SUFFIX,localhost

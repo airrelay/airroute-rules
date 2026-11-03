@@ -56,7 +56,6 @@ DOMAIN,steampipe.akamaized.net
 DOMAIN,steamstore-a.akamaihd.net
 DOMAIN,steamugcquincy.blob.core.windows.net
 DOMAIN,steamusercontent-a.akamaihd.net
-DOMAIN,steamuserimages-a.akamaihd.net
 DOMAIN,steamvideo-a.akamaihd.net
 DOMAIN,supercell.helpshift.com
 DOMAIN,supercell.zendesk.com
@@ -130,6 +129,8 @@ DOMAIN-SUFFIX,battlefieldv.com
 DOMAIN-SUFFIX,battlefront2.com
 DOMAIN-SUFFIX,battlefrontii.com
 DOMAIN-SUFFIX,battlelog.com
+DOMAIN-SUFFIX,battlenet.com
+DOMAIN-SUFFIX,battlenet.com.cn
 DOMAIN-SUFFIX,bejeweledstars.com
 DOMAIN-SUFFIX,bejewled-stars.com
 DOMAIN-SUFFIX,benefitsforeveryworld.com
@@ -142,10 +143,12 @@ DOMAIN-SUFFIX,biowarestore.com
 DOMAIN-SUFFIX,bistudio.com
 DOMAIN-SUFFIX,blackboxgames.com
 DOMAIN-SUFFIX,blizzard.com
+DOMAIN-SUFFIX,blizzardgames.cn
 DOMAIN-SUFFIX,blizzardgearstore.com
 DOMAIN-SUFFIX,blox.com
 DOMAIN-SUFFIX,bluearchive.jp
 DOMAIN-SUFFIX,blz-contentstack.com
+DOMAIN-SUFFIX,blzstatic.cn
 DOMAIN-SUFFIX,bohemia.net
 DOMAIN-SUFFIX,boombeach.com
 DOMAIN-SUFFIX,bowsersinsidestory.com
@@ -492,8 +495,10 @@ DOMAIN-SUFFIX,nintendonetwork.net
 DOMAIN-SUFFIX,nintendonyc.com
 DOMAIN-SUFFIX,nintendostore.com
 DOMAIN-SUFFIX,nintendoswitch.com
+DOMAIN-SUFFIX,nintendoswitch.com.cn
 DOMAIN-SUFFIX,nintendoswitch.net
 DOMAIN-SUFFIX,nintendoswitchtogether.com
+DOMAIN-SUFFIX,nintendowifi.net
 DOMAIN-SUFFIX,nintendowii.com
 DOMAIN-SUFFIX,noxygames.com
 DOMAIN-SUFFIX,offworldindustries.com
@@ -701,6 +706,7 @@ DOMAIN-SUFFIX,steamserver.net
 DOMAIN-SUFFIX,steamstatic.com
 DOMAIN-SUFFIX,steamunlocked.net
 DOMAIN-SUFFIX,steamusercontent.com
+DOMAIN-SUFFIX,steamuserimages-a.akamaihd.net
 DOMAIN-SUFFIX,stellasora.global
 DOMAIN-SUFFIX,stellasora.jp
 DOMAIN-SUFFIX,supercell.com
@@ -808,6 +814,7 @@ DOMAIN-SUFFIX,xbox360.org
 DOMAIN-SUFFIX,xboxab.com
 DOMAIN-SUFFIX,xboxgamepass.com
 DOMAIN-SUFFIX,xboxgamestudios.com
+DOMAIN-SUFFIX,xboxlive.cn
 DOMAIN-SUFFIX,xboxlive.com
 DOMAIN-SUFFIX,xboxone.co
 DOMAIN-SUFFIX,xboxone.com

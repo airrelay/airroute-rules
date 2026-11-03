@@ -36,7 +36,6 @@ DOMAIN-SUFFIX,app-measurement.com
 DOMAIN-SUFFIX,appbridge.ca
 DOMAIN-SUFFIX,appbridge.io
 DOMAIN-SUFFIX,appbridge.it
-DOMAIN-SUFFIX,appspot.com
 DOMAIN-SUFFIX,apture.com
 DOMAIN-SUFFIX,area120.com
 DOMAIN-SUFFIX,asp-cc.com
@@ -143,7 +142,6 @@ DOMAIN-SUFFIX,chromium.org
 DOMAIN-SUFFIX,chronicle.security
 DOMAIN-SUFFIX,chroniclesec.com
 DOMAIN-SUFFIX,cloudburstresearch.com
-DOMAIN-SUFFIX,cloudfunctions.net
 DOMAIN-SUFFIX,cloudproxy.app
 DOMAIN-SUFFIX,cloudrobotics.com
 DOMAIN-SUFFIX,cobrasearch.com
@@ -186,8 +184,6 @@ DOMAIN-SUFFIX,financeleadsonline.com
 DOMAIN-SUFFIX,firebase.com
 DOMAIN-SUFFIX,firebase.dev
 DOMAIN-SUFFIX,firebase.io
-DOMAIN-SUFFIX,firebaseapp.com
-DOMAIN-SUFFIX,firebaseio.com
 DOMAIN-SUFFIX,fitbit.com
 DOMAIN-SUFFIX,flow.google
 DOMAIN-SUFFIX,flutter.dev
@@ -578,7 +574,6 @@ DOMAIN-SUFFIX,quiksee.com
 DOMAIN-SUFFIX,registry.google
 DOMAIN-SUFFIX,revolv.com
 DOMAIN-SUFFIX,ridepenguin.com
-DOMAIN-SUFFIX,run.app
 DOMAIN-SUFFIX,savethedate.foo
 DOMAIN-SUFFIX,saynow.com
 DOMAIN-SUFFIX,schemer.com
@@ -623,7 +618,6 @@ DOMAIN-SUFFIX,verilystudywatch.com
 DOMAIN-SUFFIX,verilystudywatch.org
 DOMAIN-SUFFIX,wallet.com
 DOMAIN-SUFFIX,waze.com
-DOMAIN-SUFFIX,web.app
 DOMAIN-SUFFIX,web.dev
 DOMAIN-SUFFIX,webappfieldguide.com
 DOMAIN-SUFFIX,webmproject.org

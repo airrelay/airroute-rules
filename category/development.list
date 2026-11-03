@@ -205,8 +205,6 @@ DOMAIN-SUFFIX,firebase.com
 DOMAIN-SUFFIX,firebase.dev
 DOMAIN-SUFFIX,firebase.google.com
 DOMAIN-SUFFIX,firebase.io
-DOMAIN-SUFFIX,firebaseapp.com
-DOMAIN-SUFFIX,firebaseio.com
 DOMAIN-SUFFIX,flathub.org
 DOMAIN-SUFFIX,flatpak.org
 DOMAIN-SUFFIX,flow.dev
@@ -292,8 +290,11 @@ DOMAIN-SUFFIX,haskell.org
 DOMAIN-SUFFIX,haskellstack.org
 DOMAIN-SUFFIX,hex.pm
 DOMAIN-SUFFIX,hexdocs.pm
+DOMAIN-SUFFIX,hf.co
+DOMAIN-SUFFIX,hf.space
 DOMAIN-SUFFIX,hhvm.com
 DOMAIN-SUFFIX,hivepress.io
+DOMAIN-SUFFIX,huggingface.co
 DOMAIN-SUFFIX,hyperscan.io
 DOMAIN-SUFFIX,imageglass.org
 DOMAIN-SUFFIX,insiderdevtour.com

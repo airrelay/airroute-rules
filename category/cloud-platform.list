@@ -1,0 +1,17 @@
+DOMAIN,azure.microsoft.com
+DOMAIN,azuremarketplace.microsoft.com
+DOMAIN-SUFFIX,amazonwebservices.com
+DOMAIN-SUFFIX,aws.amazon.com
+DOMAIN-SUFFIX,aws.com
+DOMAIN-SUFFIX,aws.dev
+DOMAIN-SUFFIX,awseducate.com
+DOMAIN-SUFFIX,awseducate.net
+DOMAIN-SUFFIX,awseducate.org
+DOMAIN-SUFFIX,awsstatic.com
+DOMAIN-SUFFIX,azure.com
+DOMAIN-SUFFIX,azurecomcdn.net
+DOMAIN-SUFFIX,digitalocean.com
+DOMAIN-SUFFIX,microsoftazuread-sso.com
+DOMAIN-SUFFIX,microsoftazuresponsorships.com
+DOMAIN-SUFFIX,vultr.com
+DOMAIN-SUFFIX,windowsazure.com
