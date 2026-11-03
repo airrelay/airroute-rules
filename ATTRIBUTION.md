@@ -4,14 +4,14 @@ Derived data retain the applicable upstream licenses; see manifest source_snapsh
 
 - [DB-IP](https://db-ip.com/db/lite.php): CC-BY-4.0; version Sun, 01 Nov 2026 07:41:33 GMT; source SHA-256 4a8053b30281a28429c7945fc8f673a92870708c49bdb80ef928ec89f1ac24ba
 - [IPLocate](https://github.com/iplocate/ip-address-databases): CC-BY-SA-4.0; version bf4f148e3302214877de9a23669cf09fd5b0afae; source SHA-256 558283c6ebcff5db4876d82a8072b840cce6bb0d2f620151867ec17cca46da7a
-- [RIPE NCC](https://www.ris.ripe.net/docs/ris-whois/): RIPE NCC public data terms; version Tue, 03 Nov 2026 08:55:07 GMT; source SHA-256 1d1ec7ea7d1270448078da2da3135ce53850dd0e436f2422e087bc5adea76d2c
-- [RIPE NCC](https://www.ris.ripe.net/docs/ris-whois/): RIPE NCC public data terms; version Tue, 03 Nov 2026 09:13:00 GMT; source SHA-256 53795f879c58eb6a76cdaf839c85b09ebc7643ecdaab53e21042ddb24c2b7e16
-- [University of Oregon RouteViews](https://archive.routeviews.org/): RouteViews public research archive terms; version Tue, 03 Nov 2026 08:00:17 GMT; source SHA-256 ce65ad3a80698fb94d98a6b1e88963390e2f3dd5d5df01a26552bf753b4d0650
+- [RIPE NCC](https://www.ris.ripe.net/docs/ris-whois/): RIPE NCC public data terms; version Tue, 03 Nov 2026 09:51:30 GMT; source SHA-256 ca1ba0bd4ab9f0c5c345147ebc0bf4d9dcaf7d0e20dab9dbdb181e0027f8a2c9
+- [RIPE NCC](https://www.ris.ripe.net/docs/ris-whois/): RIPE NCC public data terms; version Tue, 03 Nov 2026 10:00:28 GMT; source SHA-256 cec6b59bb85f0835176ffaed6fe9a59e586a6f7740c5036c1acf2bfe9de18440
+- [University of Oregon RouteViews](https://archive.routeviews.org/): RouteViews public research archive terms; version Tue, 03 Nov 2026 10:00:17 GMT; source SHA-256 8643b3acba6f8405b920eb2667ec69141d2ef6528940a9fadb3c977e56aa0fbb
 - [IPtoASN](https://iptoasn.com/): PDDL-1.0; version Sun, 01 Nov 2026 09:38:42 GMT; source SHA-256 789e98c4cb5342c4358ab4f51a4a47e37e457fca02d17cc9cb4a9e5fdcd41f29
 - [IPtoASN](https://iptoasn.com/): PDDL-1.0; version Sun, 01 Nov 2026 09:38:43 GMT; source SHA-256 03549040b702bb4c3d6795cab9db6304f96767111b8fda5ade27912b349951bc
 - [APNIC](https://ftp.apnic.net/stats/apnic/): RIR statistics terms; version Mon, 02 Nov 2026 15:24:48 GMT; source SHA-256 55b60c95ce077fa1bed347c731ff235298575bdceb7cac4b117ff73b0a91a9bd
 - [RIPE NCC](https://ftp.ripe.net/pub/stats/ripencc/): RIPE NCC public data terms; version Mon, 02 Nov 2026 23:13:38 GMT; source SHA-256 6ce6d7eae854b063d3bf8485fe0c4617562c7fe577798b5fcd0a1c1f676d6b4f
-- [Misaka](https://github.com/misakaio/chnroutes2): CC-BY-SA-4.0; version 7502e2f6f151a1e548aad24f73fe5a6743fe2a51; source SHA-256 271c90d0c505b2d0b24e6af9d725cace631f1d8914c5a0916954938ea2f5e7d9
+- [Misaka](https://github.com/misakaio/chnroutes2): CC-BY-SA-4.0; version 0ad8758e015e5099c4e8c14dce5deed0debb2ce1; source SHA-256 c6a344aac321bc47ac6665597f660065efd47990021a3d0d3fc81ae3c97ace37
 - [gaoyifan](https://github.com/gaoyifan/china-operator-ip): MIT; version ffabdf398bf6c9b3ffa2d66e536155b87188d0d9; source SHA-256 a3be1847e22f7a7e865633245bfbe811b87e5e8762b196c8c7abf3e1ac1cd8e2
 - [gaoyifan](https://github.com/gaoyifan/china-operator-ip): MIT; version ffabdf398bf6c9b3ffa2d66e536155b87188d0d9; source SHA-256 a21a8c72d157c325e2b13f11e1c68dc0251ba5a2debee783f4befe839eca6564
 - [v2fly community](https://github.com/v2fly/domain-list-community): MIT; version 476b009f4d0176426958b3fdadf87f2a2688baa5; source SHA-256 6bc86ae07c8619345fd94cb60d235ade92d35dc1fc2b23968c8b9b2435414150
