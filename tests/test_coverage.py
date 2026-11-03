@@ -76,6 +76,33 @@ class CoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "coverage disagrees"):
             guard_products({}, {"product_coverage": {"fake": {}}}, {})
 
+    def test_reviewed_expansion_only_matches_fixed_base_and_domain_bytes(self):
+        before = {"region/cn": ["DOMAIN,old.example"]}
+        after = {"region/cn": ["DOMAIN,old.example", "DOMAIN,new.example", "DOMAIN,third.example"]}
+        baseline = self.baseline(before)
+        manifest_path = baseline / "manifest.json"
+        manifest = json.loads(manifest_path.read_text()); manifest["data_version"] = "reviewed-base"
+        manifest_path.write_text(json.dumps(manifest))
+        import hashlib
+        digest = hashlib.sha256(("\n".join(sorted(after["region/cn"])) + "\n").encode()).hexdigest()
+        policy = {"per_product": {"maximum_domain_growth": 2,
+            "reviewed_expansions": {"region/cn": {"baseline_version": "reviewed-base",
+                "domain_sha256": digest, "reason": "Fixed mature-source import, no general growth relaxation"}}}}
+        result = guard_products(after, {}, policy, baseline)
+        self.assertTrue(result["comparison"]["region/cn"]["reviewed_expansion"]["applied"])
+        changed = {"region/cn": after["region/cn"] + ["DOMAIN,unreviewed.example"]}
+        with self.assertRaisesRegex(ValueError, "abnormal new domain scope growth"):
+            guard_products(changed, {}, policy, baseline)
+        manifest["data_version"] = "other-base"; manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "abnormal new domain scope growth"):
+            guard_products(after, {}, policy, baseline)
+
+    def test_required_semantics_survive_compaction_but_not_empty_selector(self):
+        policy = {"per_product": {"required_domain_coverage": {"region/ru": ["DOMAIN,mts.ru"]}}}
+        guard_products({"region/ru": ["DOMAIN-SUFFIX,mts.ru"]}, {}, policy)
+        with self.assertRaisesRegex(ValueError, "missing required semantic coverage"):
+            guard_products({"region/ru": ["DOMAIN,unrelated.ru"]}, {}, policy)
+
     def test_address_growth_of_one_region_is_blocked(self):
         before = {"region/ru": ["IP-CIDR,2.0.0.0/24"]}
         with self.assertRaisesRegex(ValueError, "abnormal address coverage growth"):
@@ -115,20 +142,15 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(len(rejected), 2)
         self.assertTrue(all("not service ownership" in r["reason"] for r in rejected))
 
-    def test_broad_reference_narrows_to_proven_identity_never_shared_parent(self):
-        data = self.root / "data"; data.mkdir()
-        (data / "cn").write_text("mainland.example\n")
-        (data / "identity").write_text("full:service.shared.example\nkeyword:scam\n")
-        reference = self.root / "reference.list"
-        reference.write_text("DOMAIN-SUFFIX,shared.example\nDOMAIN-SUFFIX,scam.example\n")
+    def test_mature_supplement_does_not_need_existing_identity(self):
+        reference = self.root / "classified.list"
+        reference.write_text("DOMAIN-SUFFIX,new.example\nDOMAIN-SUFFIX,shared.example\nDOMAIN,service.shared.example\n")
         products = {"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn"}]},
-            {"id": "category/a", "selectors": [{"source": "ref", "mode": "corroborated",
-                "identity_catalogues": [{"source": "dlc", "categories": ["identity"]}]}]}]}
-        groups, report = build_domains([{"id": "dlc", "format": "dlc", "path": str(self.root)},
-                                       {"id": "ref", "format": "surge", "path": str(reference)}], products)
-        self.assertEqual(groups["category/a"], ["DOMAIN,service.shared.example"])
-        self.assertEqual(report["reference_decisions"]["category/a"]["ref"]["broad-parent-not-equivalent-to-known-children"], 1)
+            {"id": "region/cn", "selectors": []},
+            {"id": "category/a", "selectors": [{"source": "ref", "mode": "primary", "shared_roots": ["shared.example"]}]}]}
+        groups, report = build_domains([{"id": "ref", "format": "surge", "path": str(reference)}], products)
+        self.assertEqual(groups["category/a"], ["DOMAIN,service.shared.example", "DOMAIN-SUFFIX,new.example"])
+        self.assertEqual(report["quarantine_counts"]["ref:classified.list:shared-parent-needs-precise-endpoint"], 1)
 
     def test_official_ip_catalogue_requires_matching_service_scope(self):
         source = self.root / "ips.txt"; source.write_text("91.108.4.0/22\n2001:b28:f23d::/48\n")

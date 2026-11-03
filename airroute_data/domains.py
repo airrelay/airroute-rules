@@ -120,7 +120,8 @@ class DLC:
         self.source = source
         self.items: dict[str, list[Rule | tuple[str, tuple[str, ...], int]]] = {}
         self.affiliations: dict[str, list[Rule]] = {}
-        self.cache: dict[str, tuple[Rule, ...]] = {}
+        self.cache: dict[tuple[str, tuple[str, ...]], tuple[Rule, ...]] = {}
+        self.include_edges: dict[str, list[dict]] = {}
         self.quarantined: list[dict] = []
         if not self.root.is_dir():
             raise RuleError("DLC data directory is missing")
@@ -139,6 +140,7 @@ class DLC:
                         if any(not p.startswith("@") for p in annotations):
                             raise RuleError("include supports only attribute filters")
                         rows.append((head[8:], tuple(annotations), number))
+                        self.include_edges.setdefault(file.name, []).append({"category": head[8:], "filters": annotations, "line": number})
                         continue
                     attrs = frozenset(p[1:] for p in annotations if p.startswith("@"))
                     affiliated = [p[1:] for p in annotations if p.startswith("&")]
@@ -162,24 +164,29 @@ class DLC:
                     self.quarantined.append({"source": f"{source}:{file.name}", "line": number, "predicate": raw, "reason": str(exc)})
             self.items[file.name] = rows
 
-    def expand(self, category: str, filters: Iterable[str] = (), trail: tuple[str, ...] = ()) -> list[Rule]:
+    def expand(self, category: str, filters: Iterable[str] = (), trail: tuple[str, ...] = (), *,
+               exclude_categories: Iterable[str] = ()) -> list[Rule]:
         if not re.fullmatch(r"[a-zA-Z0-9_!.-]+", category):
             raise RuleError("unsafe DLC include path")
+        excluded = tuple(sorted(set(exclude_categories)))
+        if category in excluded:
+            return []
         if category in trail:
             raise RuleError("DLC include cycle: " + " -> ".join((*trail, category)))
         if category not in self.items and category not in self.affiliations:
             raise RuleError(f"DLC category missing: {category}")
-        if category not in self.cache:
+        key = (category, excluded)
+        if key not in self.cache:
             rules = list(self.affiliations.get(category, []))
             for row in self.items.get(category, []):
                 if isinstance(row, Rule):
                     rules.append(row)
                 else:
                     child, child_filters, _ = row
-                    rules.extend(self.expand(child, child_filters, (*trail, category)))
+                    rules.extend(self.expand(child, child_filters, (*trail, category), exclude_categories=excluded))
             # Attributes survive expansion, and filters never become new flags.
-            self.cache[category] = tuple(dict.fromkeys(rules))
-        return [r for r in self.cache[category] if _attribute_matches(r.attrs, filters)]
+            self.cache[key] = tuple(dict.fromkeys(rules))
+        return [r for r in self.cache[key] if _attribute_matches(r.attrs, filters)]
 
 
 def _quarantine(source: str, number: int, raw: str, reason: str) -> dict:
@@ -403,6 +410,8 @@ def minimize(rules: Iterable[Rule]) -> list[Rule]:
 
 class _CNIndex:
     def __init__(self, cn: list[Rule]):
+        self.patterns = [r for r in cn if r.kind == "DOMAIN-KEYWORD" or
+                         (r.kind == "DOMAIN-REGEX" and _strict_subdomain_suffix(r.value) is None)]
         self.exact = {r.value for r in cn if r.kind == "DOMAIN"}
         self.suffix = {r.value for r in cn if r.kind == "DOMAIN-SUFFIX"}
         self.strict = {scope for r in cn if r.kind == "DOMAIN-REGEX"
@@ -414,7 +423,40 @@ class _CNIndex:
         at = bisect_left(self.reversed, prefix)
         return at < len(self.reversed) and self.reversed[at].startswith(prefix)
 
+    def witnesses(self, rule: Rule, limit: int = 8) -> list[str]:
+        value = _strict_subdomain_suffix(rule.value) if rule.kind == "DOMAIN-REGEX" else rule.value
+        if not value or rule.kind not in {"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-REGEX"}:
+            return ["nonliteral language requires explicit subtraction review"]
+        values = []
+        for pattern in self.patterns:
+            if pattern.value in value if pattern.kind == "DOMAIN-KEYWORD" else re.search(pattern.value, value):
+                values.append(pattern.text)
+        parts = value.split(".")
+        for i in range(len(parts)):
+            name = ".".join(parts[i:])
+            if name in self.suffix: values.append("DOMAIN-SUFFIX," + name)
+            if i == 0 and name in self.exact: values.append("DOMAIN," + name)
+            if i > 0 and name in self.strict: values.append("strict-subdomains:" + name)
+        if rule.kind != "DOMAIN":
+            prefix = ".".join(value.split(".")[::-1]) + "."
+            at = bisect_left(self.reversed, prefix)
+            for reversed_name in self.reversed[at:at + limit]:
+                if not reversed_name.startswith(prefix): break
+                name = ".".join(reversed_name.split(".")[::-1])
+                if name in self.suffix: values.append("DOMAIN-SUFFIX," + name)
+                elif name in self.exact: values.append("DOMAIN," + name)
+                else: values.append("strict-subdomains:" + name)
+        return sorted(set(values))[:limit]
+
     def overlaps(self, rule: Rule) -> bool:
+        if self.patterns:
+            if rule.kind == "DOMAIN":
+                if any((p.value in rule.value if p.kind == "DOMAIN-KEYWORD" else re.search(p.value, rule.value)) for p in self.patterns):
+                    return True
+            else:
+                # A suffix denotes all descendants: matching only its apex
+                # cannot prove disjointness from an arbitrary keyword/regex.
+                return True
         if rule.kind == "DOMAIN-REGEX" and (scope := _strict_subdomain_suffix(rule.value)) is not None:
             # The apex alone is outside this exact language. A CN suffix at or
             # above the scope, or any known CN descendant, does intersect it.
@@ -436,7 +478,17 @@ class _CNIndex:
 
 
 def load_products(path: str | Path) -> dict:
-    value = json.loads(Path(path).read_text(encoding="utf-8"))
+    path = Path(path)
+    value = json.loads(path.read_text(encoding="utf-8"))
+    regional = path.with_name("regional-domains.json")
+    if regional.is_file():
+        fragment = json.loads(regional.read_text(encoding="utf-8"))
+        if fragment.get("schema") != 1:
+            raise RuleError("unsupported regional domain registry")
+        replacements = {g["id"]: g for g in fragment.get("groups", [])}
+        value["groups"] = [{**g, **replacements.pop(g["id"], {})} for g in value["groups"]]
+        value["groups"].extend(replacements.values())
+        value["regional_policy"] = {k: v for k, v in fragment.items() if k != "groups"}
     return _validate_products(value)
 
 
@@ -454,7 +506,8 @@ def _validate_products(value: dict) -> dict:
     return value
 
 
-def validate_domain_groups(groups: dict[str, list[str]]) -> dict:
+def validate_domain_groups(groups: dict[str, list[str]], *, market_overlaps: dict | None = None,
+                           unresolved_pattern_groups: Iterable[str] = ()) -> dict:
     """Recheck publication bytes, independently of the build's provenance report.
 
     Geo IP prefixes may coexist in region products; they are checked elsewhere
@@ -473,17 +526,26 @@ def validate_domain_groups(groups: dict[str, list[str]]) -> dict:
             rule = normalize_rule(*pieces)
             if rule.text != line:
                 raise RuleError(f"nonnormalized output predicate in {name}")
+            if (name.startswith(("region/", "provider/", "service/", "category/"))
+                    and rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." not in rule.value):
+                raise RuleError(f"top-level shortcut in {name}: {rule.text}")
             if rule.text in seen:
                 raise RuleError(f"duplicate output predicate in {name}")
             seen.add(rule.text)
             rules.append(rule)
         parsed[name] = rules
     cn = [r for r in parsed.get("region/cn", []) if r.kind in DOMAIN_KINDS]
-    if any((r.kind not in {"DOMAIN", "DOMAIN-SUFFIX"} and not
-            (r.kind == "DOMAIN-REGEX" and _strict_subdomain_suffix(r.value))) or "." not in r.value for r in cn):
+    if any(r.kind not in DOMAIN_KINDS or
+           (r.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." not in r.value) or
+           (r.kind == "DOMAIN-REGEX" and re.search(r.value, "unrelated.example")) for r in cn):
         raise RuleError("CN output contains unbounded identity predicate")
     index = _CNIndex(cn)
     checked = 0
+    declared = 0
+    potential = 0
+    unresolved_pattern_groups = set(unresolved_pattern_groups)
+    allowed = {name: {d["predicate"] for d in entries if d.get("source") and d.get("reason")}
+               for name, entries in (market_overlaps or {}).items()}
     for name, rows in parsed.items():
         if name == "region/cn" or not name.startswith(("region/", "provider/", "service/", "category/")):
             continue
@@ -491,9 +553,17 @@ def validate_domain_groups(groups: dict[str, list[str]]) -> dict:
             if rule.kind in IP_KINDS:
                 continue
             if index.overlaps(rule):
-                raise RuleError(f"CN/overseas domain overlap in {name}: {rule.text}")
+                if (name in unresolved_pattern_groups and index.patterns and not index.witnesses(rule)):
+                    potential += 1
+                elif rule.text in allowed.get(name, set()):
+                    if rule.kind not in DOMAIN_KINDS:
+                        raise RuleError("market overlap must be an explicitly classified domain predicate")
+                    declared += 1
+                else:
+                    raise RuleError(f"CN/overseas domain overlap in {name}: {rule.text}")
             checked += 1
-    return {"cn_domain_rules": len(cn), "overseas_domain_rules": checked, "cn_overlap": 0}
+    return {"cn_domain_rules": len(cn), "overseas_domain_rules": checked, "cn_overlap": declared,
+            "declared_market_overlaps": declared, "unresolved_pattern_intersections": potential, "priority": "none imposed by the data producer"}
 
 
 def official_domains(data: object, source_id: str, selector: dict) -> tuple[list[Rule], list[dict]]:
@@ -543,11 +613,15 @@ def official_domains(data: object, source_id: str, selector: dict) -> tuple[list
 
 
 def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dict[str, list[str]], dict]:
+    return _build_domains(sources, products)
+
+
+def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dict[str, list[str]], dict]:
     """Build products from frozen descriptors; paths may point to files or trees.
 
-    Selectors are explicit source/category or source/path pairs. References only
-    corroborate existing identities; shared CA/CDN/ASN entries never create new
-    service claims. Official JSON uses an explicit configured adapter.
+    Selectors bind frozen source classifications and preserve matching scope.
+    Purpose-scoped mature community sources introduce new predicates directly.
+    Only explicit scope exceptions and unsupported syntax are excluded.
     """
     products = _validate_products(products) if isinstance(products, dict) else load_products(products)
     source_ids = [s["id"] for s in sources]
@@ -556,9 +630,31 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
     by_id = {s["id"]: s for s in sources if s.get("path") and s.get("status", "available") in {"available", "ok", "downloaded"}}
     dlc: dict[str, DLC] = {}
     prepared: dict[str, list[Rule]] = {}
-    references: list[tuple[str, Rule, dict]] = []
     official_ip_sources: dict[str, set[str]] = {}
-    report: dict = {"quarantined": [], "unavailable_selectors": [], "groups": {}, "reference_matches": {}, "cn_overlap_removed": [], "provenance": {}, "selectors": [], "reference_decisions": {}}
+    report: dict = {"quarantined": [], "unavailable_selectors": [], "groups": {}, "cn_overlap_removed": [], "provenance": {}, "selectors": [],
+                    "decisions": {}, "stage_records": 0, "dlc_includes": {}, "market_conflicts": [],
+                    "sources": [{k: s[k] for k in ("id", "status", "version", "sha256", "lineage", "domain_role", "format") if k in s} for s in sources]}
+    def audit(group, selector, rule, stage, status, reason, **extra):
+        sid = selector.get("source", rule.source.split(":", 1)[0])
+        key = selector.get("category", selector.get("path", selector.get("adapter", "membership")))
+        item = {"group": group, "source": rule.source, "line": rule.line, "predicate": rule.text,
+                "selector": key, "stage": stage, "status": status, "reason": reason, **extra}
+        bucket = report["decisions"].setdefault(group, {}).setdefault(sid + ":" + str(key), {}).setdefault(stage, {})
+        counted = bucket.setdefault(status + ":" + reason, {"count": 0, "samples": []})
+        counted["count"] += 1
+        if len(counted["samples"]) < 12:
+            counted["samples"].append(item)
+        report["stage_records"] += 1
+    def quarantine(item):
+        key = item.get("source", "unknown") + ":" + item["reason"]
+        counts = report.setdefault("quarantine_counts", {})
+        counts[key] = counts.get(key, 0) + 1
+        if counts[key] <= 12:
+            report["quarantined"].append(item)
+    # Selector provenance remains available after memberships and compaction.
+    origins: dict[tuple[str, str, int, str], list[dict]] = {}
+    def mark_origin(group, selector, row):
+        origins.setdefault((group, row.source, row.line, row.text), []).append(selector)
     for group in products.get("groups", []):
         name = group["id"]
         accepted: list[Rule] = []
@@ -571,17 +667,32 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
                 report["unavailable_selectors"].append({"group": name, "source": source_id, "reason": "source unavailable"})
                 continue
             try:
+                rejected = []
                 format = selector.get("format", source.get("format", "surge"))
                 if format == "dlc":
                     if source_id not in dlc:
                         dlc[source_id] = DLC(source["path"], source_id)
-                        report["quarantined"].extend(dlc[source_id].quarantined)
-                    rows = dlc[source_id].expand(selector["category"], selector.get("attributes", []))
+                        for bad in dlc[source_id].quarantined:
+                            quarantine(bad)
+                            audit(name, selector, Rule("UNSUPPORTED", bad["predicate"], source=bad["source"], line=bad["line"]),
+                                  "source-parse", "reject", bad["reason"], scope="source-wide; original file retained")
+                        report["dlc_includes"][source_id] = dlc[source_id].include_edges
+                    for category in selector.get("exclude_categories", []):
+                        if category in dlc[source_id].items:
+                            for excluded_row in dlc[source_id].expand(category):
+                                audit(name, selector, excluded_row, "include", "filtered", "excluded-include-subtree", category=category)
+                    expanded = dlc[source_id].expand(selector["category"], exclude_categories=selector.get("exclude_categories", []))
+                    rows = []
+                    for row in expanded:
+                        keep = _attribute_matches(row.attrs, selector.get("attributes", []))
+                        audit(name, selector, row, "include-and-attributes", "accept" if keep else "filtered",
+                              "include-expanded" if keep else "attribute-filter", attributes=sorted(row.attrs),
+                              excluded_categories=selector.get("exclude_categories", []))
+                        if keep: rows.append(row)
                 elif format == "official-json":
                     path = Path(source["path"])
                     data = json.loads(path.read_text(encoding="utf-8"))
                     rows, rejected = official_domains(data, source_id, selector)
-                    report["quarantined"].extend(rejected)
                 elif format == "official-cidr":
                     if source.get("service") != name or not selector.get("official_service_ips"):
                         raise RuleError("official IP catalogue is not scoped to this product")
@@ -597,7 +708,13 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
                             raise RuleError("unsafe selector path")
                         path = path / relative if path.is_dir() else path
                     rows, rejected = parse_third_party(path.read_text(encoding="utf-8"), format, f"{source_id}:{selector.get('path', path.name)}", behavior=selector.get("behavior", "classical"))
-                    report["quarantined"].extend(rejected)
+                for bad in rejected:
+                    quarantine(bad)
+                    audit(name, selector, Rule("UNSUPPORTED", bad["predicate"], source=bad["source"], line=bad["line"]),
+                          "parse-normalize", "reject", bad["reason"])
+                for row in rows:
+                    audit(name, selector, row, "parse-normalize", "accept", "semantics-preserved", attributes=sorted(row.attrs))
+                    mark_origin(name, selector, row)
                 # A curated service list can be a primary identity assertion;
                 # it need not get a second vote from its own upstream mirror.
                 # Its declared match scope is still enforced, especially for
@@ -607,7 +724,9 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
                 owned = CoverageIndex(normalize_rule("DOMAIN-SUFFIX", root) for root in selector.get("owned_roots", [])) if selector.get("owned_roots") and format != "official-json" else None
                 for row in rows:
                     reason = None
-                    if selector.get("domain_only") and row.kind not in DOMAIN_KINDS:
+                    if row.text in group.get("exclude_predicates", []) or row.text in selector.get("exclude_predicates", []):
+                        reason = "explicit-predicate-exclusion"
+                    elif selector.get("domain_only") and row.kind not in DOMAIN_KINDS:
                         reason = "selector admits domain identities only"
                     elif selector.get("bounded_service") and (row.kind not in {"DOMAIN", "DOMAIN-SUFFIX"} or "." not in row.value):
                         reason = "curated service selector requires bounded literal domains"
@@ -616,9 +735,14 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
                     elif excluded is not None and excluded.overlaps(row):
                         reason = "overlaps shared infrastructure or excluded service scope"
                     if reason:
-                        report["quarantined"].append(_quarantine(row.source, row.line, row.text, reason))
+                        quarantine(_quarantine(row.source, row.line, row.text, reason))
+                        audit(name, selector, row, "scope", "excluded", reason)
+                    elif row.value in group.get("shared_roots", []) + selector.get("shared_roots", []) and row.kind != "DOMAIN":
+                        quarantine(_quarantine(row.source, row.line, row.text, "shared-parent-needs-precise-endpoint"))
+                        audit(name, selector, row, "scope", "pending", "shared-parent-needs-precise-endpoint")
                     else:
                         scoped.append(row)
+                        audit(name, selector, row, "scope", "accept", "selector-scope")
                 prior = CoverageIndex(accepted)
                 report["selectors"].append({"group": name, "source": source_id,
                     "selector": selector.get("category", selector.get("path", selector.get("adapter", format))),
@@ -626,52 +750,15 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
                     "input_rules": len(rows), "scope_admitted": len(scoped),
                     "scope_rejected": len(rows) - len(scoped), "already_covered": sum(prior.covers(r) for r in scoped)})
                 rows = scoped
-                if selector.get("mode") in {"reference", "corroborated"}:
-                    references.extend((name, r, selector) for r in rows)
-                else:
-                    accepted.extend(rows)
+                if selector.get("required") and not rows:
+                    raise RuleError("required selector has no usable predicates")
+                accepted.extend(rows)
             except (RuleError, OSError, UnicodeError, json.JSONDecodeError) as exc:
                 if selector.get("required", False):
                     raise RuleError(f"required selector {name}/{source_id}: {exc}") from exc
                 reason = f"input unavailable ({type(exc).__name__})" if isinstance(exc, (OSError, UnicodeError)) else str(exc)
                 report["unavailable_selectors"].append({"group": name, "source": source_id, "selector": selector.get("category", selector.get("path")), "reason": reason})
         prepared[name] = accepted
-    # A reference can add only the language proved by explicit identity
-    # catalogues, never all hosts under its broad parent or a shared provider.
-    reference_indexes = {}
-    for name, rule, selector in references:
-        key = (name, json.dumps(selector, sort_keys=True))
-        if key not in reference_indexes:
-            anchors = list(prepared[name])
-            for catalogue in selector.get("identity_catalogues", []):
-                sid = catalogue["source"]
-                if sid not in by_id or by_id[sid].get("format") != "dlc":
-                    continue
-                if sid not in dlc:
-                    dlc[sid] = DLC(by_id[sid]["path"], sid)
-                for category in catalogue["categories"]:
-                    anchors.extend(dlc[sid].expand(category, catalogue.get("attributes", [])))
-            anchors = minimize(r for r in anchors if
-                               (r.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." in r.value)
-                               or (r.kind == "DOMAIN-REGEX" and _strict_subdomain_suffix(r.value)))
-            reference_indexes[key] = (CoverageIndex(anchors), anchors, _CNIndex(anchors))
-        index, anchors, overlap = reference_indexes[key]
-        reason = "not-proven-by-identity-catalogue"
-        admitted = []
-        if index.covers(rule):
-            reason = "semantically-covered-by-identity-catalogue"
-            if selector.get("mode") == "corroborated": admitted = [rule]
-            report["reference_matches"][name] = report["reference_matches"].get(name, 0) + 1
-        elif rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and overlap.overlaps(rule):
-            reason = "broad-parent-not-equivalent-to-known-children"
-            if selector.get("mode") == "corroborated":
-                parent = CoverageIndex([rule])
-                admitted = [r for r in anchors if parent.covers(r)]
-        decision = report["reference_decisions"].setdefault(name, {}).setdefault(rule.source.split(":", 1)[0], {})
-        decision[reason] = decision.get(reason, 0) + 1
-        prepared[name].extend(admitted)
-        if not admitted and reason != "semantically-covered-by-identity-catalogue" and len(report["quarantined"]) < 1000:
-            report["quarantined"].append(_quarantine(rule.source, rule.line, rule.text, reason))
     # Resolve memberships after all selectors/references, before the same CN
     # exclusion is applied to both services and their containing categories.
     definitions = {g["id"]: g for g in products["groups"]}
@@ -683,6 +770,8 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
             return
         for child in definitions[name].get("includes", []):
             include(child, (*trail, name))
+            for row in prepared[child]:
+                audit(name, {"source": row.source.split(":", 1)[0]}, row, "membership", "accept", "included-product", child=child)
             prepared[name].extend(prepared[child])
             official_ip_sources.setdefault(name, set()).update(official_ip_sources.get(child, set()))
         resolved.add(name)
@@ -690,15 +779,27 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
         include(name)
     cn: list[Rule] = []
     for rule in prepared.get("region/cn", []):
-        if (rule.kind not in {"DOMAIN", "DOMAIN-SUFFIX"} and not
-                (rule.kind == "DOMAIN-REGEX" and _strict_subdomain_suffix(rule.value))) or "." not in rule.value:
-            report["quarantined"].append(_quarantine(rule.source, rule.line, rule.text, "CN identity cannot be established by TLD/keyword/regex/IP list alone"))
+        if rule.kind not in DOMAIN_KINDS or (rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." not in rule.value):
+            quarantine(_quarantine(rule.source, rule.line, rule.text, "not a named domain predicate; IP geography is generated separately"))
+        elif rule.kind == "DOMAIN-REGEX" and re.search(rule.value, "unrelated.example"):
+            quarantine(_quarantine(rule.source, rule.line, rule.text, "regional regex matches unrelated negative control"))
+        elif rule.kind == "DOMAIN-KEYWORD" and rule.value in {"cn", "china", "ru", "russia"}:
+            quarantine(_quarantine(rule.source, rule.line, rule.text, "country-name keyword is not a service scope"))
         elif "!cn" in rule.attrs:
-            report["quarantined"].append(_quarantine(rule.source, rule.line, rule.text, "source explicitly marks non-CN service"))
+            quarantine(_quarantine(rule.source, rule.line, rule.text, "source explicitly marks non-CN service"))
         else:
             cn.append(rule)
     prepared["region/cn"] = cn
     cn_index = _CNIndex(cn)
+    # A domestic-access list can contain international service endpoints. Its
+    # inclusion is not a claim that an entire international product is CN-only.
+    # DLC's named CN classifications remain the exclusion anchor; no published
+    # output or external identity lookup is needed to admit new CN rules.
+    cn_named = CoverageIndex(r for r in cn if r.source.startswith("dlc:"))
+    market_policy = products.get("policy", {}).get("cn_exclusion") == "named-mainland-services; report mixed-market overlaps"
+    declarations = {g["id"]: g["cn_market_overlaps"] for g in products["groups"] if g.get("cn_market_overlaps")}
+    report["market_overlap_declarations"] = declarations
+    report["unresolved_pattern_intersections"] = {}
     groups: dict[str, list[str]] = {}
     for group in products.get("groups", []):
         name = group["id"]
@@ -707,13 +808,40 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
             kept = []
             for rule in rows:
                 if rule.kind in IP_KINDS and rule.source not in official_ip_sources.get(name, set()):
-                    report["quarantined"].append(_quarantine(rule.source, rule.line, rule.text, "third-party service IP/ASN does not establish exclusive service identity"))
+                    quarantine(_quarantine(rule.source, rule.line, rule.text, "third-party service IP/ASN does not establish exclusive service identity"))
                 elif rule.kind in IP_KINDS:
                     kept.append(rule)
-                elif cn_index.overlaps(rule):
-                    report["cn_overlap_removed"].append({"group": name, "predicate": rule.text, "source": rule.source, "reason": "CN overlap or non-subtractable predicate"})
                 elif "." not in rule.value and rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"}:
-                    report["quarantined"].append(_quarantine(rule.source, rule.line, rule.text, "TLD alone is not service identity"))
+                    quarantine(_quarantine(rule.source, rule.line, rule.text, "TLD alone is not service identity"))
+                elif cn_index.overlaps(rule):
+                    declared = next((d for d in declarations.get(name, []) if d.get("predicate") == rule.text
+                                     and d.get("source") == rule.source and d.get("reason")), None)
+                    witnesses = cn_index.witnesses(rule)
+                    if declared is None and market_policy and not cn_named.covers(rule) and cn_index.patterns and not witnesses:
+                        kept.append(rule)
+                        uncertain = report["unresolved_pattern_intersections"].setdefault(name, {"count": 0, "samples": [],
+                            "meaning": "CN keyword/regex versus an infinite suffix/pattern language; no disjointness proof. Upstream predicates are retained unchanged, with no inferred priority."})
+                        uncertain["count"] += 1
+                        if len(uncertain["samples"]) < 12: uncertain["samples"].append(rule.text)
+                        continue
+                    if declared is None and market_policy and not cn_named.covers(rule):
+                        declared = {"predicate": rule.text, "source": rule.source,
+                            "reason": "Domestic-access coverage overlaps an explicitly classified international service. Preserve its original predicate; this is not a mainland-only identity or an implicit rule priority."}
+                        entries = declarations.setdefault(name, [])
+                        if declared not in entries: entries.append(declared)
+                    item = {"group": name, "predicate": rule.text, "source": rule.source,
+                            "reason": declared["reason"] if declared else "CN overlap or non-subtractable predicate",
+                            "cn_witnesses": witnesses}
+                    if declared:
+                        kept.append(rule)
+                        item["status"] = "unresolved-positive-overlap"
+                        item["priority"] = "none; consumer must choose policy"
+                        report["market_conflicts"].append(item)
+                    else:
+                        item["status"] = "pending-nonsubtractable-overlap"
+                        report["cn_overlap_removed"].append(item)
+                    audit(name, {"source": rule.source.split(":", 1)[0]}, rule, "cross-market",
+                          "retained-conflict" if declared else "pending", item["reason"], cn_witnesses=item["cn_witnesses"])
                 else:
                     kept.append(rule)
             rows = kept
@@ -721,6 +849,14 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
         for rule in rows:
             report["provenance"].setdefault(name, {}).setdefault(rule.text, []).append({"source": rule.source, "line": rule.line, "attributes": sorted(rule.attrs)})
         groups[name] = [r.text for r in minimize(rows)]
+        output_set = set(groups[name])
+        seen_rows = set()
+        for row in rows:
+            status = "output" if row.text in output_set and row.text not in seen_rows else "covered"
+            reason = "retained-predicate" if status == "output" else "duplicate-predicate" if row.text in seen_rows else "semantically-covered"
+            for selector in origins.get((name, row.source, row.line, row.text), [{"source": row.source.split(":", 1)[0]}]):
+                audit(name, selector, row, "compaction", status, reason)
+            seen_rows.add(row.text)
         if group.get("required_output") and not groups[name]:
             raise RuleError(f"required product has no accepted rules: {name}")
         report["groups"][name]["output_rules"] = len(groups[name])
@@ -732,8 +868,9 @@ def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dic
         report["groups"][name]["support_note"] = "Overlapping support is not additive contribution or independent votes."
 
     report["raw_accepted_rules"] = sum(v["accepted_before_compaction"] for v in report["groups"].values())
-    report["reference_sample_limit"] = 1000
+    report["sample_limit_per_source_reason"] = 12
     report["output_rules"] = sum(map(len, groups.values()))
     report["memberships"] = {g["id"]: g["includes"] for g in products["groups"] if g.get("includes")}
-    report["exclusion_validation"] = validate_domain_groups(groups)
+    report["exclusion_validation"] = validate_domain_groups(groups, market_overlaps=declarations,
+        unresolved_pattern_groups=report["unresolved_pattern_intersections"])
     return groups, report

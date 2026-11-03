@@ -170,14 +170,13 @@ class DomainTests(unittest.TestCase):
         groups, _ = build_domains([{"id": "dlc", "format": "dlc", "path": str(root)}], products)
         self.assertEqual(len(groups["category/test"]), 2)
 
-    def test_reference_shared_infrastructure_not_added_to_product(self):
+    def test_mature_source_adds_new_rules_with_explicit_shared_exceptions(self):
         root = self.temporary_dlc({"cn-test": "local.example\n", "foreign": "owned.example\n"})
         reference = root / "reference.list"
         reference.write_text("DOMAIN-SUFFIX,owned.example\nDOMAIN-SUFFIX,shared-ca.example\nIP-ASN,13335\nIP-CIDR,192.0.2.0/24\n")
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-test"}]}, {"id": "category/test", "selectors": [{"source": "dlc", "category": "foreign"}, {"source": "ref", "mode": "reference"}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-test"}]}, {"id": "category/test", "selectors": [{"source": "dlc", "category": "foreign"}, {"source": "ref", "shared_roots": ["shared-ca.example"]}]}]}
         groups, report = build_domains([{"id": "dlc", "format": "dlc", "path": str(root)}, {"id": "ref", "format": "surge", "path": str(reference)}], products)
         self.assertEqual(groups["category/test"], ["DOMAIN-SUFFIX,owned.example"])
-        self.assertEqual(report["reference_matches"], {"category/test": 1})
         self.assertEqual(len(report["quarantined"]), 3)
 
     def test_official_endpoint_template_failure_does_not_discard_valid_feed_rows(self):

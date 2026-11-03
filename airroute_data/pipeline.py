@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -67,13 +68,132 @@ def source_path(snapshot_path: Path, source: dict) -> Path:
 
 
 def stable_source(source: dict) -> dict:
-    fields = ("id", "status", "version", "sha256", "lineage", "shared_upstream_risk", "independence", "role", "format", "field_semantics", "license", "publish_allowed", "publisher", "documentation", "terms")
+    fields = ("id", "status", "version", "sha256", "lineage", "shared_upstream_risk", "independence", "role", "domain_role", "format", "field_semantics", "license", "publish_allowed", "publisher", "documentation", "terms")
     return {key: source[key] for key in fields if key in source}
+
+
+def usable_sources(snapshot_path: Path, snapshot: dict) -> tuple[list[dict], list[dict]]:
+    usable, skipped = [], []
+    for entry in snapshot["sources"]:
+        if entry.get("status") not in {"available", "ok", "downloaded"}:
+            skipped.append(stable_source(entry)); continue
+        if entry.get("publish_allowed") is False:
+            skipped.append({**stable_source(entry), "reason": "publication permission not established"}); continue
+        usable.append({**entry, "path": str(source_path(snapshot_path, entry))})
+    return usable, skipped
+
+
+def domain_outputs(usable: list[dict], products: dict, special_config: dict | None,
+                   reports: Path, config_dir: Path) -> dict[str, list[str]]:
+    from .domains import build_domains
+    groups, report = build_domains([s for s in usable if s.get("role") in {"domains", "domain"}], products)
+    write_json(reports / "domains.json", report)
+    if special_config is not None:
+        from .special import build_special
+        special_groups, special_report = build_special(usable, special_config)
+        groups.update(special_groups)
+        write_json(reports / "special.json", special_report)
+    from .legacy import audit_legacy
+    for config in _legacy_configs(config_dir):
+        audit = audit_legacy(groups, usable, config, include_records=False)
+        audit["acquisition"].pop("fetched_at", None)
+        # This is a semantic comparison, not a second permanent corpus or an
+        # obligation to retain every old classification. Counts and samples suffice.
+        audit.pop("protected_rules", None)
+        audit.pop("validation", None)
+        audit["comparison_policy"] = "Diagnostic semantic comparison only; old output is not authoritative and unresolved membership is not proven error."
+        write_json(reports / ("legacy-" + audit["group"].replace("/", "-") + "-domains.json"), audit)
+    return groups
+
+
+def _legacy_configs(config_dir: Path) -> list[dict]:
+    paths = sorted(set(config_dir.glob("legacy-*-domains.json")) | {config_dir / "legacy-domains.json"})
+    return [json.loads(path.read_text()) for path in paths if path.is_file()]
+
+
+def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, *,
+                           baseline: Path, metrics: dict | None = None) -> dict:
+    """Refresh domain/special products while retaining verified published IP bytes.
+
+    This is deliberately not a partial Geo build. Country/ASN credentials and
+    parsers are never consulted; their existing source versions remain visible.
+    """
+    from .acquire import verify_snapshot
+    from .domains import load_products
+    from .validation import parse_list
+    started = time.monotonic()
+    baseline, output, config_dir, snapshot_path = map(Path, (baseline, output, config_dir, snapshot_path))
+    # Verify the full base before reading any of its predicates or copying files.
+    validate_candidate(baseline)
+    base = json.loads((baseline / "manifest.json").read_text())
+    registry = json.loads((baseline / "regions.json").read_text())
+    if json.loads((config_dir / "regions.json").read_text()) != registry:
+        raise ValueError("domain-only build cannot change the Geo region registry; use a complete build")
+    snapshot = verify_snapshot(snapshot_path.parent)
+    products = load_products(config_dir / "products.json")
+    quality = json.loads((config_dir / "quality.json").read_text())
+    special_path = config_dir / "special.json"
+    special = json.loads(special_path.read_text()) if special_path.is_file() else None
+    if output.exists() and any(output.iterdir()):
+        raise ValueError("candidate directory must be empty; never overwrite a version")
+    output.mkdir(parents=True, exist_ok=True)
+    reports = output / "reports"
+    reports.mkdir()
+    # Only descriptors actually read by this refresh may replace old versions.
+    # A fresh country descriptor in the supplied snapshot must not imply fresh Geo.
+    refresh_roles = {"domains", "domain", "legacy-domain-reference", "special", "special-reference"}
+    current = {**snapshot, "sources": [s for s in snapshot["sources"] if s.get("role") in refresh_roles]}
+    usable, skipped = usable_sources(snapshot_path, current)
+    domains = domain_outputs(usable, products, special, reports, config_dir)
+    for region in registry["regions"]:
+        key = "region/" + region["key"]
+        ips = [line for line in parse_list(baseline / (key + ".list"))
+               if line.startswith(("IP-CIDR,", "IP-CIDR6,"))]
+        write_list(output / (key + ".list"), domains.pop(key, []) + ips)
+    for key, lines in sorted(domains.items()):
+        write_list(safe_file(output, key + ".list"), lines)
+    for name in ("geo.ardb", "asn.ardb", "regions.json"):
+        shutil.copyfile(baseline / name, output / name)
+    retained = [s for s in base["source_snapshot"] if s.get("role") not in refresh_roles]
+    fresh_ids = {s["id"] for s in current["sources"]}
+    if fresh_ids & {s["id"] for s in retained}:
+        raise ValueError("source role changed across domain-only refresh; use a complete build")
+    merged = {"schema": 1, "sources": retained + current["sources"]}
+    summary = {**base["summary"],
+        "domain_rules": sum(sum(line.startswith("DOMAIN") for line in parse_list(p)) for p in output.rglob("*.list")),
+        "products": len(list(output.rglob("*.list"))),
+        "source_count_available": sum(s.get("status") in {"available", "ok", "downloaded"} and
+                                      s.get("publish_allowed") is not False for s in merged["sources"]),
+        "source_count_unavailable_or_withheld": sum(s.get("status") not in {"available", "ok", "downloaded"} or
+                                                     s.get("publish_allowed") is False for s in merged["sources"])}
+    write_json(reports / "sources.json", {"used": [stable_source(s) for s in usable],
+        "unavailable_or_withheld": skipped, "retained_ip_sources": retained,
+        "meaning": "Domain/special refresh only; retained IP source versions are not newly acquired."})
+    attribution = ["# Data attribution", "", "Derived data retain the applicable upstream licenses; see manifest source_snapshot.", ""]
+    for source in merged["sources"]:
+        if source.get("status") not in {"available", "ok", "downloaded"} or source.get("publish_allowed") is False:
+            continue
+        link = source.get("documentation", "")
+        label = f"[{source.get('publisher', source['id'])}]({link})" if link else source["id"]
+        attribution.append(f"- {label}: {source.get('license', 'See source documentation')}; version {source.get('version', 'content SHA-256')}; source SHA-256 {source['sha256']}")
+    (output / "ATTRIBUTION.md").write_text("\n".join(attribution) + "\n")
+    binary_base = base.get("generation_context", {}).get("binary_base") or {
+        "data_version": base["data_version"], "manifest_sha256": file_digest(baseline / "manifest.json"),
+        "files": {name: {"sha256": file_digest(baseline / name), "bytes": (baseline / name).stat().st_size}
+                  for name in ("geo.ardb", "asn.ardb", "regions.json")}}
+    context = {"mode": "domains-only", "binary_base": binary_base,
+        "ip_source_snapshot": retained,
+        "meaning": "Geo, ASN and regional IP predicates are reused unchanged from this verified base, not recomputed."}
+    manifest = finalize_candidate(output, merged, registry, products, quality, summary, baseline=baseline,
+        special_config=special, legacy_configs=_legacy_configs(config_dir), generation_context=context)
+    if metrics is not None:
+        metrics["domains-only-total"] = round(time.monotonic() - started, 3)
+    return manifest
 
 
 def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path | None = None,
           metrics: dict | None = None) -> dict:
-    from .domains import build_domains
+    from .domains import load_products
     from .geo import fuse_country, parse_source as parse_country
     from .routing import fuse_routes, parse_source as parse_routes, audit_auxiliary
 
@@ -93,7 +213,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
         raise ValueError("unsupported input snapshot")
     config_dir = Path(config_dir)
     registry = json.loads((config_dir / "regions.json").read_text())
-    products = json.loads((config_dir / "products.json").read_text())
+    products = load_products(config_dir / "products.json")
     quality = json.loads((config_dir / "quality.json").read_text())
     special_path = config_dir / "special.json"
     special_config = json.loads(special_path.read_text()) if special_path.is_file() else None
@@ -103,17 +223,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     output.mkdir(parents=True, exist_ok=True)
     reports = output / "reports"
     reports.mkdir()
-    usable = []
-    skipped = []
-    for entry in snapshot["sources"]:
-        if entry.get("status") not in {"available", "ok", "downloaded"}:
-            skipped.append(stable_source(entry)); continue
-        if entry.get("publish_allowed") is False:
-            skipped.append({**stable_source(entry), "reason": "publication permission not established"}); continue
-        item = dict(entry)
-        path = source_path(snapshot_path, item)
-        item["path"] = str(path)
-        usable.append(item)
+    usable, skipped = usable_sources(snapshot_path, snapshot)
     country_sources = [s for s in usable if s.get("role") in {"country", "geo"}]
     routing_sources = [s for s in usable if s.get("role") in {"routing", "asn"}]
     mark("inputs")
@@ -126,12 +236,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     routes = fuse_routes(itertools.chain.from_iterable(parse_routes(s["format"], Path(s["path"]), s) for s in routing_sources),
                          minimum_prefix_lengths={4: floors["ipv4"], 6: floors["ipv6"]})
     mark("asn")
-    domains, domain_report = build_domains([s for s in usable if s.get("role") in {"domains", "domain"}], products)
-    if special_config is not None:
-        from .special import build_special
-        special_groups, special_report = build_special(usable, special_config)
-        domains.update(special_groups)
-        write_json(reports / "special.json", special_report)
+    domains = domain_outputs(usable, products, special_config, reports, config_dir)
     mark("domains")
     groups = country["groups"]
     for region in registry["regions"]:
@@ -149,7 +254,6 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     write_json(output / "regions.json", registry)
     write_json(reports / "geo.json", country["report"])
     write_json(reports / "asn.json", routes["report"])
-    write_json(reports / "domains.json", domain_report)
     write_json(reports / "sources.json", {"used": [stable_source(s) for s in usable], "unavailable_or_withheld": skipped,
                                            "independence": "lineage grouping prevents known duplication; statistical independence is not claimed"})
     # Auxiliary references are audited separately: routing and registries never vote as location truth.
@@ -193,14 +297,16 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
                                      "Build diagnostics stay in Actions artifacts, not the release branch.\n"
                                      "Pin downloads to one release commit and verify manifest lengths and SHA-256.\n", encoding="utf-8")
     manifest = finalize_candidate(output, snapshot, registry, products, quality, summary,
-                                  baseline=baseline, special_config=special_config)
+                                  baseline=baseline, special_config=special_config,
+                                  legacy_configs=_legacy_configs(config_dir))
     mark("manifest-and-validation")
     return manifest
 
 
 def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: dict,
                        quality: dict, summary: dict, *, baseline: Path | None = None,
-                       special_config: dict | None = None) -> dict:
+                       special_config: dict | None = None, legacy_configs: list | None = None,
+                       generation_context: dict | None = None) -> dict:
     """Bind already computed batch outputs, then validate their exact bytes."""
     output = Path(output)
     stable_inputs = sorted([stable_source(s) for s in snapshot["sources"]], key=lambda s: s["id"])
@@ -209,7 +315,8 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
              for p in sorted(output.rglob("*")) if p.is_file() and p != output / "manifest.json"]
     public_files = [r for r in files if not r["path"].startswith("reports/") and r["path"] != "README.md"]
     identity = {"generator": __version__, "inputs": stable_inputs, "registry": registry,
-                "products": products, "special": special_config, "quality": quality, "files": public_files}
+                "products": products, "special": special_config, "quality": quality, "files": public_files,
+                "legacy_configs": legacy_configs or [], "generation_context": generation_context}
     version = hashlib.sha256(canonical(identity)).hexdigest()[:24]
     from .coverage import profiles
     from .validation import parse_list
@@ -235,6 +342,8 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
             "content_types": group.get("content_types", ["domain", "ipv4", "ipv6"]),
             "required_output": group.get("required_output", False),
             "includes": group.get("includes", []),
+            "cn_market_overlaps": domain_health.get("market_overlap_declarations", {}).get(name, group.get("cn_market_overlaps", [])),
+            "unresolved_cn_pattern_intersections": name in domain_health.get("unresolved_pattern_intersections", {}),
             "source_ids": sorted(set(domain_health.get("groups", {}).get(name, {}).get("source_support_rules", {}))
                                  | set(catalogue.get(name, {}).get("ip_source_ids", []))),
             "domain_source_ids": sorted(domain_health.get("groups", {}).get(name, {}).get("source_support_rules", {})),
@@ -252,6 +361,12 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
                 "selector_failures": domain_health.get("unavailable_selectors", []),
                 "regional_domain_semantics": {g["id"]: g["domain_semantics"] for g in products["groups"]
                                               if g["id"].startswith("region/") and g.get("domain_semantics")}}
+    from .legacy import legacy_projection
+    manifest["legacy_coverage"] = {report["group"]: legacy_projection(report, include_protected=False)
+        for path in sorted((output / "reports").glob("legacy*domains.json"))
+        for report in [json.loads(path.read_text())]}
+    if generation_context is not None:
+        manifest["generation_context"] = generation_context
     write_json(output / "manifest.json", manifest)
     # A failed validation leaves the complete local candidate and diagnostic report for inspection;
     # publish() independently validates again and will not move a remote pointer.

@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "group": "region/cn",
+  "source": {
+    "id": "legacy-cn",
+    "repository": "https://github.com/airrelay/rules",
+    "version": "20a3b237005292e60b62603e934b3972348366b4",
+    "path": "region/cn.list",
+    "sha256": "9e763ebd67e35b23ed8c41bc8a9cb40556e248ee18f2115a6137298b09deb883",
+    "bytes": 3923114,
+    "records": 136205,
+    "domain_records": 112523,
+    "client_manifest_sha256": "0539a3ca85473e4e7a5a2d164d117a1d2fffb98b5e9ffc0a1e6e27cb2cb15817",
+    "per_rule_upstream": "unknown; immutable old output is a migration baseline, not an independent publisher or per-rule lineage assertion"
+  },
+  "sample_limit_per_reason": 8,
+  "reviewed_dispositions": [
+    {
+      "predicate": "DOMAIN-SUFFIX,cn",
+      "disposition": "inapplicable",
+      "reason": "A whole-country TLD shortcut cannot substitute for categorized mainland-market/service rules.",
+      "evidence": ["Project product contract excludes a whole .cn shortcut; this does not claim every .cn service is foreign."]
+    }
+  ],
+  "shared_infrastructure": [
+    {
+      "root": "cloudfront.net",
+      "evidence": ["https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CNAMEs.html"]
+    },
+    {
+      "root": "akamaized.net",
+      "evidence": ["https://techdocs.akamai.com/terraform/docs/pm-rc-edge-hostname"]
+    },
+    {
+      "root": "akamaihd.net",
+      "evidence": ["https://techdocs.akamai.com/property-mgr/reference/validation-errors"]
+    },
+    {
+      "root": "akamaiedge.net",
+      "evidence": ["https://techdocs.akamai.com/property-mgr/reference/validation-errors"]
+    },
+    {
+      "root": "edgesuite.net",
+      "evidence": ["https://techdocs.akamai.com/edge-hostnames/docs/edge-hn-terminology"]
+    },
+    {
+      "root": "edgekey.net",
+      "evidence": ["https://techdocs.akamai.com/edge-hostnames/docs/edge-hn-terminology"]
+    },
+    {
+      "root": "azureedge.net",
+      "evidence": ["https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-domains"]
+    },
+    {
+      "root": "azurewebsites.net",
+      "evidence": ["https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-domains"]
+    },
+    {
+      "root": "fastly.net",
+      "evidence": ["https://www.fastly.com/documentation/guides/concepts/routing-traffic-to-fastly/"]
+    }
+  ]
+}

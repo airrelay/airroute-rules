@@ -19,6 +19,20 @@ python3.12 -m airroute_data validate .build/candidate
 
 每次使用新的空输入/输出目录，避免在计算中途刷新来源。构建阶段离线运行；重放同一输入与配置得到相同字节。`snapshot --source dbip --source iplocate ...` 可选择来源做针对性验证，未选来源会如实标记。离线获取测试支持 `--fixture-dir`；完整合成输入和端到端示例见 `tests/test_pipeline.py`，不能把夹具覆盖量当作真实全网覆盖。
 
+域名专项更新可以使用已固定提交、文件完整的正式 release 作为基线，不必重新下载或解析 Geo/ASN：
+
+```sh
+# .build/release-base 为从一个固定 release 提交导出的完整产物目录
+python3.12 -m airroute_data build-domains \
+  --snapshot .build/domain-input/snapshot.json \
+  --baseline .build/release-base --output .build/domain-candidate \
+  --report .build/domain-build-report.json
+python3.12 -m airroute_data validate .build/domain-candidate \
+  --baseline .build/release-base
+```
+
+命令先验证基线的完整 manifest、文件长度、摘要和格式；不能仅复制几份 `.list` 充当基线。它更新域名与特殊规则，原样复用 `geo.ardb`、`asn.ardb`、`regions.json` 的字节及各地域 IP 谓词，保留原 IP 来源版本，并在 manifest 标明 `domains-only` 和基线。新域名快照里有更新的国家库描述也不会被宣传为新 Geo；这不是重新获取的地域数据。地域注册表变化必须使用完整构建。每日 Actions 的普通 `build` 仍生成完整 Geo、ASN、地域和服务产物。
+
 五家国家库均有获取与解析入口，但不是五家都能匿名下载：
 
 | 来源 | 免费获取条件 | 默认公开派生 |
@@ -36,7 +50,7 @@ python3.12 -m airroute_data validate .build/candidate
 公开数据包含：
 
 - `region/*.list`：16 个版本化大区；中国大陆只有 **`region/cn.list`** 一个公开集合，先域名再 IP。俄罗斯、东北亚、港澳、欧洲、西亚按显式本地服务/机构清单补充域名；这些域名不表示服务器物理位置。
-- `provider/*.list`、`service/*.list`、`category/*.list`：12 个服务商、38 个独立服务、21 个用途类别和保留的流媒体聚合视图。独立服务通过配置同时包含于对应类别，类别间允许合理重叠；大陆服务与海外集合保守排除。
+- `provider/*.list`、`service/*.list`、`category/*.list`：12 个服务商、38 个独立服务、21 个用途类别和保留的流媒体聚合视图。独立服务通过配置同时包含于对应类别，类别间允许合理重叠；具名大陆服务被完整覆盖的谓词从其他集合排除；仅大陆可用性造成的混合市场交集逐项报告，不虚称全部互斥。
 - `special/lan.list`：RFC1918、IPv6 ULA、环回、链路本地及标准本地名称。共享地址、组播、广播、文档、基准测试、NAT64 各自单列，不能因“特殊”而全当 LAN；198.18.0.0/15 不在 LAN 中。其他 `special/*.list` 描述连通检测、NTP、STUN/TURN、更新和公共 DNS 端点，均不内置出口动作。
 - `dns/realip.list`：保守的 DNS 返回真实地址例外；`dns/realip-optional.list` 是精确主机的可选兼容扩展。**不是路由集合，不表示直连，不指定解析器**。现有客户端还没有这一名单的专用订阅导入能力，生成后不会自动生效，最小对接见 [LAN 与 Real IP](docs/SPECIAL.md)。
 - `geo.ardb`、`asn.ardb`：ARDB v1 的未压缩随机读取文件。地区 `.list` 和 Geo 文件来自同一份清洗结果；ASN 多起源允许跨组重复。
@@ -48,9 +62,9 @@ python3.12 -m airroute_data validate .build/candidate
 
 国家数据先统一区间边界，再映射项目大区。默认至少两个有信息的血缘组一致、没有跨大区反对信息时才归类；来源缺失不投票，同源镜像不加票。该策略是保守门槛，**不是统计独立性证明或准确率**。冲突、单源与全源缺失保持未知，在明确的地址空间契约内完整报告；不会把未知默认为海外。
 
-BGP/ASN 表示当前采集视角的路由起源。RIR 注册国、RPKI、路由清单和 geofeed 都不单独证明物理位置。DLC 与官方端点表示服务身份，也不通过 DNS/IP 位置反推服务。完整 MRT 支持更具体前缀和逐 peer 视角；RIS 摘要缺少的粒度如实记录。
+BGP/ASN 表示当前采集视角的路由起源。RIR 注册国、RPKI、路由清单和 geofeed 都不单独证明物理位置。DLC、ChinaMax 等成熟分类与官方端点表达服务、市场或分流用途，不通过 DNS/IP 位置反推服务；新增域名不要求先命中旧身份目录。完整 MRT 支持更具体前缀和逐 peer 视角；RIS 摘要缺少的粒度如实记录。
 
-`.list` 只输出本项目已验证的 Core 规则子集，不包含动作或默认 `no-resolve`。不能等价表示的 AND、NOT、嵌套、歧义通配符及正则进入隔离报告，不进行有损扁平化。更多见 [规则语义](docs/RULES.md)、[Geo/ASN 语义](docs/GEO.md) 和 [覆盖审计](docs/COVERAGE.md)。
+`.list` 只输出本项目已验证的 Core 规则子集，不包含动作或默认 `no-resolve`。不能等价表示的 AND、NOT、嵌套、歧义通配符及不兼容正则进入隔离报告，不进行有损扁平化。更多见 [规则语义](docs/RULES.md)、[Geo/ASN 语义](docs/GEO.md) 和 [覆盖审计](docs/COVERAGE.md)。
 
 ## Actions 与发布
 

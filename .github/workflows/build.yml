@@ -71,6 +71,7 @@ jobs:
             .build/candidate/reports/geo.json
             .build/candidate/reports/asn.json
             .build/candidate/reports/domains.json
+            .build/candidate/reports/legacy*domains.json
             .build/candidate/reports/sources.json
             .build/candidate/reports/auxiliary.json
             .build/candidate/reports/special.json

@@ -384,7 +384,7 @@
       "format": "dlc",
       "lineage": "domain-list-community",
       "publisher": "v2fly community",
-      "field_semantics": "Service/category assertions and include/attributes/exact/suffix/keyword/regexp syntax; country TLD alone is not service identity",
+      "field_semantics": "Original service/category and market/routing-use assertions with include/attribute semantics; not server physical location; TLD shortcuts must be handled separately",
       "transport": "github_archive",
       "repo": "v2fly/domain-list-community",
       "ref": "master",
@@ -392,7 +392,8 @@
       "update_frequency": "continuous",
       "license": "MIT",
       "publish_allowed": true,
-      "documentation": "https://github.com/v2fly/domain-list-community"
+      "documentation": "https://github.com/v2fly/domain-list-community",
+      "domain_role": "classification-primary"
     },
     {
       "id": "blackmatrix",
@@ -400,7 +401,7 @@
       "format": "surge",
       "lineage": "community-domain-derived",
       "publisher": "blackmatrix7",
-      "field_semantics": "Selected third-party named service predicates and CN/LAN references; primary use only within configured owned service scope, all compound/unsupported conditions quarantined",
+      "field_semantics": "Mature named service and regional market/routing-use classifications from selected Surge/DOMAIN-SET files, including China/ChinaMax: ordinary classified domain predicates contribute directly without existing-identity or independent-vote prerequisites. Public TLD shortcuts, explicit conflicts, shared infrastructure parents, publisher sentinels and incompatible types receive targeted exceptions; no server-geolocation inference.",
       "transport": "github_files",
       "repo": "blackmatrix7/ios_rule_script",
       "ref": "master",
@@ -435,7 +436,8 @@
         "rule/Surge/Xbox/Xbox.list",
         "rule/Surge/PlayStation/PlayStation.list",
         "rule/Surge/Nintendo/Nintendo.list",
-        "rule/Surge/Lan/Lan.list"
+        "rule/Surge/Lan/Lan.list",
+        "rule/Surge/China/China_Domain.list"
       ],
       "access": "Public selected Surge files; no MITM/UA modules",
       "update_frequency": "continuous",
@@ -443,7 +445,8 @@
       "publish_allowed": true,
       "documentation": "https://github.com/blackmatrix7/ios_rule_script",
       "independence": "Named service catalogue input, not an independent identity or geo vote; formats and inherited upstream rows do not add votes.",
-      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes."
+      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes.",
+      "domain_role": "categorized-supplement"
     },
     {
       "id": "acl4ssr",
@@ -451,7 +454,7 @@
       "format": "clash",
       "lineage": "acl4ssr-community",
       "publisher": "ACL4SSR",
-      "field_semantics": "Selected Clash named-service and local-network references; scoped semantic admission, never geolocation or independent corroboration",
+      "field_semantics": "Named service, ChinaDomain/ChinaMedia and local-network rule candidates; direct-list membership is a routing-use assertion, not server geolocation or company ownership; shared dependencies are separate",
       "transport": "github_files",
       "repo": "ACL4SSR/ACL4SSR",
       "ref": "master",
@@ -463,7 +466,9 @@
         "Clash/Ruleset/GoogleFCM.list",
         "Clash/Ruleset/Microsoft.list",
         "Clash/Ruleset/Steam.list",
-        "Clash/Ruleset/Telegram.list"
+        "Clash/Ruleset/Telegram.list",
+        "Clash/ChinaDomain.list",
+        "Clash/ChinaMedia.list"
       ],
       "access": "Public selected list",
       "update_frequency": "continuous",
@@ -471,7 +476,8 @@
       "publish_allowed": true,
       "documentation": "https://github.com/ACL4SSR/ACL4SSR",
       "independence": "Shared upstreams; file formats and publisher count are not independent evidence.",
-      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes."
+      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes.",
+      "domain_role": "routing-use-supplement"
     },
     {
       "id": "sukka",
@@ -479,21 +485,24 @@
       "format": "surge",
       "lineage": "sukka-generated",
       "publisher": "Sukka",
-      "field_semantics": "Generated service/category rules combine multiple upstreams; not an independent corroborating vote",
+      "field_semantics": "Generated domestic mainland-availability/CDN and service category predicates; routing-use/market information, not physical location; domestic_cdn is a subset of domestic; publisher sentinel is not a service rule",
       "transport": "github_files",
       "repo": "SukkaLab/ruleset.skk.moe",
       "ref": "master",
       "paths": [
         "List/non_ip/stream.conf",
-        "List/non_ip/ai.conf"
+        "List/non_ip/ai.conf",
+        "List/non_ip/domestic.conf",
+        "List/non_ip/domestic_cdn.conf"
       ],
       "access": "Public selected non-IP list; no modules or rewrites",
       "update_frequency": "continuous",
-      "license": "Repository selected-data licenses and attribution apply; no independent upstream vote",
+      "license": "AGPL-3.0 per selected generated-file headers; source-specific upstream rights and terms remain applicable",
       "publish_allowed": true,
       "documentation": "https://github.com/SukkaLab/ruleset.skk.moe",
       "independence": "Shared upstreams; file formats and publisher count are not independent evidence.",
-      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes."
+      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes.",
+      "domain_role": "market-availability-supplement"
     },
     {
       "id": "geofeed-vultr",
@@ -692,6 +701,27 @@
       "license": "IANA protocol registry public data terms",
       "publish_allowed": true,
       "documentation": "https://www.iana.org/assignments/iana-ipv6-special-registry/"
+    },
+    {
+      "id": "legacy-cn",
+      "role": "legacy-domain-reference",
+      "domain_role": "frozen-semantic-baseline",
+      "format": "surge",
+      "lineage": "airroute-legacy-unknown-upstreams",
+      "publisher": "AirRoute legacy corpus",
+      "field_semantics": "Fixed old CN subscription is a semantic migration baseline only. Per-row upstream identity is unknown; membership alone is not positive market evidence or an independent vote. IP rows are audited separately from domains.",
+      "transport": "github_files",
+      "repo": "airrelay/rules",
+      "ref": "20a3b237005292e60b62603e934b3972348366b4",
+      "paths": [
+        "region/cn.list"
+      ],
+      "access": "Free public immutable project corpus; no account or token",
+      "update_frequency": "fixed migration baseline; never follows a branch",
+      "license": "Project legacy corpus; row-level upstream provenance unavailable; audit/regression use only, not an assertion of upstream license or a blanket new-rule admission",
+      "publish_allowed": true,
+      "documentation": "https://github.com/airrelay/rules/blob/20a3b237005292e60b62603e934b3972348366b4/region/cn.list",
+      "independence": "Known project aggregation; original row-level lineage unknown. Never counted as an independent source or silently promoted into output."
     }
   ]
 }

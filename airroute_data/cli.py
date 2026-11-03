@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 import time
 
-from .pipeline import build, write_json
+from .pipeline import build, build_domain_candidate, write_json
 from .validation import validate_candidate
 
 
@@ -25,6 +25,12 @@ def parser() -> argparse.ArgumentParser:
     candidate.add_argument("--config-dir", type=Path, default=Path("config"))
     candidate.add_argument("--baseline", type=Path)
     candidate.add_argument("--report", type=Path)
+    domains = commands.add_parser("build-domains", help="refresh domains/special data, reusing verified release Geo/ASN and regional IP bytes")
+    domains.add_argument("--snapshot", type=Path, required=True)
+    domains.add_argument("--output", type=Path, required=True)
+    domains.add_argument("--config-dir", type=Path, default=Path("config"))
+    domains.add_argument("--baseline", type=Path, required=True)
+    domains.add_argument("--report", type=Path)
     validate = commands.add_parser("validate")
     validate.add_argument("candidate", type=Path)
     validate.add_argument("--baseline", type=Path)
@@ -62,9 +68,10 @@ def main(argv: list[str] | None = None) -> int:
                                        fixture_dir=args.fixture_dir, source_ids=args.source_ids)
             result = {"snapshot": str(args.output / "snapshot.json"),
                       "sources": [{"id": s["id"], "status": s["status"]} for s in snapshot["sources"]]}
-        elif args.command == "build":
+        elif args.command in {"build", "build-domains"}:
             metrics = {}
-            manifest = build(args.snapshot, args.output, args.config_dir, baseline=args.baseline, metrics=metrics)
+            builder = build_domain_candidate if args.command == "build-domains" else build
+            manifest = builder(args.snapshot, args.output, args.config_dir, baseline=args.baseline, metrics=metrics)
             result = {"data_version": manifest["data_version"], "summary": manifest["summary"]}
             if args.report:
                 write_json(args.report, {**result, "elapsed_seconds": round(time.monotonic() - started, 3), "stages": metrics})

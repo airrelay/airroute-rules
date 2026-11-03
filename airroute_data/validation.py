@@ -150,7 +150,27 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
     domain_groups = {p.relative_to(candidate).as_posix().removesuffix(".list"): parse_list(p)
                      for p in candidate.rglob("*.list")}
     from .domains import validate_domain_groups
-    validate_domain_groups(domain_groups)
+    validate_domain_groups(domain_groups, market_overlaps={name: metadata["cn_market_overlaps"]
+        for name, metadata in manifest.get("product_catalogue", {}).items() if metadata.get("cn_market_overlaps")},
+        unresolved_pattern_groups={name for name, metadata in manifest.get("product_catalogue", {}).items()
+                                   if metadata.get("unresolved_cn_pattern_intersections")})
+    context = manifest.get("generation_context", {})
+    if context:
+        if context.get("mode") != "domains-only":
+            raise ValueError("unsupported generation context")
+        base = context.get("binary_base", {})
+        if not base.get("data_version") or len(base.get("manifest_sha256", "")) != 64:
+            raise ValueError("domain-only build needs a fixed binary base")
+        if set(base.get("files", {})) != {"geo.ardb", "asn.ardb", "regions.json"}:
+            raise ValueError("incomplete binary base inventory")
+        for name, record in base["files"].items():
+            path = candidate / name
+            if path.stat().st_size != record.get("bytes") or file_digest(path) != record.get("sha256"):
+                raise ValueError("domain-only build changed binary base: " + name)
+        sources = {s["id"]: s for s in manifest.get("source_snapshot", [])}
+        for source in context.get("ip_source_snapshot", []):
+            if sources.get(source["id"]) != source:
+                raise ValueError("domain-only build misrepresents retained IP sources")
     if any(name.startswith(("special/", "dns/")) for name in domain_groups):
         from .special import validate_special_groups
         validate_special_groups(domain_groups)

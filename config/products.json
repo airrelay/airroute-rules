@@ -2,9 +2,9 @@
   "schema": 1,
   "policy": {
     "cn_collection": "region/cn",
-    "cn_exclusion": "Remove any overlapping overseas predicate; quarantine non-subtractable predicates rather than adding NOT conditions.",
-    "references": "Reliable named service-specific primary sources may contribute within declared identity/risk bounds. Broad supplemental catalogues remain corroborated with explicit identity catalogues; mirrors/formats never create votes.",
-    "ru_domains": "Explicit Russian service identities only, never tld-ru/category-ru or ASN registration country.",
+    "cn_exclusion": "named-mainland-services; report mixed-market overlaps",
+    "references": "Purpose-scoped mature classified upstream lists contribute directly. Missing from another list is not negative evidence; no identity-directory gate or domain voting.",
+    "ru_domains": "Expand category-ru named institutions/services while excluding only registration-wide TLD shortcuts; domain markets are independent of physical Geo.",
     "upstream_lineage": "Alternate file formats and mirrors are not independent votes. Domain categories are identity assertions, not geolocation votes.",
     "overlap": "Service categories intentionally overlap. Every independent service remains included in one or more corresponding categories; companies/cloud hosting are not physical country or service-identity evidence.",
     "cloud_tenants": "Never classify all cloud/CDN tenant IPs or shared hosting suffixes as provider-owned products. Explicit service endpoints under shared hosts may retain exact matching only."
@@ -15,154 +15,29 @@
       "name": "中国大陆",
       "kind": "regional-domain-and-ip",
       "description": "Explicit mainland service/access-point rules plus independently cleaned CN IP data; no .cn TLD inference.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "geolocation-cn",
-          "attributes": [
-            "-!cn"
-          ],
-          "required": true
-        },
-        {
-          "source": "blackmatrix",
-          "path": "rule/Surge/ChinaMax/ChinaMax_Domain.list",
-          "format": "surge-domainset",
-          "mode": "corroborated",
-          "identity_catalogues": [
-            {
-              "source": "dlc",
-              "categories": [
-                "category-ai-cn",
-                "category-scholar-cn",
-                "category-dev-cn",
-                "category-number-verification-cn"
-              ],
-              "attributes": [
-                "-!cn"
-              ]
-            }
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-number-verification-cn",
-          "attributes": [
-            "-!cn"
-          ]
-        },
-        {
-          "source": "microsoft365-cn",
-          "format": "official-json",
-          "adapter": "microsoft365",
-          "regional_suffix": ".cn"
-        }
-      ],
+      "selectors": [],
       "required_output": true,
       "purpose": "Explicit mainland service/access-point rules plus independently cleaned CN IP data; no .cn TLD inference.",
       "content_types": [
         "domain",
         "ipv4",
         "ipv6"
-      ]
+      ],
+      "selector_config": "regional-domains.json"
     },
     {
       "id": "region/ru",
       "kind": "regional-service-identity-and-ip",
       "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "category-ai-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-bank-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-ecommerce-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-education-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-entertainment-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-forums-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-gov-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-media-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-medicine-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-retail-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-tech-media-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-travel-ru",
-          "attributes": [
-            "-cn"
-          ]
-        }
-      ],
+      "selectors": [],
       "required_output": true,
       "purpose": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
       "content_types": [
         "domain",
         "ipv4",
         "ipv6"
-      ]
+      ],
+      "selector_config": "regional-domains.json"
     },
     {
       "id": "region/northeast-asia",
@@ -2239,55 +2114,19 @@
           "source": "blackmatrix",
           "path": "rule/Surge/OpenAI/OpenAI.list",
           "format": "surge",
-          "mode": "corroborated",
-          "identity_catalogues": [
-            {
-              "source": "dlc",
-              "categories": [
-                "category-ai-!cn",
-                "category-ai-ru"
-              ],
-              "attributes": [
-                "-cn"
-              ]
-            }
-          ]
+          "mode": "primary"
         },
         {
           "source": "acl4ssr",
           "path": "Clash/Ruleset/OpenAi.list",
           "format": "clash",
-          "mode": "corroborated",
-          "identity_catalogues": [
-            {
-              "source": "dlc",
-              "categories": [
-                "category-ai-!cn",
-                "category-ai-ru"
-              ],
-              "attributes": [
-                "-cn"
-              ]
-            }
-          ]
+          "mode": "primary"
         },
         {
           "source": "sukka",
           "path": "List/non_ip/ai.conf",
           "format": "surge",
-          "mode": "corroborated",
-          "identity_catalogues": [
-            {
-              "source": "dlc",
-              "categories": [
-                "category-ai-!cn",
-                "category-ai-ru"
-              ],
-              "attributes": [
-                "-cn"
-              ]
-            }
-          ]
+          "mode": "primary"
         },
         {
           "source": "github-meta",
@@ -3229,140 +3068,13 @@
       "name": "俄罗斯服务",
       "kind": "service-identity-category",
       "description": "Russian service identities; does not locate servers, users or every .ru domain in Russia.",
-      "selectors": [
-        {
-          "source": "dlc",
-          "category": "yandex",
-          "attributes": [
-            "-cn"
-          ],
-          "exclude_roots": [
-            "yandexcloud.net",
-            "vkcs.cloud"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "mailru-group",
-          "attributes": [
-            "-cn"
-          ],
-          "exclude_roots": [
-            "yandexcloud.net",
-            "vkcs.cloud"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "kaspersky",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "sber",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "selectel",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-ai-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-bank-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-ecommerce-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-education-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-entertainment-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-forums-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-gov-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-media-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-medicine-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-retail-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-tech-media-ru",
-          "attributes": [
-            "-cn"
-          ]
-        },
-        {
-          "source": "dlc",
-          "category": "category-travel-ru",
-          "attributes": [
-            "-cn"
-          ]
-        }
-      ],
+      "selectors": [],
       "required_output": true,
       "content_types": [
         "domain"
       ],
-      "purpose": "俄罗斯服务身份，而非服务器地理位置；与新闻、金融、教育等用途类别有意重叠。"
+      "purpose": "俄罗斯服务身份，而非服务器地理位置；与新闻、金融、教育等用途类别有意重叠。",
+      "selector_config": "regional-domains.json"
     },
     {
       "id": "category/streaming",

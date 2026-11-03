@@ -1,3 +1,53 @@
+# 当前域名生成修复验收（2026-11-03，本地候选）
+
+本节替代下方历史记录中的 ChinaMax 身份门槛及 RU 聚合选择策略。当前来源组合见 [REGIONAL-DOMAINS.md](REGIONAL-DOMAINS.md)、[DOMAIN-SOURCE-AUDIT.md](DOMAIN-SOURCE-AUDIT.md)；历史记录保留作前后对照，不能当作现行策略。
+
+强停后检查：没有遗留构建/推送/发布进程，未提交改动仍在工作树。先前预览因 PlayStation 被 CN 重叠过滤为空而失败；未形成正式候选或更新远端。保留补齐来源、include 修复和固定旧语料对照，删除未完成的身份准入模块与逐行诊断流水。新的成熟补充源直接贡献规则，不再使用 `reference-only` / `corroborated` 旧门槛。
+
+对照正式 release `5edd6824d5baf94f0910b04f1b40ad82eac7b6c8`，数据版本 `aa9a000d61cfdf7abd982e42`。完整本地候选为 `dcf3e8d2d307fea43e18bbed`；本节记录提交前的本地验收，不能当作后续 Actions 或 release 已发布的证明。
+
+| 集合 | 正式版域名谓词 | 本地候选 | 原谓词语义保留 | 新增、原来未覆盖 | 原谓词未完整保留 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 中国大陆 | 7,892 | 112,162 | 7,890 | 104,420 | 2 |
+| 俄罗斯地域 | 1,057 | 1,824 | 1,057 | 775 | 0 |
+| 俄罗斯服务 | 1,530 | 1,824 | 1,506 | 318 | 24 |
+
+数量是谓词及其语言包含关系，不是网站数、准确率或独立来源票数。CN 现为 280 精确、26 关键词、25 正则及 111,831 后缀。精确主机没有改为父后缀，关键词和可表达正则保留上游语义；它们可能比后缀更宽，不能据此宣称逐域名身份验证完成。
+
+## 实际输入与贡献
+
+- DLC `476b009f4d0176426958b3fdadf87f2a2688baa5`：CN 主分类/include 与号码验证，RU `category-ru` 去掉 **仅 `tld-ru` 子树**，保留银行、运营商、机构和具名产品。
+- blackmatrix `0b6897dc17e0c513d25449c935a9694818e32f0c`：China 与 ChinaMax 主体及 `_Domain` 配套文件。China_Domain 3,689 行中 3,684 行通过具体范围过滤；ChinaMax_Domain 110,427 行中 110,424 行通过。按配置处理顺序，后者在最终压缩中首次保留 103,785 个谓词，另有 6,271 个重复、368 个被其他规则覆盖；这不是该来源统计独立或唯一支持的数量。
+- ACL4SSR `c15bf546085b825afd238e211f750bb7868c7132`：ChinaDomain 635 行/632 通过，ChinaMedia 37 行/37 通过，另 1 个 URL-REGEX 不可表达。Sukka `136f19cc769a2a1f2878e880c4297cbcd3f34b6f`：domestic 869 行/863 通过，domestic_cdn 19 行/18 通过，另有歧义通配符拒绝。通过量还会受后续有针对性的类型/TLD过滤及覆盖压缩影响，不等于净新增。
+- 微软中国云官方目录保留精确端点/严格子域语义。上述社区资料存在共同上游和不同格式衍生，不加票或虚构逐条血缘。
+- RU 新覆盖来自恢复 DLC 原有具名聚合；另核对 blackmatrix 的 Yandex/VK/Mailru 44 个域名谓词，均被 DLC 覆盖，未为凑来源数添加零贡献镜像。
+
+真实例子：`chinabidding.com`、`chinaacc.com`、`cngold.org`、`gongchang.com` 原正式 CN 未覆盖，候选已覆盖；`qq.com`、`weixin.qq.com`、`alipay.com`、`www.gov.cn`、`chinatax.gov.cn`、`bilibili.com`、`10086.cn` 保持覆盖。RU 新增 `mts.ru`、`rt.ru`、`megafon.ru`、`tele2.ru`、`beeline.ru`、`pochta.ru` 及 `mcc250.pub.3gppnetwork.org`。这些检查使用固定规则匹配语义，没有主动访问目标。
+
+## 有意排除与剩余缺口
+
+- CN 旧版仅两条宽共享平台父域 `myqcloud.com`、`qcloudcdn.com` 未完整保留，不能把全部租户等同大陆服务；配置中的精确/更小范围端点继续按原意处理。`gov.cn` 与 `edu.cn` 是明确的政教命名空间，继续保留。`.cn`、`.ms` 等全 TLD 快捷项及品牌 TLD 不自动进入地域集合，报告区别记录；发布者哨兵只作精确排除。
+- RU 服务移除 18 条显式广告/遥测及 6 条源注释自带市场冲突的范围（My.Games、VK Cloud KZ 等），不是认定旧规则均错误。两条公共注册快捷后缀及整个共享云父域同样单独过滤。俄罗斯地域旧 1,057 条全部保留。
+- 固定旧 CN `20a3b237005292e60b62603e934b3972348366b4` 共 112,523 条域名：110,272 原谓词保留、473 合法覆盖、3 个整个 TLD 快捷项不适用、**1,775 个未被当前选定上游覆盖**。它们不进入在线等待/人工审批系统，也不被声称已证明错误；典型如 `000dn.com`、若干编号 IDN 子域，原逐条来源未知。完整语料校验原文件 SHA，报告保留各原因计数和样本。
+- 固定旧 RU 同 commit 文件只有 31,855 条 IP CIDR、域名为零，因此不能用它证明 RU 域名迁移；本次 RU 域名回归对照上一个正式 release。
+- `ru.ccb.com` 与 CN 的 `ccb.com`、国际服务与国内可用端点可能交叠。DLC 明确具名 CN 规则完整包含的成员仍从其他产品排除；不能仅因一个 CN 子端点而删掉整个国际服务父域。实际正向交叠有明确声明，任意关键词/正则与无限后缀语言无法证明不交时按组汇总，不制造逐条身份证据库，不承诺零重叠或隐含路由优先级。
+
+负样本 `totally-unrelated.example.cn`、`unrelated-new.ru`、`unrelated-new.su`、`unrelated-new.ru.com`、任意未知 myqcloud/Appspot 租户未被相应地域/服务规则误纳。PlayStation、Steam、Microsoft 全球产品保持原覆盖；QQ/Bilibili 不进入游戏类别。
+
+## 构建、验证与真实发布边界
+
+本轮 `build-domains` 完整本地候选用时 **85.813 秒**，包含正式基线验证、固定输入摘要检查、域名/special 生成、完整候选验证与语义对比，不是整套 Geo 重算或性能对比。Geo/ASN/注册表原字节 SHA 保持不变，16 个地域 IP 地址覆盖与 CIDR 全部不变；Geo 仍 1,064,990 CIDR、ASN 88,609 组/734,023 CIDR，ARDBv001 未更改。MaxMind/IPinfo/IP2Location 凭据缺失仍如实保留，未阻塞本次域名构建，也没有虚称新五源。
+
+主套件运行 251 项，通过（未指定 Core 的跨仓库类跳过）；另指定真实 Core 读取器运行 ARDB 17 项全部通过，包含五项实际 Rust 互操作。覆盖来源失效/空选择器、include 与属性/缓存、上游新增、精确/后缀/模式语义、云精确端点、负样本、成员包含、旧语料对照、模式交叠与 manifest、固定基线限定增长审核、缺 Geo 凭据刷新以及隔离真实 Git 的拒绝/超时/并发/无变化/回退。
+
+完整候选再次独立 `validate --baseline` 通过。公开清单仍 108 个文件（103 个非空 `.list`），无 reports、versions 或哈希路径；LAN 与 Real IP 各自完整性校验保留，未修改客户端。一次性增长审核只匹配本次 CN 域名输出 SHA 与特定旧数据版本，别的输出或后续基线仍按通用增长/缩水保护执行，未降低默认保留率。
+
+当前产物位于本地 `.build/domain-candidate-verified/`，汇总、语义差异、来源与拒绝样本在 `.build/domain-build-verified.json`、`.build/domain-coverage-comparison.json` 和候选 `reports/`。Actions 已保留原测试/失败保留旧版/发布互斥/源码序号与普通 push 保护，额外保存旧语料对照报告。**截至本地验收时尚未触发真实 Actions 或发布**；当时远端 main 为 `3287c46b5ab76640fc78edf1f9cfb2e2e5d30898`，release 为 `5edd6824d5baf94f0910b04f1b40ad82eac7b6c8`。后续交付结果以实际 workflow run 和远端引用为准。
+
+---
+
+## 以下为此前已完成的历史验收记录
+
 # 产品目录、LAN 与 Real IP 扩展验收（2026-11-03）
 
 本节是**当前代码的本地完整候选**，版本 `3065e9cdfb0f783fba954d3b`；对照本次开始时实际抓取的 release `ecd4792280df834aa809bd55`。此本地候选之后已完成真实 Actions 和 release 发布，见下一节；本地回放与 CI 采用不同 BGP 快照，数据版本不混用。后面的早期记录仅对应各自注明的历史版本。

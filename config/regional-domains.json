@@ -1,0 +1,318 @@
+{
+  "schema": 1,
+  "version": "regional-market-domains-v1",
+  "policy": {
+    "domain_region": "A curated service market and routing-use classification, independent of Geo/IP location. It is not a guarantee that every global product of a company has a single country.",
+    "missing_evidence": "Absence from another catalogue is unknown, not an opposing vote.",
+    "shortcut_exclusions": "Skip only the tld-ru include subtree, then reject the exact registration-wide ru.com/ru.net suffix predicates. Do not delete named rules merely because they use a .ru or .su suffix.",
+    "advertising": "Explicit @ads/@telemetry-only rows are not separately admitted; an accepted service parent may still contain such children, since no NOT subtraction is fabricated.",
+    "source_conflicts": "The selected source itself marks My.Games as having left the Russian market and VK Cloud KZ as a Kazakhstan venture. Their six roots are deferred for current-market classification, not labelled proven malicious or universally false.",
+    "shared_infrastructure": "A whole generic cloud root is not a Russian-service identity. An explicitly classified exact connection endpoint may be retained without promoting the root.",
+    "positive_conflicts": "Explicit configured market exceptions preserve meaningful RU children even if a CN parent contains them. The overlap is reported as unresolved, and neither rule implies a routing action or precedence.",
+    "supplements": "Purpose-scoped mature community lists are primary inputs. Missing from an identity catalogue is not a rejection criterion. No per-rule identity proof, scores or votes."
+  },
+  "groups": [
+    {
+      "kind": "regional-market-service-identity",
+      "required_output": true,
+      "content_types": [
+        "domain"
+      ],
+      "cn_market_overlaps": [
+        {
+          "predicate": "DOMAIN-SUFFIX,ru.ccb.com",
+          "source": "dlc:category-bank-ru",
+          "reason": "DLC explicitly includes this Russian-bank-market endpoint, while the CN list contains broader ccb.com. Both positive predicates are useful but ordinary .list cannot subtract the child from the CN parent; report an unresolved positive overlap without an implicit priority."
+        }
+      ],
+      "id": "category/ru-services",
+      "name": "俄罗斯服务",
+      "purpose": "DLC explicit Russian-market institutions, operators, products and service classifications; overlaps other useful categories.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-ru",
+          "exclude_categories": [
+            "tld-ru"
+          ],
+          "attributes": [
+            "-cn",
+            "-ads",
+            "-telemetry"
+          ],
+          "required": true,
+          "mode": "primary",
+          "classification": "regional-market",
+          "field_semantics": "Upstream curated Russian-market/service-routing classification, never a physical-server-country assertion. A missing listing in another catalogue is not negative evidence.",
+          "exclude_predicates": [
+            "DOMAIN-SUFFIX,ru.com",
+            "DOMAIN-SUFFIX,ru.net"
+          ],
+          "shared_roots": [
+            "yandexcloud.net",
+            "vkcs.cloud"
+          ],
+          "exclude_roots": [
+            "my.games",
+            "it-territory.com",
+            "knightspeak.com",
+            "pixonic.com",
+            "vkcloud.kz",
+            "vkcloud-static.kz"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "regional-market-service-identity",
+      "required_output": true,
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ],
+      "cn_market_overlaps": [
+        {
+          "predicate": "DOMAIN-SUFFIX,ru.ccb.com",
+          "source": "dlc:category-bank-ru",
+          "reason": "DLC explicitly includes this Russian-bank-market endpoint, while the CN list contains broader ccb.com. Both positive predicates are useful but ordinary .list cannot subtract the child from the CN parent; report an unresolved positive overlap without an implicit priority."
+        }
+      ],
+      "id": "region/ru",
+      "name": "俄罗斯",
+      "purpose": "Russian-market/service-routing domain view plus separately generated Geo IP data; not physical server location.",
+      "selectors": [],
+      "includes": [
+        "category/ru-services"
+      ],
+      "domain_semantics": "Curated Russian-market and service-routing membership, not a target server country. Explicit bank/operator/product identities survive aggregate TLD removal; positive cross-market overlaps remain reported without hidden precedence."
+    },
+    {
+      "id": "region/cn",
+      "name": "中国大陆",
+      "kind": "regional-domain-and-ip",
+      "description": "Explicit mainland service/access-point rules plus independently cleaned CN IP data; no .cn TLD inference.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "geolocation-cn",
+          "attributes": [
+            "-!cn"
+          ],
+          "required": true,
+          "mode": "primary"
+        },
+        {
+          "source": "dlc",
+          "category": "category-number-verification-cn",
+          "attributes": [
+            "-!cn"
+          ],
+          "mode": "primary"
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/China/China_Domain.list",
+          "format": "surge-domainset",
+          "required": true,
+          "mode": "primary"
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/ChinaDomain.list",
+          "format": "clash",
+          "required": true,
+          "mode": "primary"
+        },
+        {
+          "source": "acl4ssr",
+          "path": "Clash/ChinaMedia.list",
+          "format": "clash",
+          "required": true,
+          "mode": "primary"
+        },
+        {
+          "source": "sukka",
+          "path": "List/non_ip/domestic.conf",
+          "format": "surge",
+          "required": true,
+          "mode": "primary"
+        },
+        {
+          "source": "sukka",
+          "path": "List/non_ip/domestic_cdn.conf",
+          "format": "surge",
+          "required": true,
+          "mode": "primary"
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/ChinaMax/ChinaMax_Domain.list",
+          "format": "surge-domainset",
+          "mode": "primary",
+          "required": true
+        },
+        {
+          "source": "microsoft365-cn",
+          "format": "official-json",
+          "adapter": "microsoft365",
+          "regional_suffix": ".cn",
+          "mode": "primary"
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/China/China.list",
+          "format": "surge",
+          "mode": "primary",
+          "domain_only": true,
+          "required": true
+        },
+        {
+          "source": "blackmatrix",
+          "path": "rule/Surge/ChinaMax/ChinaMax.list",
+          "format": "surge",
+          "mode": "primary",
+          "domain_only": true,
+          "required": true
+        }
+      ],
+      "required_output": true,
+      "purpose": "Mainland service-market and routing-use domain classifications, independently of Geo/IP evidence; one public CN product.",
+      "content_types": [
+        "domain",
+        "ipv4",
+        "ipv6"
+      ],
+      "domain_semantics": "Service market and connectivity use, not server physical location or corporate nationality.",
+      "exclude_predicates": [
+        "DOMAIN,7h15.ru1353t.1s.m4d3.by.5ukk4w.skk.moe",
+        "DOMAIN-SUFFIX,com.cn",
+        "DOMAIN-SUFFIX,net.cn",
+        "DOMAIN-SUFFIX,org.cn"
+      ],
+      "shared_roots": [
+        "amazonaws.com",
+        "s3.amazonaws.com",
+        "cloudfront.net",
+        "azureedge.net",
+        "azureedge.us",
+        "azurefd.net",
+        "azurewebsites.net",
+        "azurestaticapps.net",
+        "azurecontainer.io",
+        "cloudapp.net",
+        "trafficmanager.net",
+        "windows.net",
+        "appspot.com",
+        "cloudfunctions.net",
+        "firebaseapp.com",
+        "firebaseio.com",
+        "run.app",
+        "web.app",
+        "googleapis.com",
+        "googleusercontent.com",
+        "akamaiedge.net",
+        "akamaihd.net",
+        "akamaized.net",
+        "akadns.net",
+        "edgekey.net",
+        "edgesuite.net",
+        "fastly.net",
+        "fastlylb.net",
+        "cloudflare.com",
+        "cloudflare.net",
+        "cloudflaressl.com",
+        "aliyuncs.com",
+        "myqcloud.com",
+        "qcloudcdn.com",
+        "cloudns.net",
+        "cloudns.org",
+        "ddns.net",
+        "dynv6.net",
+        "workers.dev",
+        "pages.dev",
+        "github.io",
+        "gitlab.io",
+        "vercel.app",
+        "netlify.app",
+        "yandexcloud.net",
+        "vkcs.cloud",
+        "vkcloud-storage.ru"
+      ],
+      "exception_notes": {
+        "gov.cn and edu.cn": "Retain these mature named institutional namespaces as mainland government/education routing scope; this is not a whole .cn shortcut or a server-location claim.",
+        "shared_roots": "Only whole shared hosting suffixes are excluded; named/exact endpoints keep their original scope.",
+        "dotless_suffixes": "Generic and branded TLD shortcuts are reported separately and not automatically promoted to regional membership."
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "ru-registration-shortcuts",
+      "stage": "classification",
+      "status": "excluded-overbroad",
+      "source": "dlc:category-ru/tld-ru",
+      "predicates": [
+        "DOMAIN-SUFFIX,ru",
+        "DOMAIN-SUFFIX,su",
+        "DOMAIN-SUFFIX,moscow",
+        "DOMAIN-SUFFIX,tatar",
+        "DOMAIN-SUFFIX,xn--80adxhks",
+        "DOMAIN-SUFFIX,xn--80asehdb",
+        "DOMAIN-SUFFIX,xn--80aswg",
+        "DOMAIN-SUFFIX,xn--c1avg",
+        "DOMAIN-SUFFIX,xn--d1acj3b",
+        "DOMAIN-SUFFIX,xn--p1acf",
+        "DOMAIN-SUFFIX,xn--p1ai",
+        "DOMAIN-SUFFIX,ru.com",
+        "DOMAIN-SUFFIX,ru.net"
+      ],
+      "reason": "Country/registration shortcuts do not establish individual service market or ownership. ru.com and ru.net are Public Suffix List registration boundaries.",
+      "references": [
+        "https://github.com/v2fly/domain-list-community/blob/master/data/category-ru",
+        "https://github.com/v2fly/domain-list-community/blob/master/data/tld-ru",
+        "https://publicsuffix.org/list/public_suffix_list.dat"
+      ],
+      "groups": [
+        "region/ru",
+        "category/ru-services"
+      ]
+    },
+    {
+      "id": "mixed-global-source-context",
+      "stage": "classification",
+      "status": "pending-market-reclassification",
+      "source": "dlc:mailru-group",
+      "roots": [
+        "my.games",
+        "it-territory.com",
+        "knightspeak.com",
+        "pixonic.com",
+        "vkcloud.kz",
+        "vkcloud-static.kz"
+      ],
+      "reason": "Source comments themselves identify a market-exit or foreign-market context. Keep the reason visible; do not infer geography from the company origin.",
+      "references": [
+        "https://github.com/v2fly/domain-list-community/blob/master/data/mailru-group"
+      ],
+      "groups": [
+        "region/ru",
+        "category/ru-services"
+      ]
+    },
+    {
+      "id": "branded-top-level-domain",
+      "stage": "classification",
+      "status": "pending-explicit-branded-tld-policy",
+      "predicate": "DOMAIN-SUFFIX,yandex",
+      "reason": "This is not the generic .ru shortcut. IANA identifies a Yandex-managed branded TLD, but the current producer conservatively rejects all dotless identity suffixes. Report this distinct scope instead of calling it a generic country TLD or pretending it was retained.",
+      "references": [
+        "https://www.iana.org/domains/root/db/yandex.html"
+      ],
+      "groups": [
+        "region/ru",
+        "category/ru-services"
+      ]
+    }
+  ]
+}

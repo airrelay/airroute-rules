@@ -335,6 +335,36 @@
         ],
         "reason": "One-time product-scope correction: remove Disney corporate, parks, retail, jobs, brand merchandise and telemetry predicates inherited from a whole-company list. Streaming retains explicit Disney+/ABC/ESPN/Hotstar/StarPlus/Discovery+ services and existing DAZN/TVer/Niconico; this waiver applies only to the exact listed predicate losses against the named successful baseline, not other losses, IP coverage or growth."
       }
+    },
+    "reviewed_expansions": {
+      "region/cn": {
+        "baseline_version": "aa9a000d61cfdf7abd982e42",
+        "domain_sha256": "925943cd160ba1e61f7cf34a902666a882eefe0bd471f46c9c915c44c0c6c7e9",
+        "reason": "One-time migration to mature China/ChinaMax + ACL/Sukka classifications. Exact reviewed domain output digest only; existing retention, address and negative-scope checks remain enforced. Other outputs or subsequent baselines still use the normal growth gate."
+      }
+    },
+    "required_domain_coverage": {
+      "region/cn": [
+        "DOMAIN,qq.com",
+        "DOMAIN,alipay.com",
+        "DOMAIN,www.gov.cn",
+        "DOMAIN,chinatax.gov.cn",
+        "DOMAIN,bilibili.com",
+        "DOMAIN,10086.cn"
+      ],
+      "region/ru": [
+        "DOMAIN,mts.ru",
+        "DOMAIN,rt.ru",
+        "DOMAIN,megafon.ru",
+        "DOMAIN,beeline.ru",
+        "DOMAIN,tele2.ru",
+        "DOMAIN,pochta.ru",
+        "DOMAIN,mcc250.pub.3gppnetwork.org"
+      ],
+      "category/ru-services": [
+        "DOMAIN,mts.ru",
+        "DOMAIN,ru.ccb.com"
+      ]
     }
   }
 }

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import hashlib
 from decimal import Decimal
 import ipaddress
 import json
@@ -169,6 +170,12 @@ def guard_products(groups: dict[str, list[str]], manifest: dict, quality: dict,
                 failed = any(row.get("group") in related and row.get("source") == sid for row in manifest.get("selector_failures", []))
                 if not healthy or failed:
                     errors.append(f"{name}: required selector failed or empty: {sid}")
+    for name, predicates in policy.get("required_domain_coverage", {}).items():
+        index = CoverageIndex(domain_rules(groups.get(name, [])))
+        for predicate in predicates:
+            rule = normalize_rule(*predicate.split(",", 1))
+            if rule.kind not in DOMAIN_KINDS or not index.covers(rule):
+                errors.append(f"{name}: missing required semantic coverage: {predicate}")
     for name, floor in policy.get("minimum_addresses", {}).items():
         for family, minimum in floor.items():
             if actual.get(name, {}).get(f"ipv{family}_addresses", 0) < int(minimum):
@@ -230,7 +237,14 @@ def guard_products(groups: dict[str, list[str]], manifest: dict, quality: dict,
             if diff["retained_domain_predicates"] < Decimal(effective_old) * retention:
                 errors.append(f"{name}: domain language coverage collapse")
             growth = Decimal(str(limit.get("maximum_domain_growth", policy.get("maximum_domain_growth", 2.0))))
-            if (diff["old_domain_predicates"] and
+            expansion = policy.get("reviewed_expansions", {}).get(name, {})
+            output_digest = hashlib.sha256(("\n".join(sorted(r.text for r in domain_rules(groups.get(name, [])))) + "\n").encode()).hexdigest()
+            reviewed_growth = bool(expansion.get("reason") and expansion.get("baseline_version") == previous.get("data_version")
+                                   and expansion.get("domain_sha256") == output_digest)
+            if expansion:
+                diff["reviewed_expansion"] = {"applied": reviewed_growth, "domain_sha256": output_digest,
+                                               "reason": expansion.get("reason", "")}
+            if (not reviewed_growth and diff["old_domain_predicates"] and
                     diff["after"]["domain_predicates"] > Decimal(diff["old_domain_predicates"]) * growth and
                     diff["new_domain_predicates_not_previously_covered"] > Decimal(diff["old_domain_predicates"]) * (growth - 1)):
                 errors.append(f"{name}: abnormal new domain scope growth")
