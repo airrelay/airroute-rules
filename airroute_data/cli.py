@@ -29,6 +29,10 @@ def parser() -> argparse.ArgumentParser:
     validate.add_argument("candidate", type=Path)
     validate.add_argument("--baseline", type=Path)
     validate.add_argument("--quality", type=Path, default=Path("config/quality.json"))
+    compare = commands.add_parser("compare", help="compare actual predicate languages and IP address coverage")
+    compare.add_argument("--before", type=Path, required=True)
+    compare.add_argument("--after", type=Path, required=True)
+    compare.add_argument("--report", type=Path, required=True)
     publish = commands.add_parser("publish")
     publish.add_argument("--candidate", type=Path, required=True)
     publish.add_argument("--repo", type=Path, default=Path("."))
@@ -71,6 +75,11 @@ def main(argv: list[str] | None = None) -> int:
             from .publish import publish
             result = publish(args.candidate, args.repo, args.source_sha, sequence=args.sequence, attempt=args.attempt,
                              remote=args.remote, branch=args.branch)
+        elif args.command == "compare":
+            from .coverage import compare_directories
+            report = compare_directories(args.before, args.after)
+            write_json(args.report, report)
+            result = {"report": str(args.report), "before": report["before_version"], "after": report["after_version"]}
         else:
             from .publish import rollback
             result = rollback(args.repo, args.version, args.source_sha, sequence=args.sequence, attempt=args.attempt,

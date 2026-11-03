@@ -32,11 +32,12 @@ class RoutingRecord:
     semantics: str = "routing-origin"
     peer_count: int | None = None
     origin_prefix_length: int | None = None
+    views: tuple[str, ...] = ()
 
     @classmethod
     def network(cls, network: str, asns: Iterable[int], source: str,
                 collector: str = "", *, peer_count: int | None = None,
-                raw_prefix_claim: bool = True) -> "RoutingRecord":
+                raw_prefix_claim: bool = True, views: Iterable[str] = ()) -> "RoutingRecord":
         family, start, end = bounds(network)
         if peer_count is not None and (isinstance(peer_count, bool) or not isinstance(peer_count, int) or peer_count < 0):
             raise ValueError("invalid routing peer count")
@@ -44,7 +45,8 @@ class RoutingRecord:
         # row twice just to retain its original length.
         original_length = (int(network.rsplit("/", 1)[1]) if "/" in network else (32 if family == 4 else 128)) if raw_prefix_claim else None
         return cls(family, start, end, valid_asns(asns), source, collector,
-                   peer_count=peer_count, origin_prefix_length=original_length)
+                   peer_count=peer_count, origin_prefix_length=original_length,
+                   views=tuple(sorted(set(views))))
 
 
 @dataclass(frozen=True)
@@ -168,7 +170,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
                 if family != (4 if kind == "IP-CIDR" else 6):
                     raise ValueError("CIDR reference rule has mismatched address family")
                 yield AuxiliaryRecord(family, start, end, sid, "route-list",
-                                      source.get("country", "CN"), "rule-reference-only",
+                                      source.get("country", "CN" if source.get("role") == "cn-reference" else None), "rule-reference-only",
                                       str(source.get("lineage", sid)))
         return
     if format in ("cidr-list", "china-route-list"):
@@ -180,7 +182,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
                 parts = line.split(",")
                 network = parts[1].strip() if parts[0].upper() in ("IP-CIDR", "IP-CIDR6", "IP6-CIDR") and len(parts) > 1 else line
                 family, start, end = bounds(network)
-                yield AuxiliaryRecord(family, start, end, sid, "route-list", source.get("country", "CN"),
+                yield AuxiliaryRecord(family, start, end, sid, "route-list", source.get("country", "CN" if source.get("role") == "cn-reference" or format == "china-route-list" else None),
                                       "routing-membership-only", str(source.get("lineage", sid)))
         return
     raise ValueError(f"unsupported routing/auxiliary format: {format}")
@@ -288,6 +290,7 @@ def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[Ro
             prefix, offset = _prefix(payload, offset, family)
             if offset + 2 > len(payload): raise ValueError("truncated MRT entry count")
             count = int.from_bytes(payload[offset:offset+2], "big"); offset += 2
+            equivalent = defaultdict(set)
             for _ in range(count):
                 if offset + 8 + (4 if addpath else 0) > len(payload): raise ValueError("truncated MRT RIB entry")
                 peer = int.from_bytes(payload[offset:offset+2], "big"); offset += 6
@@ -303,8 +306,13 @@ def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[Ro
                 if origins:
                     _, peer_ip, peer_asn = peers[peer]
                     view = f"{collector}/AS{peer_asn}@{peer_ip}"
-                    yield RoutingRecord.network(prefix, origins, source, view)
+                    equivalent[origins].add(view)
             if offset != len(payload): raise ValueError("trailing MRT RIB bytes")
+            # One RIB entry is bounded. Share identical prefix/origin payloads,
+            # retaining every peer identity for exact per-peer LPM below.
+            for origins, views in sorted(equivalent.items()):
+                ordered = sorted(views)
+                yield RoutingRecord.network(prefix, origins, source, ordered[0], views=ordered)
 
 
 def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
@@ -322,12 +330,14 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
             if family not in (4, 6) or isinstance(floor, bool) or not isinstance(floor, int) or not 1 <= floor <= (32 if family == 4 else 128):
                 raise ValueError("invalid ASN ownership minimum prefix length")
             floors[family] = floor
-    groups = defaultdict(list); routed_union = []; counts = Counter(); collectors = set(); source_rows = Counter()
+    groups = defaultdict(list); routed_union = []; counts = Counter(); collectors = set(); source_rows = Counter(); event_records = Counter()
     quarantined, quarantine_rows, quarantine_by_source = [], 0, Counter()
     def normalized():
         nonlocal quarantine_rows
         for rec in records:
-            source_rows[rec.source] += 1
+            weight = len(rec.views) if isinstance(rec, RoutingRecord) and rec.views else 1
+            source_rows[rec.source] += weight
+            event_records[rec.source] += 1
             if not isinstance(rec, RoutingRecord) or rec.semantics != "routing-origin":
                 counts["auxiliary_rows_not_asn_membership"] += 1; continue
             valid_asns(rec.asns)
@@ -335,7 +345,7 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
             if rec.origin_prefix_length == 0:
                 # A default route offered by a peer is forwarding reachability,
                 # not ownership of every otherwise unannounced address.
-                counts[f"ipv{rec.version}_default_routes_ignored"] += 1
+                counts[f"ipv{rec.version}_default_routes_ignored"] += weight
                 continue
             width = 32 if rec.version == 4 else 128
             size = rec.end - rec.start + 1
@@ -343,10 +353,10 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
                 # Public ASN data describe admitted address membership, not
                 # every observed catch-all announcement. This conservative
                 # guard is explicit product policy, not a geographic claim.
-                quarantine_rows += 1
-                quarantine_by_source[rec.source] += 1
-                counts[f"ipv{rec.version}_superaggregate_claims_quarantined"] += 1
-                counts[f"ipv{rec.version}_quarantined_address_sum_per_claim"] += size
+                quarantine_rows += weight
+                quarantine_by_source[rec.source] += weight
+                counts[f"ipv{rec.version}_superaggregate_claims_quarantined"] += weight
+                counts[f"ipv{rec.version}_quarantined_address_sum_per_claim"] += size * weight
                 if len(quarantined) < 100:
                     address = ipaddress.IPv4Address if rec.version == 4 else ipaddress.IPv6Address
                     detail = {"source": rec.source, "collector": rec.collector or rec.source,
@@ -359,20 +369,25 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
                     quarantined.append(detail)
                 continue
             for start, end in public_intervals(rec.version, rec.start, rec.end):
-                yield rec.version, start, end, {"asns": rec.asns, "view": rec.collector or rec.source,
+                yield rec.version, start, end, {"asns": rec.asns, "views": rec.views or (rec.collector or rec.source,),
                                              "span": str(rec.end-rec.start), "source": rec.source}
     with event_stream(normalized()) as points:
         for family, point, changes in points:
             if family != previous_family: active.clear(); previous = None
             if active and previous is not None and point > previous:
-                views = defaultdict(list)
-                for value in active.values(): views[value["view"]].append(value)
+                views = {}
+                for value in active.values():
+                    span = int(value["span"])
+                    for view in value["views"]:
+                        prior = views.get(view)
+                        if prior is None or span < prior[0]:
+                            views[view] = (span, set(value["asns"]))
+                        elif span == prior[0]:
+                            prior[1].update(value["asns"])
                 origins = set()
-                for view, values in views.items():
+                for view, (_, values) in views.items():
                     collectors.add(view)
-                    smallest = min(int(v["span"]) for v in values)
-                    for value in values:
-                        if int(value["span"]) == smallest: origins.update(value["asns"])
+                    origins.update(values)
                 _append_interval(routed_union, family, previous, point - 1)
                 counts[f"ipv{family}_routed_addresses"] += point - previous
                 if len(origins) > 1:
@@ -387,6 +402,8 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
     return {"groups": result, "routed_prefixes": intervals_to_cidrs(routed_union),
             "report": {"policy": "current-snapshot-longest-match-per-view-origin-union",
         "source_rows": dict(sorted(source_rows.items())), "coverage": dict(counts),
+        "sort_record_rows": dict(sorted(event_records.items())),
+        "source_rows_note": "Distinct prefix/origin/peer claims after within-RIB dedup; sort_record_rows counts shared payloads. Neither is a SQL statement count.",
         "ownership_admission": {"minimum_prefix_lengths": {f"ipv{k}": v for k, v in floors.items()},
                                 "policy": "Original observed BGP prefix claims broader than the configured floor are quarantined, not treated as AS-owned address space. Derived provider intervals may losslessly coalesce many distinct prefixes and are not reinterpreted as a single BGP announcement. This guard does not claim that an observation is false or establish location.",
                                 "quarantined_claim_rows": quarantine_rows,
@@ -404,6 +421,7 @@ def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int
     """Compare supplemental lists with cleaned geography without adding votes."""
     names = {r["id"]: r["key"] for r in registry["regions"]}
     by_source = defaultdict(Counter)
+    by_country = defaultdict(lambda: defaultdict(Counter))
     # Two sorted interval streams, using the same external sorter avoids per-IP work.
     def combined():
         for rec in records:
@@ -420,17 +438,29 @@ def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int
             if family != previous_family: active.clear(); previous=None
             if previous is not None and point>previous and active:
                 regions={v['region'] for v in active.values() if 'region' in v}
-                auxiliary={v['source']:v for v in active.values() if 'source' in v}
-                for sid,v in auxiliary.items():
+                auxiliary={v['source'] for v in active.values() if 'source' in v}
+                if len(regions) > 1:
+                    raise ValueError("auxiliary comparison received overlapping Geo regions")
+                key = f'ipv{family}_'+('unknown' if not regions else 'region_'+next(iter(regions)))+'_addresses'
+                for sid in auxiliary:
                     count=point-previous
                     by_source[sid][f'ipv{family}_candidate_addresses']+=count
-                    by_source[sid][f'ipv{family}_'+('unknown' if not regions else 'region_'+next(iter(regions)))+'_addresses']+=count
+                    by_source[sid][key]+=count
+                # A delegated file spans many countries. Preserve the actual
+                # country field instead of letting the last active row stand
+                # for an entire RIR or geofeed source.
+                for sid, country in {(v['source'], v.get('country')) for v in active.values()
+                                     if 'source' in v and v.get('country') in {'CN', 'RU'}}:
+                    by_country[sid][country][f'ipv{family}_candidate_addresses'] += point-previous
+                    by_country[sid][country][key] += point-previous
             for rid,delta,payload in changes:
                 if delta<0:active.pop(rid,None)
                 else:active[rid]=payload
             previous,previous_family=point,family
     return {"semantics":"Auxiliary list membership is reported only; never unioned into location truth.",
-            "sources":{k:dict(v) for k,v in sorted(by_source.items())}}
+            "sources":{k:dict(v) for k,v in sorted(by_source.items())},
+            "cn_ru_by_declared_country":{sid:{cc:dict(values) for cc,values in sorted(countries.items())}
+                                         for sid,countries in sorted(by_country.items())}}
 
 
 def audit_auxiliary(sources: Iterable[dict], geo_groups: dict[int, list[str]], registry: dict,

@@ -398,7 +398,7 @@
       "id": "blackmatrix",
       "role": "domains",
       "format": "surge",
-      "lineage": "blackmatrix-community",
+      "lineage": "community-domain-derived",
       "publisher": "blackmatrix7",
       "field_semantics": "Third-party service rules; copied formats and upstream inherited material are one lineage, conditions are not flattened",
       "transport": "github_files",
@@ -414,7 +414,9 @@
       "update_frequency": "continuous",
       "license": "Repository source licenses and attribution; reference/corroboration only",
       "publish_allowed": true,
-      "documentation": "https://github.com/blackmatrix7/ios_rule_script"
+      "documentation": "https://github.com/blackmatrix7/ios_rule_script",
+      "independence": "No independent identity or geo vote; only scoped catalogue corroboration.",
+      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes."
     },
     {
       "id": "acl4ssr",
@@ -433,7 +435,9 @@
       "update_frequency": "continuous",
       "license": "GPL-3.0 source; reference only",
       "publish_allowed": true,
-      "documentation": "https://github.com/ACL4SSR/ACL4SSR"
+      "documentation": "https://github.com/ACL4SSR/ACL4SSR",
+      "independence": "Shared upstreams; file formats and publisher count are not independent evidence.",
+      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes."
     },
     {
       "id": "sukka",
@@ -453,7 +457,9 @@
       "update_frequency": "continuous",
       "license": "Repository licenses apply; reference only",
       "publish_allowed": true,
-      "documentation": "https://github.com/SukkaLab/ruleset.skk.moe"
+      "documentation": "https://github.com/SukkaLab/ruleset.skk.moe",
+      "independence": "Shared upstreams; file formats and publisher count are not independent evidence.",
+      "shared_upstream_risk": "Generated formats and community libraries can share upstreams. Per-row ancestry is not fully established; never counted as independent corroborating votes."
     },
     {
       "id": "geofeed-vultr",
@@ -515,6 +521,60 @@
       "license": "Microsoft public endpoint documentation/data terms",
       "publish_allowed": true,
       "documentation": "https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-ip-web-service"
+    },
+    {
+      "role": "domains",
+      "transport": "http",
+      "access": "Free public machine-readable service endpoint catalogue",
+      "update_frequency": "provider managed; check daily",
+      "publish_allowed": true,
+      "id": "microsoft365-cn",
+      "format": "official-json",
+      "lineage": "microsoft365-official",
+      "publisher": "Microsoft / 21Vianet",
+      "field_semantics": "China cloud client endpoint catalogue; common global dependencies are not proof of mainland service identity; endpoint IPs are not geolocation votes",
+      "url": "https://endpoints.office.com/endpoints/China?clientrequestid=8d847468-f249-4aba-a240-684e4bbcbd25",
+      "filename": "microsoft365-china.json",
+      "license": "Microsoft public endpoint documentation/data terms",
+      "documentation": "https://learn.microsoft.com/en-us/microsoft-365/enterprise/urls-and-ip-address-ranges-21vianet"
+    },
+    {
+      "role": "domains",
+      "transport": "http",
+      "access": "Free public machine-readable service endpoint catalogue",
+      "update_frequency": "provider managed; check daily",
+      "publish_allowed": true,
+      "id": "github-meta",
+      "format": "official-json",
+      "lineage": "github-official",
+      "publisher": "GitHub",
+      "field_semantics": "Published service connectivity domains; wildcard shared cloud providers and general dependencies are not exclusive GitHub/Copilot identities",
+      "url": "https://api.github.com/meta",
+      "filename": "github-meta.json",
+      "license": "GitHub public REST API metadata terms",
+      "documentation": "https://docs.github.com/en/rest/meta/meta#get-github-meta-information",
+      "github_api_token": true
+    },
+    {
+      "role": "domains",
+      "transport": "http",
+      "access": "Free public machine-readable service endpoint catalogue",
+      "update_frequency": "provider managed; check daily",
+      "publish_allowed": true,
+      "id": "telegram-endpoints",
+      "format": "official-cidr",
+      "service": "service/telegram",
+      "lineage": "telegram-official",
+      "publisher": "Telegram",
+      "field_semantics": "Official service destination networks, not country/location data and not all networks of any origin ASN",
+      "url": "https://core.telegram.org/resources/cidr.txt",
+      "filename": "telegram-cidr.txt",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "Telegram public network resource catalogue",
+      "documentation": "https://core.telegram.org/resources/cidr.txt"
     }
   ]
 }

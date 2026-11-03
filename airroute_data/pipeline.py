@@ -67,7 +67,7 @@ def source_path(snapshot_path: Path, source: dict) -> Path:
 
 
 def stable_source(source: dict) -> dict:
-    fields = ("id", "status", "version", "sha256", "lineage", "role", "format", "field_semantics", "license", "publish_allowed", "publisher", "documentation", "terms")
+    fields = ("id", "status", "version", "sha256", "lineage", "shared_upstream_risk", "independence", "role", "format", "field_semantics", "license", "publish_allowed", "publisher", "documentation", "terms")
     return {key: source[key] for key in fields if key in source}
 
 
@@ -130,8 +130,9 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     for region in registry["regions"]:
         groups.setdefault(region["id"], [])
         ip_rules = [("IP-CIDR6," if ":" in prefix else "IP-CIDR,") + prefix for prefix in groups[region["id"]]]
-        # Domain priority is explicit in the single mainland product; all other geography is IP-only.
-        prefix = domains.pop("region/cn", []) if region["key"] == "cn" else []
+        # Regional domains identify curated local services/institutions, never
+        # the physical location of a hostname's current server.
+        prefix = domains.pop("region/" + region["key"], [])
         write_list(output / "region" / f"{region['key']}.list", prefix + ip_rules)
     for key, rules in sorted(domains.items()):
         path = safe_file(output, key + ".list")
@@ -198,12 +199,23 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
     # Version binds output bytes, not wall clock or irrelevant source-code documentation changes.
     files = [{"path": p.relative_to(output).as_posix(), "bytes": p.stat().st_size, "sha256": file_digest(p)}
              for p in sorted(output.rglob("*")) if p.is_file() and p != output / "manifest.json"]
+    public_files = [r for r in files if not r["path"].startswith("reports/") and r["path"] != "README.md"]
     identity = {"generator": __version__, "inputs": stable_inputs, "registry": registry,
-                "products": products, "quality": quality, "files": files}
+                "products": products, "quality": quality, "files": public_files}
     version = hashlib.sha256(canonical(identity)).hexdigest()[:24]
+    from .coverage import profiles
+    from .validation import parse_list
+    domain_groups = {p.relative_to(output).as_posix()[:-5]: parse_list(p) for p in output.rglob("*.list")}
+    domain_health_path = output / "reports/domains.json"
+    domain_health = json.loads(domain_health_path.read_text()) if domain_health_path.is_file() else {}
     manifest = {"schema": 1, "format_version": 1, "version": version, "data_version": version,
                 "generator_version": __version__, "geo_registry_version": registry["version"],
-                "files": files, "source_snapshot": stable_inputs, "summary": summary}
+                "files": files, "source_snapshot": stable_inputs, "summary": summary,
+                "product_coverage": profiles(domain_groups),
+                "selector_health": domain_health.get("selectors", []),
+                "selector_failures": domain_health.get("unavailable_selectors", []),
+                "regional_domain_semantics": {g["id"]: g["domain_semantics"] for g in products["groups"]
+                                              if g["id"].startswith("region/") and g.get("domain_semantics")}}
     write_json(output / "manifest.json", manifest)
     # A failed validation leaves the complete local candidate and diagnostic report for inspection;
     # publish() independently validates again and will not move a remote pointer.

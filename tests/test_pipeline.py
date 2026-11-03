@@ -42,7 +42,9 @@ class PipelineTests(unittest.TestCase):
         self.config = self.root / "config"
         self.config.mkdir()
         shutil.copyfile(ROOT / "config/regions.json", self.config / "regions.json")
-        shutil.copyfile(ROOT / "config/quality.json", self.config / "quality.json")
+        q = json.loads((ROOT / "config/quality.json").read_text())
+        q.pop("per_product", None)
+        (self.config / "quality.json").write_text(json.dumps(q))
         (self.config / "products.json").write_text(json.dumps({"schema": 1, "groups": [
             {"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-identity", "required": True}]},
             {"id": "category/example", "selectors": [{"source": "dlc", "category": "service"}]}]}))

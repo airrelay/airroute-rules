@@ -55,3 +55,15 @@ RU从当轮可用全球位置估计提取，结合RIPE登记、RIS/RouteViews/ge
 3. 最后写 `snapshot.json`，非空目录不允许隐式刷新。构建前复核路径、长度和树摘要。原始厂商资料不进入公开release或Actions artifact。
 4. `fetched_at`只是获取时间，不是发布日期或精度；只保留于输入快照，公开版本稳定身份不因重新获取相同字节的时间而改变。
 5. 独立可完成的来源继续处理，缺源不伪称达到五源或准确性目标。官方访问配额、月度建议及限速优先，不换账户/改GUID/爬登录页绕过。
+
+
+## 新接入的官方目录与未接入候选（2026-11-03）
+
+- [Microsoft 365中国云](https://learn.microsoft.com/en-us/microsoft-365/enterprise/urls-and-ip-address-ranges-21vianet)的官方JSON，免费、无账号；只将中国云目录中的区域特定域名加入大陆集合。非区域公共依赖保留拒绝原因。与worldwide目录属于同一Microsoft血缘，绝非两票。
+- [GitHub meta API](https://docs.github.com/en/rest/meta/meta#get-github-meta-information)，免费公共JSON。分别选择website/packages/actions/codespaces及Copilot的域名，限定对应产品身份范围；`*.azureedge.net`等通用依赖不取得Github身份。API限制服从提供商，不主动测量域名。
+- [Telegram官方网络目录](https://core.telegram.org/resources/cidr.txt)，免费公开IPv4/IPv6文本，按实际下载摘要固定；Last-Modified旧不自动表示名单无效，来源没有宣称每日变更。它表示服务目标网络，不表示国家，更不是整个ASN。
+- Russia专项接入DLC的具名银行、政府、教育、电商、媒体、旅行、AI等类别，排除`category-ru`/`tld-ru`。这些仍是一条DLC血缘，不能宣称获得多个独立俄罗斯来源。
+- [runetfreedom/russia-domains-list](https://github.com/runetfreedom/russia-domains-list)的可访问范围信息不等于服务器位置或服务身份，且所核页面未给出可直接用于本项目公开派生的清晰许可；未并入。被封锁清单更不能当俄罗斯服务清单。
+- [dnsmasq-china-list](https://github.com/felixonmars/dnsmasq-china-list)的加速名单可能仅凭NS位于大陆或国内DNS响应进入；这个条件不足以给其所有域名确定服务身份，因此没有作为独立CN票数或对ChinaMax无条件背书。
+
+Sukka AI/stream、blackmatrix和ACL4SSR已实际解析到选择器，但补充准入受明确身份目录约束；相同内容、格式、镜像、可能的共同上游不重复计证。未知血缘如实保留风险说明，不编造逐行上游关系。五家地域来源的账号与许可条件未因新增官方服务目录而改变；仍不能把两个真实国家库说成五源。

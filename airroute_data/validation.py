@@ -133,7 +133,8 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
         listed = {x.split(",", 1)[1] for x in lines if x.startswith(("IP-CIDR,", "IP-CIDR6,"))}
         if listed != set(geo.get(region["id"], [])):
             raise ValueError(f"Geo/list disagreement for {region['key']}")
-        if region["key"] != "cn" and any(not x.startswith(("IP-CIDR,", "IP-CIDR6,")) for x in lines):
+        if (region["key"] != "cn" and "region/" + region["key"] not in manifest.get("regional_domain_semantics", {})
+                and any(not x.startswith(("IP-CIDR,", "IP-CIDR6,")) for x in lines)):
             raise ValueError("geographic IP products must not infer domain geography")
     domain_groups = {p.relative_to(candidate).as_posix().removesuffix(".list"): parse_list(p)
                      for p in candidate.rglob("*.list")}
@@ -176,5 +177,7 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
                 errors.append(f"abnormal coverage growth: {key}")
     if errors:
         raise ValueError("publication validation failed: " + "; ".join(errors))
+    from .coverage import guard_products
+    guard_products(domain_groups, manifest, policy, baseline)
     return {"valid": True, "data_version": version, "files": len(names),
             "geo_groups": len(geo), "asn_groups": len(asn)}

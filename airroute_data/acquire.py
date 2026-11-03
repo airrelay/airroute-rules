@@ -224,6 +224,11 @@ def _get_source(source, directory, now, commits):
         if not all(values):
             raise AcquisitionError("required environment credential is absent")
         headers["Authorization"] = "Basic " + base64.b64encode(":".join(values).encode()).decode()
+    if source.get("github_api_token"):
+        if _origin(source.get("url", "")) != ("https", "api.github.com", None):
+            raise AcquisitionError("optional GitHub authentication requires its exact API origin")
+        if token := os.environ.get("GITHUB_TOKEN"):
+            headers["Authorization"] = "Bearer " + token
     if source.get("user_agent_env"):
         value = os.environ.get(source["user_agent_env"])
         if not value:

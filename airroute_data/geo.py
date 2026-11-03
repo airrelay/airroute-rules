@@ -310,6 +310,7 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
     keys = {r["id"]: r["key"] for r in registry["regions"]}
     counters: Counter = Counter()
     source_rows: Counter = Counter()
+    source_support = defaultdict(Counter)
     usable_sources, usable_lineages = set(), set()
     coverage = {"ipv4": Counter(), "ipv6": Counter()}
     special = {"cn": Counter(), "ru": Counter()}
@@ -381,6 +382,18 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                     coverage[fam][state] += addresses
                     if region is not None: coverage[fam]["assigned"] += addresses
                     else: coverage[fam]["unknown"] += addresses
+                    for sid, values in selected_sources.items():
+                        support = source_support[sid]
+                        support[f"{fam}_covered_addresses"] += addresses
+                        if not values:
+                            support[f"{fam}_missing_country_addresses"] += addresses
+                        elif region is not None:
+                            support[f"{fam}_supports_output_addresses"] += addresses
+                        else:
+                            support[f"{fam}_unresolved_addresses"] += addresses
+                        for cc in ("CN", "RU"):
+                            if cc in values:
+                                support[f"{fam}_{cc}_candidate_addresses"] += addresses
                     for cc, region_key in (("CN", "cn"), ("RU", "ru")):
                         if cc in countries:
                             special[region_key][f"{fam}_candidate_addresses"] += addresses
@@ -441,6 +454,8 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
         "coverage_scope": "IPv4 minus explicit special-space exclusions; IPv6 2000::/3 minus explicit exclusions. Every gap in this contract is reported unknown; no source information is fabricated.",
         "usable_sources": sorted(usable_sources), "usable_lineages": sorted(usable_lineages),
         "source_rows": dict(sorted(source_rows.items())), "segments": dict(sorted(counters.items())),
+        "source_address_support": {sid: dict(values) for sid, values in sorted(source_support.items())},
+        "support_note": "Source coverage overlaps; support counts are not additive contributions, independent votes, or accuracy.",
         "coverage": {k: dict(v) for k, v in coverage.items()},
         "special": {k: dict(v) for k, v in special.items()},
         "filtered_special_addresses_sum_per_source": dict(excluded_addresses),

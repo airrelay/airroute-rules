@@ -232,6 +232,19 @@ def prepare_baseline(repo: Path, output: Path, *, remote: str = "origin", branch
             raise PublicationError("Previous release version mismatch")
     output.mkdir(parents=True, exist_ok=True)
     (output / "manifest.json").write_bytes(raw)
+    # Semantic per-product regression checks need actual previous predicates,
+    # not their file sizes or CIDR row counts. No vendor archives or reports.
+    previous = json.loads(raw)
+    prefix = "" if flat.returncode == 0 else path.rsplit("/", 1)[0] + "/"
+    from .validation import safe_file
+    for record in previous["files"]:
+        if record["path"].endswith(".list"):
+            target = safe_file(output, record["path"])
+            data = _git(repo, "show", tracking + ":" + prefix + record["path"]).stdout.encode("utf-8")
+            if len(data) != record["bytes"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
+                raise PublicationError("Previous product checksum mismatch")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
     return True
 
 

@@ -50,6 +50,9 @@ jobs:
           baseline=()
           if [ -f .build/previous/manifest.json ]; then baseline=(--baseline .build/previous); fi
           python -m airroute_data build --snapshot .build/snapshot/snapshot.json --output .build/candidate --report .build/build-report.json "${baseline[@]}"
+          if [ -f .build/previous/manifest.json ]; then
+            python -m airroute_data compare --before .build/previous --after .build/candidate --report .build/coverage-comparison.json
+          fi
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: candidate-${{ github.run_id }}-${{ github.run_attempt }}
@@ -64,6 +67,7 @@ jobs:
           path: |
             .build/snapshot/snapshot.json
             .build/build-report.json
+            .build/coverage-comparison.json
             .build/candidate/reports/geo.json
             .build/candidate/reports/asn.json
             .build/candidate/reports/domains.json

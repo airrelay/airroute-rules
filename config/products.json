@@ -3,7 +3,7 @@
   "policy": {
     "cn_collection": "region/cn",
     "cn_exclusion": "Remove any overlapping overseas predicate; quarantine non-subtractable predicates rather than adding NOT conditions.",
-    "references": "Corroboration only. Shared CDNs, CAs, payment services and an entire ASN are not proof of product ownership.",
+    "references": "A reference only admits predicates contained in a configured identity catalogue, or narrows broad parents to the proven catalogue children. No independent vote or blind union.",
     "ru_domains": "Explicit Russian service identities only, never tld-ru/category-ru or ASN registration country.",
     "upstream_lineage": "Alternate file formats and mirrors are not independent votes. Domain categories are identity assertions, not geolocation votes."
   },
@@ -26,7 +26,34 @@
           "source": "blackmatrix",
           "path": "rule/Surge/ChinaMax/ChinaMax_Domain.list",
           "format": "surge-domainset",
-          "mode": "reference"
+          "mode": "corroborated",
+          "identity_catalogues": [
+            {
+              "source": "dlc",
+              "categories": [
+                "category-ai-cn",
+                "category-scholar-cn",
+                "category-dev-cn",
+                "category-number-verification-cn"
+              ],
+              "attributes": [
+                "-!cn"
+              ]
+            }
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-number-verification-cn",
+          "attributes": [
+            "-!cn"
+          ]
+        },
+        {
+          "source": "microsoft365-cn",
+          "format": "official-json",
+          "adapter": "microsoft365",
+          "regional_suffix": ".cn"
         }
       ]
     },
@@ -76,7 +103,22 @@
         {
           "source": "microsoft365",
           "format": "official-json",
-          "adapter": "microsoft365"
+          "adapter": "microsoft365",
+          "dependency_roots": [
+            "entrust.net",
+            "geotrust.com",
+            "omniroot.com",
+            "public-trust.com",
+            "symcb.com",
+            "symcd.com",
+            "verisign.com",
+            "verisign.net",
+            "digicert.com",
+            "letsencrypt.org",
+            "globalsign.com",
+            "globalsign.net",
+            "identrust.com"
+          ]
         }
       ]
     },
@@ -122,6 +164,11 @@
           "attributes": [
             "-cn"
           ]
+        },
+        {
+          "source": "telegram-endpoints",
+          "format": "official-cidr",
+          "official_service_ips": true
         }
       ]
     },
@@ -141,13 +188,80 @@
           "source": "blackmatrix",
           "path": "rule/Surge/OpenAI/OpenAI.list",
           "format": "surge",
-          "mode": "reference"
+          "mode": "corroborated",
+          "identity_catalogues": [
+            {
+              "source": "dlc",
+              "categories": [
+                "category-ai-!cn",
+                "category-ai-ru"
+              ],
+              "attributes": [
+                "-cn"
+              ]
+            }
+          ]
         },
         {
           "source": "acl4ssr",
           "path": "Clash/Ruleset/OpenAi.list",
           "format": "clash",
-          "mode": "reference"
+          "mode": "corroborated",
+          "identity_catalogues": [
+            {
+              "source": "dlc",
+              "categories": [
+                "category-ai-!cn",
+                "category-ai-ru"
+              ],
+              "attributes": [
+                "-cn"
+              ]
+            }
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-ai-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-ai-chat-!cn",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "sukka",
+          "path": "List/non_ip/ai.conf",
+          "format": "surge",
+          "mode": "corroborated",
+          "identity_catalogues": [
+            {
+              "source": "dlc",
+              "categories": [
+                "category-ai-!cn",
+                "category-ai-ru"
+              ],
+              "attributes": [
+                "-cn"
+              ]
+            }
+          ]
+        },
+        {
+          "source": "github-meta",
+          "format": "official-json",
+          "adapter": "github-meta",
+          "categories": [
+            "copilot"
+          ],
+          "owned_roots": [
+            "githubcopilot.com"
+          ]
         }
       ]
     },
@@ -161,6 +275,27 @@
           "category": "category-dev",
           "attributes": [
             "-cn"
+          ]
+        },
+        {
+          "source": "github-meta",
+          "format": "official-json",
+          "adapter": "github-meta",
+          "categories": [
+            "website",
+            "packages",
+            "actions",
+            "codespaces"
+          ],
+          "owned_roots": [
+            "github.com",
+            "github.dev",
+            "github.io",
+            "githubassets.com",
+            "githubusercontent.com",
+            "githubapp.com",
+            "githubcopilot.com",
+            "ghcr.io"
           ]
         }
       ]
@@ -187,6 +322,20 @@
         {
           "source": "dlc",
           "category": "category-media",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-media-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-tech-media-ru",
           "attributes": [
             "-cn"
           ]
@@ -230,7 +379,63 @@
           "source": "sukka",
           "path": "List/non_ip/stream.conf",
           "format": "surge",
-          "mode": "reference"
+          "mode": "corroborated",
+          "identity_catalogues": [
+            {
+              "source": "dlc",
+              "categories": [
+                "primevideo",
+                "hbo",
+                "dazn",
+                "tver",
+                "niconico",
+                "netflix",
+                "spotify",
+                "youtube",
+                "disney",
+                "twitch",
+                "hulu"
+              ],
+              "attributes": [
+                "-cn"
+              ]
+            }
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "primevideo",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "hbo",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "dazn",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "tver",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "niconico",
+          "attributes": [
+            "-cn"
+          ]
         }
       ]
     },
@@ -271,6 +476,279 @@
         {
           "source": "dlc",
           "category": "selectel",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-ai-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-bank-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-ecommerce-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-education-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-entertainment-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-forums-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-gov-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-media-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-medicine-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-retail-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-tech-media-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-travel-ru",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "region/ru",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-ai-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-bank-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-ecommerce-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-education-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-entertainment-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-forums-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-gov-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-media-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-medicine-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-retail-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-tech-media-ru",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-travel-ru",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "region/northeast-asia",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-bank-jp",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "region/hk-mo",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-scholar-hk",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "region/europe",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-scholar-uk",
+          "attributes": [
+            "-cn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "region/west-asia",
+      "kind": "regional-service-identity-and-ip",
+      "domain_semantics": "Explicit regional service/institution identity, not physical server location or a country-TLD shortcut.",
+      "selectors": [
+        {
+          "source": "dlc",
+          "category": "category-bank-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-education-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-gov-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-media-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-payment-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-social-media-ir",
+          "attributes": [
+            "-cn"
+          ]
+        },
+        {
+          "source": "dlc",
+          "category": "category-tech-ir",
           "attributes": [
             "-cn"
           ]

@@ -286,7 +286,7 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(output.exists())
         self.publish(self.candidate(), self.source, self.sha)
         self.assertTrue(module.prepare_baseline(self.source, output))
-        self.assertEqual([p.name for p in output.iterdir()], ["manifest.json"])
+        self.assertEqual({p.relative_to(output).as_posix() for p in output.rglob("*") if p.is_file()}, {"manifest.json", "region/cn.list"})
         self.assertEqual(json.loads((output / "manifest.json").read_text())["data_version"], "a1")
 
     def test_scoped_checkout_credentials_copy_without_log_or_artifact(self):

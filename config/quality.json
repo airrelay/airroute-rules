@@ -8,5 +8,118 @@
     "ipv4": 8,
     "ipv6": 12
   },
-  "asn_superaggregate_policy": "Quarantine individual origin claims broader than the configured allocation-level safety floor; retain normal allocations and allow lossless output merging. A BGP observation is not proof that an ASN owns the entire superaggregate."
+  "asn_superaggregate_policy": "Quarantine individual origin claims broader than the configured allocation-level safety floor; retain normal allocations and allow lossless output merging. A BGP observation is not proof that an ASN owns the entire superaggregate.",
+  "per_product": {
+    "minimum_domain_retention": 0.9,
+    "minimum_address_retention": 0.85,
+    "maximum_address_growth": 1.5,
+    "protect_used_country_sources": true,
+    "minimum_addresses": {
+      "region/africa": {
+        "4": 91229708,
+        "6": 66500340980697771181797364894164606
+      },
+      "region/antarctica": {
+        "4": 204,
+        "6": 1837566994938516943103485542
+      },
+      "region/central-asia": {
+        "4": 3469748,
+        "6": 67867730093905323880302947965337
+      },
+      "region/cn": {
+        "4": 274574389,
+        "6": 4348936435188661545587956482939287
+      },
+      "region/europe": {
+        "4": 588576988,
+        "6": 324359721341350492217154828694555445
+      },
+      "region/hk-mo": {
+        "4": 17839871,
+        "6": 63402787220538482444579997168616
+      },
+      "region/latin-america-caribbean": {
+        "4": 157539345,
+        "6": 1169713091514805697652666588306402
+      },
+      "region/north-america-other": {
+        "4": 57879815,
+        "6": 293657288856658070197070771100087
+      },
+      "region/northeast-asia": {
+        "4": 252501388,
+        "6": 990721403251193971833751008235174
+      },
+      "region/oceania": {
+        "4": 50951231,
+        "6": 60808371948727438810294520524150936
+      },
+      "region/ru": {
+        "4": 36634814,
+        "6": 716276883414489596803008407850188
+      },
+      "region/south-asia": {
+        "4": 47696556,
+        "6": 487883602408391363885956884761868
+      },
+      "region/southeast-asia": {
+        "4": 67440506,
+        "6": 2101070760385616373464867804074767
+      },
+      "region/tw": {
+        "4": 32777484,
+        "6": 169159151703806475859801719544220
+      },
+      "region/us": {
+        "4": 1156301236,
+        "6": 70984420477573997260449038969990748
+      },
+      "region/west-asia": {
+        "4": 55551912,
+        "6": 1127027016349455704942222947123384
+      }
+    },
+    "minimum_domains": {
+      "region/cn": 6500,
+      "category/ru-services": 450,
+      "category/ai": 180,
+      "category/development": 550,
+      "category/gaming": 700,
+      "category/media": 1300,
+      "category/streaming": 350,
+      "provider/apple": 1200,
+      "provider/google": 650,
+      "provider/microsoft": 450,
+      "service/telegram": 15,
+      "service/netflix": 15,
+      "service/spotify": 15
+    },
+    "required_sources": {
+      "region/cn": [
+        "dlc",
+        "microsoft365-cn"
+      ],
+      "category/ru-services": [
+        "dlc"
+      ],
+      "category/ai": [
+        "dlc"
+      ],
+      "category/development": [
+        "dlc",
+        "github-meta"
+      ],
+      "service/telegram": [
+        "dlc",
+        "telegram-endpoints"
+      ]
+    },
+    "basis": "2026-11-03 release 2be0156400bd2c5a17d6d6c9: address floors are 80% of each actual family/region; retention compares semantic domain language and exact address coverage. Counts are supplementary empty-product guards, not quality scores. RU service expansion up to 4x is explicitly scoped to named DLC Russian service categories; all regions keep the same IP fusion policy.",
+    "overrides": {
+      "category/ru-services": {
+        "maximum_domain_growth": 4.0
+      }
+    }
+  }
 }

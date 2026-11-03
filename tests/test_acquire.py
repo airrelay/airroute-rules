@@ -20,6 +20,19 @@ class Response(io.BytesIO):
 
 
 class AcquisitionTests(unittest.TestCase):
+    def test_optional_github_meta_auth_is_origin_scoped_and_not_persisted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = {"url": "https://api.github.com/meta", "filename": "meta.json", "github_api_token": True}
+            with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "fixture-only-value"}):
+                with mock.patch("airroute_data.acquire._request", return_value=Response(b'{}')) as request:
+                    entry = _get_source(source, Path(directory)/"good", dt.datetime.now(dt.timezone.utc), {})
+                    self.assertEqual(request.call_args.args[1]["Authorization"], "Bearer fixture-only-value")
+                    self.assertNotIn("fixture-only-value", json.dumps(entry, default=str))
+                with mock.patch("airroute_data.acquire._request") as request:
+                    with self.assertRaisesRegex(AcquisitionError, "exact API origin"):
+                        _get_source({**source, "url": "https://other.invalid/meta"}, Path(directory)/"bad", dt.datetime.now(dt.timezone.utc), {})
+                    request.assert_not_called()
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

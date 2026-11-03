@@ -61,3 +61,12 @@ Blackmatrix China / ChinaMax 的 `surge-cidr-reference` 辅助视图只抽取顶
 `python -m unittest discover -s tests -p 'test_routing.py' -v` 覆盖多起源、跨视角更具体、双栈、撤销快照不沿用、AS_SET/四字节 ASN/ADD-PATH、MRT 损坏和 UPDATE 拒绝，以及辅助清单对照。测试数据为有说明的合成夹具，不是对全网定位准确率的实测。
 
 规范参考：[RFC 6396](https://www.rfc-editor.org/rfc/rfc6396)、[RIPE RISwhois](https://ris.ripe.net/docs/ris-whois/)、[IPtoASN 数据说明](https://iptoasn.com/)、[RFC 8805](https://www.rfc-editor.org/rfc/rfc8805)。
+
+
+## 输出与辅助证据的新保护
+
+Geo融合仍要求有效血缘组在大区层面一致，不为扩大文件而用路由、登记国或geofeed覆盖跨区分歧。`source_address_support`分别统计每家资料覆盖、支持输出及仍有分歧的地址数量；各来源之间重叠，不能相加当覆盖或准确率。RIR/geofeed按其真实CN/RU字段分别与清洗结果对照，不再仅显示一个包含所有国家的RIR总量；通用路由列表没有国家字段时不会默认标CN。
+
+Route Views同一RIB前缀、同一起源集合的peer视角共用临时排序载体，仍保存全部peer身份并逐peer做最长前缀选择。更多具体前缀只替换同一视角，其他视角的覆盖声明和多起源不会消失。此处SQLite只是批处理临时外部排序文件，没有恢复在线数据库或主动探测。
+
+地区列表中的域名是明确的当地服务/机构身份，不是Geo物理位置事实；ARDB库仍只包含统一清洗的IP区间。所有地区的IP部分均与Geo对应组逐项验证。发布按各区IPv4/IPv6的地址并集、旧地址保留量、增量与损失分别保护，不以CIDR行数代替覆盖。

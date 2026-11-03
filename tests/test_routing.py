@@ -180,5 +180,43 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(stats['ipv4_unknown_addresses'],256)
         self.assertEqual(report['input_rows']['cn'],3)
 
+    def test_grouped_peer_views_preserve_each_peers_longest_prefix(self):
+        from dataclasses import replace
+        rows = [RoutingRecord.network('1.0.0.0/24', [10], 'rib', views=['a', 'b']),
+                RoutingRecord.network('1.0.0.0/25', [20], 'rib', views=['a'])]
+        expanded = [replace(r, collector=view, views=()) for r in rows for view in r.views]
+        grouped = fuse_routes(rows)
+        self.assertEqual(grouped['groups'], fuse_routes(expanded)['groups'])
+        self.assertIn('1.0.0.0/24', grouped['groups'][10])
+        self.assertEqual(grouped['groups'][20], ['1.0.0.0/25'])
+        self.assertEqual(grouped['report']['source_rows']['rib'], 3)
+        self.assertEqual(grouped['report']['sort_record_rows']['rib'], 2)
+
+    def test_grouped_peer_views_equivalent_to_expanded_overlapping_moas(self):
+        import random
+        from dataclasses import replace
+        for seed in range(10):
+            rng = random.Random(seed)
+            rows = [RoutingRecord.network(f'1.0.{rng.randrange(4)}.0/{rng.choice([24,25,26])}',
+                      rng.sample(range(10, 16), rng.randint(1, 3)), 'rib',
+                      views=rng.sample(['a', 'b', 'c', 'd'], rng.randint(1, 4))) for _ in range(30)]
+            expanded = [replace(r, collector=view, views=()) for r in rows for view in r.views]
+            one, two = fuse_routes(rows), fuse_routes(expanded)
+            self.assertEqual(one['groups'], two['groups'])
+            self.assertEqual(one['routed_prefixes'], two['routed_prefixes'])
+
+    def test_rir_country_subsets_are_not_replaced_by_last_source_row(self):
+        registry=load_registry(Path(__file__).resolve().parents[1]/'config/regions.json')
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'rir.txt'
+            path.write_text('ripencc|CN|ipv4|1.0.0.0|128|20260101|allocated\n'
+                            'ripencc|RU|ipv4|1.0.0.128|128|20260101|allocated\n')
+            report=audit_auxiliary([{'id':'rir','format':'rir-delegated','path':str(path)}],
+                                  {1:['1.0.0.0/25'],9:['1.0.0.128/25']},registry)
+        country=report['cn_ru_by_declared_country']['rir']
+        self.assertEqual(country['CN']['ipv4_region_cn_addresses'],128)
+        self.assertEqual(country['RU']['ipv4_region_ru_addresses'],128)
+        self.assertNotIn('ipv4_region_cn_addresses',country['RU'])
+
 
 if __name__=='__main__':unittest.main()

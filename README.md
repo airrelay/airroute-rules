@@ -35,7 +35,7 @@ python3.12 -m airroute_data validate .build/candidate
 
 公开数据包含：
 
-- `region/*.list`：16 个版本化大区；中国大陆只有 **`region/cn.list`** 一个公开集合，先域名再 IP。
+- `region/*.list`：16 个版本化大区；中国大陆只有 **`region/cn.list`** 一个公开集合，先域名再 IP。俄罗斯、东北亚、港澳、欧洲、西亚按显式本地服务/机构清单补充域名；这些域名不表示服务器物理位置。
 - `provider/*.list`、`service/*.list`、`category/*.list`：少量有独立价值的服务及类别；大陆服务与海外集合保守排除。
 - `geo.ardb`、`asn.ardb`：ARDB v1 的未压缩随机读取文件。地区 `.list` 和 Geo 文件来自同一份清洗结果；ASN 多起源允许跨组重复。
 - `regions.json`：稳定数值 ID 与大区映射。俄罗斯为独立分组，不重复进入欧洲和亚洲。
@@ -48,11 +48,13 @@ python3.12 -m airroute_data validate .build/candidate
 
 BGP/ASN 表示当前采集视角的路由起源。RIR 注册国、RPKI、路由清单和 geofeed 都不单独证明物理位置。DLC 与官方端点表示服务身份，也不通过 DNS/IP 位置反推服务。完整 MRT 支持更具体前缀和逐 peer 视角；RIS 摘要缺少的粒度如实记录。
 
-`.list` 只输出本项目已验证的 Core 规则子集，不包含动作或默认 `no-resolve`。不能等价表示的 AND、NOT、嵌套、歧义通配符及正则进入隔离报告，不进行有损扁平化。更多见 [规则语义](docs/RULES.md) 和 [Geo/ASN 语义](docs/GEO.md)。
+`.list` 只输出本项目已验证的 Core 规则子集，不包含动作或默认 `no-resolve`。不能等价表示的 AND、NOT、嵌套、歧义通配符及正则进入隔离报告，不进行有损扁平化。更多见 [规则语义](docs/RULES.md)、[Geo/ASN 语义](docs/GEO.md) 和 [覆盖审计](docs/COVERAGE.md)。
 
 ## Actions 与发布
 
 [工作流](.github/workflows/build.yml) 每天 03:17 UTC 或手动从 `main` 执行：测试 → 固定输入 → 生成候选 → 验证 → 发布。免费供应商的访问频率优先；不绕过限制，不为补五源使用镜像。构建只读权限，发布任务才授予 `contents: write`。
+
+发布同时检查逐地区双栈地址保留、逐产品域名语言保留、关键来源及选择器状态；覆盖回归不能被其他集合的增长抵消。`python -m airroute_data compare --before <上版基线> --after <候选目录> --report <对比.json>` 输出语义变化；不能把文本差异当作网站缺口。
 
 `release` 布局：
 
