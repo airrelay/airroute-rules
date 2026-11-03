@@ -175,16 +175,16 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
                "asn_groups": len(routes["groups"]), "asn_prefixes": sum(map(len, routes["groups"].values())),
                "domain_rules": domain_count, "products": len(list(output.rglob("*.list"))),
                "source_count_available": len(usable), "source_count_unavailable_or_withheld": len(skipped)}
-    attribution = ["# Data attribution", "", "Derived data retain the applicable upstream licenses; see sources report.", ""]
+    attribution = ["# Data attribution", "", "Derived data retain the applicable upstream licenses; see manifest source_snapshot.", ""]
     for s in usable:
         link = s.get('documentation', s.get('source_url', ''))
         label = f"[{s.get('publisher', s['id'])}]({link})" if link else s['id']
         attribution.append(f"- {label}: {s.get('license', 'See source documentation')}; version {s.get('version', 'content SHA-256')}; source SHA-256 {s['sha256']}")
     (output / "ATTRIBUTION.md").write_text("\n".join(attribution) + "\n", encoding="utf-8")
-    (output / "README.md").write_text("# AirRoute generated data\n\nUse current.json on the release branch to select one immutable version.\n"
-                                     "Load both ARDB files and lists from that version and verify manifest lengths and SHA-256.\n"
-                                     "Geo groups are macro-regions, not arbitrary country lookup. Unknown addresses are omitted and reported.\n"
-                                     "No active measurements are performed.\n", encoding="utf-8")
+    (output / "README.md").write_text("# AirRoute build candidate\n\n"
+                                     "The publisher exports rules, ARDB files, registry, manifest and attribution at the release root.\n"
+                                     "Build diagnostics stay in Actions artifacts, not the release branch.\n"
+                                     "Pin downloads to one release commit and verify manifest lengths and SHA-256.\n", encoding="utf-8")
     manifest = finalize_candidate(output, snapshot, registry, products, quality, summary, baseline=baseline)
     mark("manifest-and-validation")
     return manifest

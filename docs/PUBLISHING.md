@@ -7,28 +7,32 @@
 发布分支布局：
 
 ```text
-current.json
-README.md
-versions/<data_version>/manifest.json
-versions/<data_version>/geo.ardb
-versions/<data_version>/asn.ardb
-versions/<data_version>/.../*.list
-versions/<data_version>/...报告及注册表
+manifest.json
+geo.ardb
+asn.ardb
+regions.json
+ATTRIBUTION.md
+region/*.list
+provider/*.list
+service/*.list
+category/*.list
 ```
 
-消费者先读取 `current.json` 一次，再根据其中的 `manifest` 路径读取不可变目录；核验 manifest SHA-256，再核验每个文件的长度和摘要。`.list`、Geo、ASN、注册表和来源版本均属于同一 manifest。不要在多个请求中反复读取可变入口后拼装文件。
+平铺到分支根目录，不再有 `versions/<hash>/`、`current.json`、生成的 README、运行日志或审计报告。地区、服务商、服务和类别目录是规则产品分类，不是版本层级。发布器以封闭白名单导出，重建整个发布树；已经下线的文件也会删除，不因增量复制残留。
 
-完整候选和入口在**同一个 Git commit**中更新，并以普通非 force push 提交；多文件在 Git 树上原子生效。构建、验证、远端拒绝或网络故障不会半更新入口。不删除旧版本目录，因此客户端已读取旧入口时仍可完成下载，回退也不必重建旧产物。
+`manifest.json` 记录数据版本、格式/大区注册表版本、来源版本与公开文件摘要；`regions.json` 解释 Geo 的数值 ID；`ATTRIBUTION.md` 保留上游许可要求的署名。这三份是数据配套文件。完整争议明细、辅助对照和解析诊断留在本地候选及 Actions artifact，不进入 release。来源原始数据库、凭据及缓存不发布。
 
-版本号由数据和配置决定，不由工作流时间或源码中无关的文档变化决定。版本目录禁止原地改写；相同版本的 manifest 不一致即失败。入口已经指向相同 manifest 时不创建提交。
+全部文件在**同一个 Git commit**中更新，并以普通非 force push 提交；多文件在 Git 树上原子生效。下载多个文件时先解析 release 的提交 SHA，再以该 SHA 下载 manifest 和全部数据并核对长度/摘要。分支路径只提供稳定入口：多个请求都使用可移动的 `release` URL 仍可能跨更新混版，消费者必须固定提交或检测摘要后重试。
 
-[GitHub 普通 Git 仓库会拒绝超过 100 MiB 的单个文件](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)。本项目在任何哈希读取或 Git 操作前，先核查完整候选清单，按每个文件 **95 MiB** 留出余量并失败关闭，manifest 和报告也不例外。较大的 JSONL 报告无损拆成有序分片并用索引绑定；Geo / ASN 仍是不整体压缩的独立二进制文件。保持 `release` 分支交付，不改用 Git LFS 或 GitHub Releases 绕过约定。
+版本号由数据和配置决定，不由工作流时间或无关源码文档变化决定。同一数据版本对应不同公开内容时失败；相同完整发布树不创建提交。旧版本不在当前目录重复存储，通过 Git 历史保留与回退。首次更新能读取旧 pointer 布局作为覆盖基线，然后用一个普通提交移除旧目录并发布平铺布局，不改写历史。
+
+[GitHub 普通 Git 仓库会拒绝超过100MiB的单文件](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)。候选与公开文件均先按95MiB限额检查。大报告只在构建候选中无损分片；Geo / ASN 不整体压缩。继续使用 release 分支，不引入 LFS 或 GitHub Releases。
 
 ## 并发、异常和恢复
 
 Actions 的仓库级并发组禁止两个工作流同时发布。发布前重新核对远端 `main` 等于本次 `SOURCE_SHA`，过期工作流拒绝推送。`release` 以观测到的提交为父提交；竞争更新导致正常 Git non-fast-forward 拒绝，绝不通过 force、重置或重新生成旧提交绕过。
 
-`current.json` 另外保存实际发布的 `(sequence, attempt)`：Actions 分别使用 `github.run_number` 和 `github.run_attempt`。同一 main 也可能有不同来源快照，不能只靠源码 SHA 排序；不同产物的序号必须严格大于当前已发布序号，晚到的旧运行不能覆盖较新产物。手动发布与回退必须明确提供序号，不能重新从 1 计数。内容相同仍不创建提交，也不更新入口序号；因此这里保存的是**实际发布水位**，不宣称记录所有跳过的无变化运行。
+`manifest.json` 的 `publication` 保存实际发布的 `(sequence, attempt)`：Actions 分别使用 `github.run_number` 和 `github.run_attempt`。同一 main 也可能有不同来源快照，不能只靠源码 SHA 排序；不同产物的序号必须严格大于当前已发布序号，晚到的旧运行不能覆盖较新产物。手动发布与回退必须明确提供序号，不能重新从 1 计数。内容相同仍不创建提交，也不更新发布序号；因此这里保存的是**实际发布水位**，不宣称记录所有跳过的无变化运行。
 
 本地 `.git/airroute-publish/<目的标识>/pending.json` 在 push 前可靠保存目标版本、manifest 摘要、来源 SHA、基线和**确切提交 SHA**。推送超时也按这份 SHA 及提交祖先关系向远端对账。不能确认则保留本地 journal 和工作目录，重复运行同一候选只重试同一提交，不把旧产物重新包装成新提交。另一个候选不能绕过未决记录。远端已前进到其他历史时标记 `superseded`，不覆盖较新版本。
 
@@ -52,6 +56,6 @@ python -m airroute_data validate .build/candidate
 python -m airroute_data publish --candidate .build/candidate --repo . --source-sha "$(git rev-parse HEAD)" --sequence <递增序号> --attempt 1
 ```
 
-回退使用 `python -m airroute_data rollback --version <data_version> --repo . --source-sha "$(git rev-parse HEAD)" --sequence <递增序号> --attempt 1`：验证历史版本文件后，以正常向前提交只切换入口；不使用 `git reset`、历史改写或 force push。调用者仍须有发布授权。
+回退使用 `python -m airroute_data rollback --version <data_version> --repo . --source-sha "$(git rev-parse HEAD)" --sequence <递增序号> --attempt 1`：从 release 的 Git 历史查找并验证旧数据版本后，以正常向前提交替换全部公开文件；不使用 `git reset`、历史改写或 force push。调用者仍须有发布授权。
 
-验证覆盖真实本地 bare Git 初次发布、无变化、两个完整版本、向前回退、远端 hook 拒绝、分支竞争、push 成功但响应丢失、未决记录防绕过，以及候选路径逃逸、符号链接、未列出文件和不可变目录碰撞。这些隔离测试不会推送 GitHub，也不代替实际安装 Actions 后的线上工作流验收。
+验证覆盖真实本地 bare Git 初次发布、无变化、两个完整版本、向前回退、远端 hook 拒绝、分支竞争、push 成功但响应丢失、未决记录防绕过，以及候选路径逃逸、符号链接、未列出文件和数据版本碰撞、旧布局迁移及过期文件清理。这些隔离测试不会推送 GitHub，也不代替实际安装 Actions 后的线上工作流验收。

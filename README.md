@@ -33,15 +33,16 @@ python3.12 -m airroute_data validate .build/candidate
 
 ## 输出与判断边界
 
-一次候选包含：
+公开数据包含：
 
 - `region/*.list`：16 个版本化大区；中国大陆只有 **`region/cn.list`** 一个公开集合，先域名再 IP。
 - `provider/*.list`、`service/*.list`、`category/*.list`：少量有独立价值的服务及类别；大陆服务与海外集合保守排除。
 - `geo.ardb`、`asn.ardb`：ARDB v1 的未压缩随机读取文件。地区 `.list` 和 Geo 文件来自同一份清洗结果；ASN 多起源允许跨组重复。
 - `regions.json`：稳定数值 ID 与大区映射。俄罗斯为独立分组，不重复进入欧洲和亚洲。
 - `manifest.json`：同一数据版本、格式/注册表版本、逐文件长度和 SHA-256。
-- `reports/`：可用与缺失来源、血缘、完整未知/分歧区间、CN/RU 覆盖、BGP 多起源、辅助清单对照、域名隔离及出处。
 - `ATTRIBUTION.md`：输入版本与来源署名。原始供应商库和凭据不进入公开产物。
+
+完整候选另含 `reports/` 审计报告与构建说明，只保留在本地或 Actions artifact，**不进入 release 分支**。
 
 国家数据先统一区间边界，再映射项目大区。默认至少两个有信息的血缘组一致、没有跨大区反对信息时才归类；来源缺失不投票，同源镜像不加票。该策略是保守门槛，**不是统计独立性证明或准确率**。冲突、单源与全源缺失保持未知，在明确的地址空间契约内完整报告；不会把未知默认为海外。
 
@@ -56,15 +57,18 @@ BGP/ASN 表示当前采集视角的路由起源。RIR 注册国、RPKI、路由�
 `release` 布局：
 
 ```text
-current.json
-versions/<data_version>/manifest.json
-versions/<data_version>/geo.ardb
-versions/<data_version>/asn.ardb
-versions/<data_version>/region/cn.list
-...
+manifest.json
+geo.ardb
+asn.ardb
+regions.json
+ATTRIBUTION.md
+region/*.list
+provider/*.list
+service/*.list
+category/*.list
 ```
 
-完整版本目录与 `current.json` 在同一个 Git 提交中切换。消费者先读取入口，再固定版本目录并核对摘要；不分别请求会移动的文件入口。失败、异常覆盖变化、过期源码、旧发布序号或远端分支竞争均不能覆盖已成功版本；相同产物不提交。普通非 force push，超时按已保存提交 SHA 对账。
+没有 `versions/`、哈希目录、`current.json` 或运行报告。保留分类目录，直接使用稳定规则路径。manifest 绑定同版本的全部公开文件；整个文件树在同一个 Git 提交中替换。整包下载需先固定 release 的提交 SHA，再从该提交读取 manifest 和文件，防止多个请求跨版本；只使用移动分支 URL 无法保证整包一致。旧数据保留在 Git 历史，回退是正常向前提交。失败、异常覆盖变化、过期源码、旧发布序号或分支竞争不能覆盖成功版本；内容相同不提交。普通非 force push，超时按已保存提交 SHA 对账。
 
 本地发布命令会实际写远端，需自行确认账号与仓库；日常构建不隐式发布：
 

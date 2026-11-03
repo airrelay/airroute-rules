@@ -1,6 +1,6 @@
 """Atomic, non-force publication to a branch of the source repository.
 
-The complete candidate and the current pointer enter one Git commit. A durable
+The public data files and their manifest enter one Git commit. A durable
 local journal names the exact commit before push, so an interrupted push is
 reconciled by identity/ancestry instead of regenerating an old candidate.
 """
@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
+import tempfile
 from typing import Any
 
 MAX_ARTIFACT_BYTES = 95 * 1024 * 1024  # Headroom below GitHub's 100 MiB Git blob cap.
@@ -77,8 +78,68 @@ def _publication_order(sequence: Any, attempt: Any) -> tuple[int, int]:
 
 
 def _same_data(left: dict, right: dict) -> bool:
-    return all(left.get(key) == right.get(key) for key in
-               ("data_version", "manifest", "manifest_sha256"))
+    return {k: v for k, v in left.items() if k != "publication"} == {
+        k: v for k, v in right.items() if k != "publication"}
+
+
+def _public_manifest(manifest: dict) -> dict:
+    """Publish a closed inventory; diagnostics remain in the build artifact."""
+    files = []
+    for record in manifest["files"]:
+        name = record["path"]
+        is_rule = bool(re.fullmatch(r"(region|provider|service|category)/[a-z0-9][a-z0-9-]*\.list", name))
+        if name.endswith((".list", ".ardb")) and not (is_rule or name in {"geo.ardb", "asn.ardb"}):
+            raise PublicationError("Unexpected rule/database publication path: " + name)
+        if is_rule or name in {"geo.ardb", "asn.ardb", "regions.json", "ATTRIBUTION.md"}:
+            files.append(dict(record))
+    return {**{k: v for k, v in manifest.items() if k not in {"publication", "layout"}},
+            "files": files, "layout": "flat-v1"}
+
+
+def _read_release(worker: Path) -> tuple[dict, Path]:
+    """Read the flat layout, or the former pointer once during migration."""
+    if (worker / "manifest.json").exists():
+        path = worker / "manifest.json"
+        if path.is_symlink():
+            raise PublicationError("Release manifest is a symlink")
+        manifest = json.loads(path.read_text())
+        if manifest.get("layout") != "flat-v1":
+            raise PublicationError("Unsupported release layout")
+        return manifest, worker
+    current = worker / "current.json"
+    if current.is_symlink():
+        raise PublicationError("Release pointer is a symlink")
+    pointer = json.loads(current.read_text())
+    version = _version(pointer.get("data_version"))
+    relative = "versions/" + version + "/manifest.json"
+    if pointer.get("manifest") != relative:
+        raise PublicationError("Unsafe previous release pointer")
+    path = worker / relative
+    if any(p.is_symlink() for p in (path, path.parent, path.parent.parent)):
+        raise PublicationError("Previous release contains a symlink")
+    if _digest(path) != pointer.get("manifest_sha256"):
+        raise PublicationError("Previous release manifest digest mismatch")
+    manifest = json.loads(path.read_text())
+    if manifest.get("data_version") != version:
+        raise PublicationError("Previous release version mismatch")
+    return {**manifest, "publication": pointer["publication"]}, path.parent
+
+
+def _replace_release(worker: Path, candidate: Path, manifest: dict) -> None:
+    # This is an isolated publisher checkout, never the user's source tree.
+    # Remove all old tracked/untracked payload, including obsolete reports.
+    for path in worker.iterdir():
+        if path.name == ".git":
+            continue
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    for record in manifest["files"]:
+        target = worker / record["path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(candidate / record["path"], target)
+    _json_write(worker / "manifest.json", manifest)
 
 
 def _check_order(previous: dict, incoming: tuple[int, int]) -> None:
@@ -153,17 +214,22 @@ def prepare_baseline(repo: Path, output: Path, *, remote: str = "origin", branch
         return False
     tracking = "refs/remotes/airroute/baseline"
     _git(repo, "fetch", "--no-tags", remote, "+refs/heads/" + branch + ":" + tracking)
-    pointer = json.loads(_git(repo, "show", tracking + ":current.json").stdout)
-    version = _version(pointer.get("data_version"))
-    path = "versions/" + version + "/manifest.json"
-    if pointer.get("manifest") != path:
-        raise PublicationError("Previous release has an unsafe manifest pointer")
-    raw = _git(repo, "show", tracking + ":" + path).stdout.encode("utf-8")
-    if hashlib.sha256(raw).hexdigest() != pointer.get("manifest_sha256"):
-        raise PublicationError("Previous release manifest digest mismatch")
-    previous = json.loads(raw)
-    if previous.get("data_version") != version:
-        raise PublicationError("Previous release version mismatch")
+    flat = _git(repo, "show", tracking + ":manifest.json", allow_failure=True)
+    if flat.returncode == 0:
+        raw = flat.stdout.encode("utf-8")
+        if json.loads(raw).get("layout") != "flat-v1":
+            raise PublicationError("Unsupported release layout")
+    else:
+        pointer = json.loads(_git(repo, "show", tracking + ":current.json").stdout)
+        version = _version(pointer.get("data_version"))
+        path = "versions/" + version + "/manifest.json"
+        if pointer.get("manifest") != path:
+            raise PublicationError("Previous release has an unsafe manifest pointer")
+        raw = _git(repo, "show", tracking + ":" + path).stdout.encode("utf-8")
+        if hashlib.sha256(raw).hexdigest() != pointer.get("manifest_sha256"):
+            raise PublicationError("Previous release manifest digest mismatch")
+        if json.loads(raw).get("data_version") != version:
+            raise PublicationError("Previous release version mismatch")
     output.mkdir(parents=True, exist_ok=True)
     (output / "manifest.json").write_bytes(raw)
     return True
@@ -311,55 +377,41 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
             _git(worker, "checkout", "--quiet", "--detach", base)
         else:
             _git(worker, "checkout", "--quiet", "--orphan", "candidate")
-        pointer = {"schema": 1, "data_version": version,
-                   "manifest": "versions/" + version + "/manifest.json",
-                   "manifest_sha256": manifest_sha,
-                   "publication": {"sequence": sequence, "attempt": attempt, "source_sha": source_sha}}
-        current = worker / "current.json"
-        version_dir = worker / "versions" / version
-        if (worker / "versions").is_symlink() or current.is_symlink() or version_dir.is_symlink():
-            raise PublicationError("Release layout contains a symlink")
+        public = _public_manifest(manifest)
+        public["publication"] = {"sequence": sequence, "attempt": attempt, "source_sha": source_sha}
         baseline = None
-        if current.exists():
-            old_pointer = json.loads(current.read_text())
-            old_version = _version(old_pointer.get("data_version"))
-            old_dir = worker / "versions" / old_version
-            if old_dir.is_symlink() or (old_dir / "manifest.json").is_symlink():
-                raise PublicationError("Previous release contains a symlink")
-            if old_pointer.get("manifest") != "versions/" + old_version + "/manifest.json":
-                raise PublicationError("Unsafe previous release pointer")
-            if _digest(old_dir / "manifest.json") != old_pointer.get("manifest_sha256"):
-                raise PublicationError("Previous release manifest digest mismatch")
-            baseline = old_dir
-        # The inventory above fences pending recovery by exact hashes. A new
-        # candidate receives one complete semantic check here, with the freshly
-        # fetched baseline; doing it before fetching as well duplicates all
-        # binary/list decoding without adding a trust boundary.
+        previous = None
+        if base:
+            previous, baseline = _read_release(worker)
+        # One full validation of the original candidate, including private
+        # diagnostics, against the freshly fetched public coverage baseline.
         _semantic_validation(candidate, repo, baseline)
-        if version_dir.exists():
-            if not (version_dir / "manifest.json").is_file() or _digest(version_dir / "manifest.json") != manifest_sha:
-                raise PublicationError("Immutable version collision")
-            validate_candidate(version_dir)
-        else:
-            version_dir.parent.mkdir(exist_ok=True)
-            shutil.copytree(candidate, version_dir)
-        if current.exists():
-            previous = json.loads(current.read_text())
-            if _same_data(previous, pointer):
+        if previous is not None:
+            old_public = _public_manifest(previous)
+            if (old_public["data_version"] == version and
+                    not _same_data(old_public, public)):
+                raise PublicationError("Immutable data version collision")
+            expected_paths = {r["path"] for r in public["files"]} | {"manifest.json"}
+            actual_paths = {p.relative_to(worker).as_posix() for p in worker.rglob("*")
+                            if ".git" not in p.relative_to(worker).parts and (p.is_file() or p.is_symlink())}
+            if (previous.get("layout") == "flat-v1" and _same_data(previous, public)
+                    and actual_paths == expected_paths):
+                for record in public["files"]:
+                    path = worker / record["path"]
+                    if (any(p.is_symlink() for p in (path, path.parent)) or
+                            path.stat().st_size != record["bytes"] or _digest(path) != record["sha256"]):
+                        raise PublicationError("Existing release file checksum mismatch")
                 shutil.rmtree(worker)
                 return {"status": "unchanged", "version": version, "commit": base,
                         "remote_commit": base, "publication": previous["publication"]}
             _check_order(previous, order)
-        _json_write(current, pointer)
-        (worker / "README.md").write_text(
-            "# AirRoute generated data\n\nRead current.json once, then fetch its immutable version directory. "
-            "Verify manifest and file SHA-256 values before use. Source code is on main.\n", encoding="utf-8")
-        _git(worker, "add", "--", "current.json", "README.md", "versions/" + version)
+        _replace_release(worker, candidate, public)
+        _git(worker, "add", "--all")
         _git(worker, "commit", "--quiet", "-m", "Publish AirRoute data " + version)
         commit = _git(worker, "rev-parse", "HEAD").stdout.strip()
         state = {"schema": 1, "version": version, "manifest_sha256": manifest_sha,
                  "source_sha": source_sha, "base_commit": base, "commit": commit,
-                 "status": "prepared", "publication": pointer["publication"]}
+                 "status": "prepared", "publication": public["publication"]}
         _json_write(pending, state)
         return _push_recorded(repo, remote, branch, source_branch, root, state)
 
@@ -367,7 +419,7 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
 def rollback(repo: Path, version: str, source_sha: str, *, sequence: int, attempt: int = 1,
              remote: str = "origin",
              branch: str = "release", source_branch: str = "main") -> dict:
-    """Make a normal forward commit that points to an existing immutable version."""
+    """Restore historical data as a normal forward flat-layout commit."""
     repo = Path(repo).resolve()
     order = _publication_order(sequence, attempt)
     version = _version(version)
@@ -386,29 +438,59 @@ def rollback(repo: Path, version: str, source_sha: str, *, sequence: int, attemp
         _credential_config(repo, worker)
         base = _fetch(worker, branch)
         _git(worker, "checkout", "--quiet", "--detach", base)
-        version_dir = worker / "versions" / version
-        if (worker / "versions").is_symlink() or (worker / "current.json").is_symlink() or version_dir.is_symlink():
-            raise PublicationError("Release layout contains a symlink")
-        manifest = validate_candidate(version_dir)
-        _semantic_validation(version_dir, repo)
-        if manifest.get("data_version", manifest.get("version")) != version:
-            raise PublicationError("Version directory does not match its manifest")
-        manifest_sha = _digest(version_dir / "manifest.json")
-        pointer = {"schema": 1, "data_version": version,
-                   "manifest": "versions/" + version + "/manifest.json", "manifest_sha256": manifest_sha,
-                   "publication": {"sequence": sequence, "attempt": attempt, "source_sha": source_sha}}
-        previous = json.loads((worker / "current.json").read_text())
-        if _same_data(previous, pointer):
+        previous, _ = _read_release(worker)
+        if previous["data_version"] == version:
             shutil.rmtree(worker)
             return {"status": "unchanged", "version": version, "commit": base,
                     "remote_commit": base, "publication": previous["publication"]}
         _check_order(previous, order)
-        _json_write(worker / "current.json", pointer)
-        _git(worker, "add", "--", "current.json")
+        # Versions live in Git history, never duplicated in the release tree.
+        # Inspect metadata without repeatedly checking out large payloads.
+        target = None
+        for commit in _git(worker, "rev-list", base).stdout.splitlines():
+            result = _git(worker, "show", commit + ":manifest.json", allow_failure=True)
+            if result.returncode == 0:
+                historical = json.loads(result.stdout)
+                if historical.get("data_version") == version:
+                    target = commit
+                    break
+            else:
+                result = _git(worker, "show", commit + ":versions/" + version + "/manifest.json", allow_failure=True)
+                if result.returncode == 0:
+                    target = commit
+                    break
+        if target is None:
+            raise PublicationError("Requested version is absent from release history")
+        _git(worker, "checkout", "--quiet", "--detach", target)
+        historical, directory = _read_release(worker)
+        if historical["data_version"] != version:
+            # Old layout commits may retain the requested version alongside a
+            # different current pointer. Read only its explicitly named folder.
+            directory = worker / "versions" / version
+            if directory.is_symlink() or directory.parent.is_symlink():
+                raise PublicationError("Historical release contains a symlink")
+            historical = json.loads((directory / "manifest.json").read_text())
+        public = _public_manifest(historical)
+        public["publication"] = {"sequence": sequence, "attempt": attempt, "source_sha": source_sha}
+        with tempfile.TemporaryDirectory(dir=root) as temporary:
+            staged = Path(temporary)
+            for record in public["files"]:
+                path = staged / record["path"]
+                path.parent.mkdir(parents=True, exist_ok=True)
+                source = directory / record["path"]
+                if any(p.is_symlink() for p in (source, source.parent)):
+                    raise PublicationError("Historical release contains a symlink")
+                shutil.copyfile(source, path)
+            _json_write(staged / "manifest.json", public)
+            validate_candidate(staged)
+            _semantic_validation(staged, repo)
+            _git(worker, "checkout", "--quiet", "--detach", base)
+            _replace_release(worker, staged, public)
+        _git(worker, "add", "--all")
         _git(worker, "commit", "--quiet", "-m", "Roll back AirRoute data to " + version)
-        state = {"schema": 1, "version": version, "manifest_sha256": manifest_sha,
+        state = {"schema": 1, "version": version, "manifest_sha256": _digest(worker / "manifest.json"),
                  "source_sha": source_sha, "base_commit": base,
                  "commit": _git(worker, "rev-parse", "HEAD").stdout.strip(), "status": "prepared",
-                 "publication": pointer["publication"]}
+                 "publication": public["publication"]}
         _json_write(root / "pending.json", state)
         return _push_recorded(repo, remote, branch, source_branch, root, state)

@@ -65,7 +65,99 @@ class PublicationTests(unittest.TestCase):
         return path
 
     def current(self):
-        return json.loads(git(self.remote, "show", "release:current.json"))
+        return json.loads(git(self.remote, "show", "release:manifest.json"))
+
+    def add_file(self, candidate, name, content):
+        path = candidate / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        manifest = json.loads((candidate / "manifest.json").read_text())
+        manifest["files"].append({"path": name, "bytes": len(content),
+                                  "sha256": hashlib.sha256(content).hexdigest()})
+        (candidate / "manifest.json").write_text(json.dumps(manifest))
+
+    def legacy_release(self, candidate):
+        """A real pre-change tree, including diagnostics and stale files."""
+        import shutil
+        worker = self.root / "legacy"
+        worker.mkdir()
+        git(worker, "init", "--quiet", "-b", "release")
+        git(worker, "config", "user.name", "Fixture")
+        git(worker, "config", "user.email", "fixture@example.invalid")
+        version = json.loads((candidate / "manifest.json").read_text())["data_version"]
+        shutil.copytree(candidate, worker / "versions" / version)
+        raw = (candidate / "manifest.json").read_bytes()
+        (worker / "current.json").write_text(json.dumps({
+            "data_version": version, "manifest": "versions/" + version + "/manifest.json",
+            "manifest_sha256": hashlib.sha256(raw).hexdigest(),
+            "publication": {"sequence": 1, "attempt": 1, "source_sha": self.sha}}))
+        (worker / "README.md").write_text("old instructions")
+        (worker / "stale-file").write_text("must disappear")
+        git(worker, "add", "--all")
+        git(worker, "commit", "--quiet", "-m", "old layout")
+        git(worker, "remote", "add", "origin", str(self.remote))
+        git(worker, "push", "--quiet", "origin", "release")
+        return git(worker, "rev-parse", "HEAD")
+
+    def test_release_inventory_excludes_reports_readme_and_scratch(self):
+        candidate = self.candidate()
+        self.add_file(candidate, "reports/internal.json", b'{"audit":true}\n')
+        self.add_file(candidate, "README.md", b"build-only instructions\n")
+        self.add_file(candidate, "scratch/debug.log", b"diagnostic\n")
+        self.add_file(candidate, "ATTRIBUTION.md", b"upstream license\n")
+        self.publish(candidate, self.source, self.sha)
+        paths = set(git(self.remote, "ls-tree", "-r", "--name-only", "release").splitlines())
+        self.assertEqual(paths, {"geo.ardb", "asn.ardb", "regions.json", "manifest.json",
+                                 "ATTRIBUTION.md", "region/cn.list"})
+        self.assertEqual(self.current()["layout"], "flat-v1")
+        self.assertEqual({f["path"] for f in self.current()["files"]}, paths - {"manifest.json"})
+
+    def test_legacy_layout_migrates_same_data_and_preserves_git_history(self):
+        candidate = self.candidate()
+        self.add_file(candidate, "reports/internal.json", b"{}\n")
+        old = self.legacy_release(candidate)
+        baseline = self.root / "legacy-baseline"
+        self.assertTrue(module.prepare_baseline(self.source, baseline))
+        result = self.publish(candidate, self.source, self.sha, sequence=2)
+        self.assertEqual(result["status"], "published")
+        self.assertEqual(git(self.remote, "rev-parse", "release~1"), old)
+        paths = git(self.remote, "ls-tree", "-r", "--name-only", "release").splitlines()
+        self.assertFalse(any(p.startswith(("versions/", "reports/")) for p in paths))
+        self.assertNotIn("current.json", paths)
+        self.assertNotIn("stale-file", paths)
+        self.assertEqual(self.publish(candidate, self.source, self.sha, sequence=3)["status"], "unchanged")
+
+    def test_next_version_deletes_removed_products(self):
+        first = self.candidate()
+        self.add_file(first, "category/obsolete.list", b"# no longer offered\n")
+        self.publish(first, self.source, self.sha)
+        self.publish(self.candidate("a2"), self.source, self.sha)
+        self.assertNotIn("category/obsolete.list", git(self.remote, "ls-tree", "-r", "--name-only", "release"))
+
+    def test_unexpected_rule_or_database_directory_is_rejected(self):
+        for index, name in enumerate(("scratch/rogue.list", "test.ardb", "region/NONCANONICAL.list")):
+            candidate = self.candidate("bad" + str(index))
+            self.add_file(candidate, name, b"# fixture\n")
+            with self.assertRaisesRegex(module.PublicationError, "Unexpected rule/database"):
+                self.publish(candidate, self.source, self.sha)
+
+    def test_rollback_old_layout_version_restores_only_public_data(self):
+        first = self.candidate()
+        self.add_file(first, "reports/internal.json", b"{}\n")
+        self.legacy_release(first)
+        self.publish(self.candidate("a2"), self.source, self.sha, sequence=2)
+        result = module.rollback(self.source, "a1", self.sha, sequence=3)
+        self.assertEqual(result["status"], "published")
+        self.assertEqual(self.current()["data_version"], "a1")
+        paths = git(self.remote, "ls-tree", "-r", "--name-only", "release")
+        self.assertNotIn("versions/", paths)
+        self.assertNotIn("reports/", paths)
+
+    def test_unknown_rollback_version_keeps_current_release(self):
+        first = self.publish(self.candidate(), self.source, self.sha)
+        with self.assertRaisesRegex(module.PublicationError, "absent"):
+            module.rollback(self.source, "absent", self.sha, sequence=2)
+        self.assertEqual(git(self.remote, "rev-parse", "release"), first["commit"])
 
     def test_initial_publication_then_no_change(self):
         candidate = self.candidate()
@@ -87,7 +179,7 @@ class PublicationTests(unittest.TestCase):
         rolled = module.rollback(self.source, "a1", self.sha, sequence=3)
         self.assertEqual(rolled["status"], "published")
         self.assertEqual(self.current()["data_version"], "a1")
-        self.assertEqual(json.loads(git(self.remote, "show", "release:versions/a2/manifest.json"))["data_version"], "a2")
+        self.assertEqual(json.loads(git(self.remote, "show", two["commit"] + ":manifest.json"))["data_version"], "a2")
         self.assertEqual(git(self.remote, "rev-parse", "release~1"), two["commit"])
         self.assertEqual(git(self.remote, "rev-parse", "release~2"), one["commit"])
 
@@ -253,7 +345,7 @@ class PublicationTests(unittest.TestCase):
         with patch.object(module, "_semantic_validation", wraps=original) as validate:
             self.publish(self.candidate("a2"), self.source, self.sha)
         self.assertEqual(validate.call_count, 1)
-        self.assertEqual(validate.call_args.args[2].name, "a1")
+        self.assertEqual(validate.call_args.args[2].name, "work")
 
     def test_fenced_pending_retry_reuses_prior_semantic_validation(self):
         self.publish(self.candidate("a1"), self.source, self.sha)
