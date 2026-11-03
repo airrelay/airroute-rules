@@ -42,7 +42,7 @@ Actions 的仓库级并发组禁止两个工作流同时发布。发布前重新
 
 ## 权限和来源 Secrets
 
-构建 job 只读仓库，发布 job 才有 `contents: write`。使用仓库自带 `GITHUB_TOKEN`，无需创建 OAuth App、仓库 PAT 或新的仓库。Actions 已固定到官方 action 的提交 SHA；升级时核对官方仓库后更换。
+构建 job 只读仓库，发布 job 才有 `contents: write`。使用仓库自带 `GITHUB_TOKEN`，无需创建 OAuth App、仓库 PAT 或新的仓库。Actions 已固定到官方 action 的提交 SHA，并核对 `action.yml` 的实际 Node.js 24 运行时；不能只凭主版本号判断（download-artifact v6 默认仍为 Node.js 20）。下载器使用[官方 v8.0.2](https://github.com/actions/download-artifact/releases/tag/v8.0.2)。两个 job 均固定为 `ubuntu-24.04`，避免 `ubuntu-latest` 自动迁移到下一发行版；发行版内的镜像安全更新仍由 GitHub 提供。升级时核对官方仓库后更换。
 
 可选来源使用 `MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY`、`IPINFO_TOKEN`、`IP2LOCATION_TOKEN`，只通过环境变量提供给获取步骤。缺失来源如实记入快照和质量报告；是否可发布由质量门槛判断，不伪造五源覆盖。不把密钥写入来源 URL、manifest、日志或最终产物。原始供应商文件和缓存只在本地/runner 暂存，发布前依据来源许可与 attribution 规则处理公开衍生物，详见 [SOURCES.md](SOURCES.md)。
 
