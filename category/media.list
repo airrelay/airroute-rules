@@ -25,12 +25,14 @@ DOMAIN,zeenews-fonts.s3.amazonaws.com
 DOMAIN-SUFFIX,1917live.red
 DOMAIN-SUFFIX,1degree.com.au
 DOMAIN-SUFFIX,1prime.ru
+DOMAIN-SUFFIX,3dnews.ru
 DOMAIN-SUFFIX,47gyosei.jp
 DOMAIN-SUFFIX,47news.jp
 DOMAIN-SUFFIX,4gtv.tv
 DOMAIN-SUFFIX,6park.com
 DOMAIN-SUFFIX,6parkbbs.com
 DOMAIN-SUFFIX,6parknews.com
+DOMAIN-SUFFIX,72.ru
 DOMAIN-SUFFIX,881903.com
 DOMAIN-SUFFIX,9cdn.net
 DOMAIN-SUFFIX,9nation.com.au
@@ -60,6 +62,7 @@ DOMAIN-SUFFIX,amerikaninsesi.org
 DOMAIN-SUFFIX,amerikaovozi.com
 DOMAIN-SUFFIX,amerikayidzayn.com
 DOMAIN-SUFFIX,amerikiskhma.com
+DOMAIN-SUFFIX,amic.ru
 DOMAIN-SUFFIX,amlg.io
 DOMAIN-SUFFIX,androidauthority.com
 DOMAIN-SUFFIX,androidpolice.com
@@ -101,6 +104,7 @@ DOMAIN-SUFFIX,azatliq.org
 DOMAIN-SUFFIX,azattyk.org
 DOMAIN-SUFFIX,azattyq.org
 DOMAIN-SUFFIX,azatutyun.am
+DOMAIN-SUFFIX,azbyka.ru
 DOMAIN-SUFFIX,b37mrtl.ru
 DOMAIN-SUFFIX,baltnews.com
 DOMAIN-SUFFIX,baltnews.lt
@@ -258,6 +262,9 @@ DOMAIN-SUFFIX,cnbcfm.com
 DOMAIN-SUFFIX,cnbeta.com
 DOMAIN-SUFFIX,cnbeta.com.tw
 DOMAIN-SUFFIX,cnbetacdn.com
+DOMAIN-SUFFIX,cnconf.ru
+DOMAIN-SUFFIX,cnews.ru
+DOMAIN-SUFFIX,cnewsforum.ru
 DOMAIN-SUFFIX,cnivogue.com.au
 DOMAIN-SUFFIX,cnn.com
 DOMAIN-SUFFIX,cnn.io
@@ -330,7 +337,14 @@ DOMAIN-SUFFIX,dreamworks.com
 DOMAIN-SUFFIX,driving.co.uk
 DOMAIN-SUFFIX,drobbox.pro
 DOMAIN-SUFFIX,dronedj.com
+DOMAIN-SUFFIX,durovscode.com
 DOMAIN-SUFFIX,dw.com
+DOMAIN-SUFFIX,e1.ru
+DOMAIN-SUFFIX,eadaily.com
+DOMAIN-SUFFIX,eadaily.info
+DOMAIN-SUFFIX,eadaily.net
+DOMAIN-SUFFIX,eadaily.org
+DOMAIN-SUFFIX,eadaily.su
 DOMAIN-SUFFIX,earngeek.com
 DOMAIN-SUFFIX,easttouch.com.hk
 DOMAIN-SUFFIX,eastweek.com.hk
@@ -343,6 +357,7 @@ DOMAIN-SUFFIX,edninfo.com
 DOMAIN-SUFFIX,eduplus.hk
 DOMAIN-SUFFIX,egmontbooks.co.uk
 DOMAIN-SUFFIX,eiu.com
+DOMAIN-SUFFIX,ekat.ru
 DOMAIN-SUFFIX,ekhindi.com
 DOMAIN-SUFFIX,ekhokavkaza.com
 DOMAIN-SUFFIX,electrek.co
@@ -410,6 +425,7 @@ DOMAIN-SUFFIX,ettrade.com.hk
 DOMAIN-SUFFIX,etviet.com
 DOMAIN-SUFFIX,etvonline.hk
 DOMAIN-SUFFIX,etwealth.com
+DOMAIN-SUFFIX,eurasiadaily.su
 DOMAIN-SUFFIX,europalibera.org
 DOMAIN-SUFFIX,eventsinfocus.org
 DOMAIN-SUFFIX,evropaelire.org
@@ -426,6 +442,7 @@ DOMAIN-SUFFIX,fantv.hk
 DOMAIN-SUFFIX,fawanghuihui.org
 DOMAIN-SUFFIX,fayuanbooks.com
 DOMAIN-SUFFIX,fdiintelligence.com
+DOMAIN-SUFFIX,ferra.ru
 DOMAIN-SUFFIX,fgmtv.org
 DOMAIN-SUFFIX,financialadvisoriq.com
 DOMAIN-SUFFIX,flatmates.com.au
@@ -626,6 +643,7 @@ DOMAIN-SUFFIX,gannett-cdn.com
 DOMAIN-SUFFIX,gannett.com
 DOMAIN-SUFFIX,gannettdigital.com
 DOMAIN-SUFFIX,gatewaytorussia.ru
+DOMAIN-SUFFIX,gazeta.ru
 DOMAIN-SUFFIX,gazetarussa.com.br
 DOMAIN-SUFFIX,gbnews.uk
 DOMAIN-SUFFIX,gclubs.com
@@ -672,6 +690,8 @@ DOMAIN-SUFFIX,gw2ru.com
 DOMAIN-SUFFIX,gwiki.net
 DOMAIN-SUFFIX,gwins.org
 DOMAIN-SUFFIX,hackday.com.au
+DOMAIN-SUFFIX,hacksoft.ru
+DOMAIN-SUFFIX,hardware.ru
 DOMAIN-SUFFIX,harperacademic.com
 DOMAIN-SUFFIX,harperapps.com
 DOMAIN-SUFFIX,harpercollins.ca
@@ -731,6 +751,7 @@ DOMAIN-SUFFIX,ign.jp
 DOMAIN-SUFFIX,ignites.com
 DOMAIN-SUFFIX,ignitesasia.com
 DOMAIN-SUFFIX,igniteseurope.com
+DOMAIN-SUFFIX,iguides.ru
 DOMAIN-SUFFIX,ind.sh
 DOMAIN-SUFFIX,india.com
 DOMAIN-SUFFIX,indiancolleges.com
@@ -759,6 +780,15 @@ DOMAIN-SUFFIX,iproperty.com.sg
 DOMAIN-SUFFIX,ironna.jp
 DOMAIN-SUFFIX,itmedia.co.jp
 DOMAIN-SUFFIX,itripto.com
+DOMAIN-SUFFIX,ixbt.com
+DOMAIN-SUFFIX,ixbt.games
+DOMAIN-SUFFIX,ixbt.market
+DOMAIN-SUFFIX,ixbt.media
+DOMAIN-SUFFIX,ixbt.pro
+DOMAIN-SUFFIX,ixbt.ru
+DOMAIN-SUFFIX,ixbt.shop
+DOMAIN-SUFFIX,ixbt.site
+DOMAIN-SUFFIX,ixbt.video
 DOMAIN-SUFFIX,iza.ne.jp
 DOMAIN-SUFFIX,japan-forward.com
 DOMAIN-SUFFIX,jfengtime.com
@@ -776,6 +806,7 @@ DOMAIN-SUFFIX,kicu.tv
 DOMAIN-SUFFIX,kidspot.com.au
 DOMAIN-SUFFIX,kilmeadeandfriends.com
 DOMAIN-SUFFIX,knowswho.co.jp
+DOMAIN-SUFFIX,kod.ru
 DOMAIN-SUFFIX,krymr.com
 DOMAIN-SUFFIX,ktech.team
 DOMAIN-SUFFIX,ktvu.com
@@ -1032,6 +1063,12 @@ DOMAIN-SUFFIX,oncars.in
 DOMAIN-SUFFIX,onmanorama.com
 DOMAIN-SUFFIX,opinionjournal.com
 DOMAIN-SUFFIX,orlandohurricane.com
+DOMAIN-SUFFIX,ovcl.ru
+DOMAIN-SUFFIX,overclock.ru
+DOMAIN-SUFFIX,overclocker.ru
+DOMAIN-SUFFIX,overclockers.ru
+DOMAIN-SUFFIX,overclocking.ru
+DOMAIN-SUFFIX,overi.ru
 DOMAIN-SUFFIX,ozodi.org
 DOMAIN-SUFFIX,ozodlik.org
 DOMAIN-SUFFIX,ozvoice.org
@@ -1055,8 +1092,12 @@ DOMAIN-SUFFIX,placemyad.com.au
 DOMAIN-SUFFIX,pobeda.page
 DOMAIN-SUFFIX,polygon.com
 DOMAIN-SUFFIX,popo8.com
+DOMAIN-SUFFIX,posledovania.ru
 DOMAIN-SUFFIX,post852.com
 DOMAIN-SUFFIX,pplusstatic.com
+DOMAIN-SUFFIX,pravmir.com
+DOMAIN-SUFFIX,pravmir.ru
+DOMAIN-SUFFIX,pravoslavie.ru
 DOMAIN-SUFFIX,premiumlive.site
 DOMAIN-SUFFIX,prepsure.com
 DOMAIN-SUFFIX,pressria.ru
@@ -1078,6 +1119,7 @@ DOMAIN-SUFFIX,radiosputnik.ru
 DOMAIN-SUFFIX,radiosvoboda.org
 DOMAIN-SUFFIX,radiotavisupleba.ge
 DOMAIN-SUFFIX,radiyoyacuvoa.com
+DOMAIN-SUFFIX,rambler.ru
 DOMAIN-SUFFIX,rbth.com
 DOMAIN-SUFFIX,rea-asia.com
 DOMAIN-SUFFIX,rea-group.com
@@ -1227,8 +1269,11 @@ DOMAIN-SUFFIX,savvyshopper.net.au
 DOMAIN-SUFFIX,sbnation.com
 DOMAIN-SUFFIX,scmp.com
 DOMAIN-SUFFIX,seasidestory.tokyo
+DOMAIN-SUFFIX,seclab.lat
 DOMAIN-SUFFIX,secretchina.com
+DOMAIN-SUFFIX,securitylab.ru
 DOMAIN-SUFFIX,seiron-sankei.com
+DOMAIN-SUFFIX,servernews.ru
 DOMAIN-SUFFIX,setn.com
 DOMAIN-SUFFIX,settv.com.tw
 DOMAIN-SUFFIX,severreal.org
@@ -1502,6 +1547,7 @@ DOMAIN-SUFFIX,watchinese.com
 DOMAIN-SUFFIX,watchingthehawks.com
 DOMAIN-SUFFIX,watchout.tw
 DOMAIN-SUFFIX,wealth.com.tw
+DOMAIN-SUFFIX,webtypikon.ru
 DOMAIN-SUFFIX,weekly-economist.com
 DOMAIN-SUFFIX,weeklytimesnow.com.au
 DOMAIN-SUFFIX,weiyuksj.com
@@ -1528,6 +1574,13 @@ DOMAIN-SUFFIX,wsjshop.com
 DOMAIN-SUFFIX,wsjwine.com
 DOMAIN-SUFFIX,wujieliulan.com
 DOMAIN-SUFFIX,xinsheng.net
+DOMAIN-SUFFIX,xn--80adfddrquddgz.xn--p1ai
+DOMAIN-SUFFIX,xn--80aglfyfk.xn--p1ai
+DOMAIN-SUFFIX,xn--80aglzei.xn--p1ai
+DOMAIN-SUFFIX,xn--b1agatafrepfl.xn--p1ai
+DOMAIN-SUFFIX,xn--b1agpaeoen.xn--p1ai
+DOMAIN-SUFFIX,xn--b1agzk.xn--p1ai
+DOMAIN-SUFFIX,xn--b1agzk9c.xn--p1ai
 DOMAIN-SUFFIX,xn--c1acbl2abdlkab1og.xn--p1ai
 DOMAIN-SUFFIX,xuxaverso.com.br
 DOMAIN-SUFFIX,xwbo.com
