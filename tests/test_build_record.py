@@ -134,6 +134,9 @@ class BuildRecordTests(unittest.TestCase):
             self.assertEqual(gzip.decompress((root/'packed/trace.sqlite3.gz').read_bytes()),(root/'record/trace.sqlite3').read_bytes())
             tiny=pack(root/'record',root/'tiny',max_bytes=1)
             self.assertFalse(tiny['complete']);self.assertTrue(tiny['excluded'])
+            self.assertFalse(tiny['evidence_complete'])
+            self.assertTrue(all(item['compressed_bytes'] > 0 for item in tiny['excluded']))
+            self.assertEqual(index['budget_bytes'],1024*1024*1024)
 
     def test_diagnostic_error_does_not_mask_build_failure_or_success(self):
         f=self.fixture(); impossible=f.root/'not-a-directory';impossible.write_text('keep')
