@@ -114,6 +114,24 @@ def _download(url, target, headers, limit):
         tmp.unlink(missing_ok=True)
 
 
+def _unpack_source(archive, output, source, *, compression, strip_root=False):
+    """Report archive failures without exposing a provider's response body."""
+    try:
+        return unpack(archive, output, compression=compression, strip_root=strip_root)
+    except (zipfile.BadZipFile, gzip.BadGzipFile, tarfile.ReadError, EOFError) as error:
+        # IP2Location documents textual permission/quota errors returned by its
+        # download endpoint. Classify only these fixed markers, never log text.
+        if source.get("format") == "ip2location-db1-csv" and compression == "zip":
+            with Path(archive).open("rb") as stream:
+                prefix = stream.read(8192).lower()
+            if not prefix.startswith(b"pk"):
+                if any(marker in prefix for marker in (b"5 times", b"download limit", b"download quota", b"quota exceeded")):
+                    raise AcquisitionError("provider download quota exceeded; response is not a ZIP archive") from None
+                if b"no permission" in prefix or b"nopermission" in prefix:
+                    raise AcquisitionError("provider rejected download permission; response is not a ZIP archive") from None
+        raise AcquisitionError("archive preparation failed (" + type(error).__name__ + ")") from None
+
+
 def _member_path(name):
     path = PurePosixPath(name)
     if path.is_absolute() or ".." in path.parts or "\\" in name or not path.parts:
@@ -254,7 +272,7 @@ def _get_source(source, directory, now, commits):
             url = f"https://codeload.github.com/{repo}/tar.gz/{version}"
             archive = directory / "download.tar.gz"
             records.append(_download(url, archive, headers, limit))
-            unpack(archive, content, compression="tar.gz", strip_root=True)
+            _unpack_source(archive, content, source, compression="tar.gz", strip_root=True)
         else:
             paths = source.get("paths", [source.get("file")]); content.mkdir()
             for raw in paths:
@@ -274,7 +292,7 @@ def _get_source(source, directory, now, commits):
                 if len(paths) != 1:
                     raise AcquisitionError("compressed GitHub source must select one archive")
                 archive = content.joinpath(*_member_path(paths[0]).parts)
-                unpack(archive, directory / "expanded", compression=source["compression"])
+                _unpack_source(archive, directory / "expanded", source, compression=source["compression"])
                 content = directory / "expanded"
             elif len(paths) == 1:
                 content = content.joinpath(*_member_path(paths[0]).parts)
@@ -299,7 +317,7 @@ def _get_source(source, directory, now, commits):
                 # IPv4/IPv6 vendor ZIPs can both contain LICENSE/README. Keep
                 # each archive isolated while exposing one recursive input root.
                 subtree = f"{ordinal:03d}-{target.stem}" if len(urls) > 1 else ""
-                unpack(target, directory / "expanded" / subtree, compression=compression)
+                _unpack_source(target, directory / "expanded" / subtree, source, compression=compression)
         if any(i.get("compression", source.get("compression")) for i in urls):
             content = directory / "expanded"
         elif len(urls) == 1:
@@ -395,7 +413,7 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
         except Exception as exc:
             if directory.exists():
                 shutil.rmtree(directory)
-            entry.update(status="unavailable", error=str(exc) if isinstance(exc, AcquisitionError) else "invalid or unreadable source payload")
+            entry.update(status="unavailable", error_type=type(exc).__name__, error=str(exc) if isinstance(exc, AcquisitionError) else "invalid or unreadable source payload (" + type(exc).__name__ + ")")
         result["sources"].append(entry)
         if trace is not None:
             missing_fields = []
@@ -406,7 +424,7 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
                 elif not source.get('url') and not source.get('files'):missing_fields.append('url/files')
             diagnostic_status = 'downloaded' if entry['status']=='available' else 'missing-configuration' if missing_fields else 'download-failed'
             trace.source_event(source['id'], 'acquisition', diagnostic_status,
-                               bytes=entry.get('bytes'), sha256=entry.get('sha256'), error=entry.get('error'), missing_fields=missing_fields)
+                               bytes=entry.get('bytes'), sha256=entry.get('sha256'), error=entry.get('error'), error_type=entry.get('error_type'), missing_fields=missing_fields)
         if entry["status"] != "available":
             fail(entry)
         persist()

@@ -259,6 +259,8 @@ class DomainTests(unittest.TestCase):
             errors.append(str(error.exception))
         self.assertEqual(errors[0],errors[1])
         self.assertNotIn("/tmp/",errors[0])
+        with self.assertRaisesRegex(RuleError,"missing its frozen file path"):
+            build_domains([{"id":"ref","status":"available","format":"surge"}],products)
         groups,report=build_domains([{"id":"ref","format":"surge","status":"disabled"}],products)
         self.assertEqual(groups["category/test"],[])
         self.assertEqual(len(report["unavailable_selectors"]),1)

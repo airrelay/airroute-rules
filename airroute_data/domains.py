@@ -700,7 +700,7 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
     source_ids = [s["id"] for s in sources]
     if len(source_ids) != len(set(source_ids)):
         raise RuleError("duplicate domain source ID")
-    by_id = {s["id"]: s for s in sources if s.get("path") and s.get("status", "available") in {"available", "ok", "downloaded"}}
+    by_id = {s["id"]: s for s in sources if s.get("status", "available") in {"available", "ok", "downloaded"}}
     dlc: dict[str, DLC] = {}
     prepared: dict[str, list[Rule]] = {}
     report: dict = {"quarantined": [], "unavailable_selectors": [], "groups": {}, "provenance": {}, "selectors": [],
@@ -748,6 +748,8 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                 report["unavailable_selectors"].append({"group": name, "source": source_id, "reason": "source unavailable"})
                 continue
             try:
+                if not source.get("path"):
+                    raise RuleError("available selected input is missing its frozen file path")
                 rejected = []
                 read_lines = None
                 input_records = None

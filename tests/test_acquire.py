@@ -12,7 +12,7 @@ import urllib.request
 import zipfile
 
 from airroute_data.acquire import (AcquisitionError, SafeRedirect, _download,
-    _get_source, _github_commit, acquire_sources, tree_digest, unpack, verify_snapshot)
+    _get_source, _github_commit, acquire_sources, tree_digest, unpack, verify_snapshot, _unpack_source)
 
 
 class Response(io.BytesIO):
@@ -132,6 +132,16 @@ class AcquisitionTests(unittest.TestCase):
         self.assertIn("Authorization", same.headers)
         with self.assertRaises(AcquisitionError):
             redirect.redirect_request(req, None, 302, "found", {}, "http://vendor.example/new")
+
+    def test_provider_text_errors_are_classified_without_disclosing_body(self):
+        archive = self.root / "provider.zip"
+        for body, expected in ((b"You can download 5 times daily. private-account", "quota exceeded"),
+                               (b"NO PERMISSION private-account", "download permission"),
+                               (b"unknown private-account", "BadZipFile")):
+            archive.write_bytes(body)
+            with self.assertRaisesRegex(AcquisitionError, expected) as error:
+                _unpack_source(archive, self.root / "expanded", {"format": "ip2location-db1-csv"}, compression="zip")
+            self.assertNotIn("private-account", str(error.exception))
 
     def test_zip_rejects_traversal_links_and_expansion(self):
         archive = self.root / "input.zip"
