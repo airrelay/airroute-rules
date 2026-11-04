@@ -509,7 +509,7 @@ def set_status(directory, status, reason='', workflow_status=None, preserve_publ
     finally: record.close()
 
 
-def pack(directory, output, max_bytes=512 * 1024 * 1024):
+def pack(directory, output, max_bytes=1024 * 1024 * 1024):
     """Keep reports and lossless SQLite gzip within a documented artifact budget."""
     directory, output = Path(directory), Path(output)
     if output.resolve().is_relative_to(directory.resolve()):
@@ -537,12 +537,14 @@ def pack(directory, output, max_bytes=512 * 1024 * 1024):
         else: shutil.copyfile(path, target)
         size = target.stat().st_size
         if total + size > max_bytes:
-            target.unlink(); index['excluded'].append({'path': str(relative), 'reason': 'artifact-budget-exceeded', 'original_bytes': path.stat().st_size})
+            target.unlink(); index['excluded'].append({'path': str(relative), 'reason': 'artifact-budget-exceeded', 'original_bytes': path.stat().st_size, 'compressed_bytes': size})
             index['complete'] = False; continue
         total += size
         with target.open('rb') as stream: digest = hashlib.file_digest(stream, 'sha256').hexdigest()
         index['included'].append({'path': target.relative_to(output).as_posix(), 'bytes': size, 'sha256': digest})
     index['bytes'] = total
+    index['source_evidence_complete'] = index.get('evidence_complete', False)
+    index['evidence_complete'] = index['source_evidence_complete'] and index['complete']
     json_write(output / 'artifact-index.json', index)
     return index
 
