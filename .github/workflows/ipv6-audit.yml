@@ -28,7 +28,7 @@ jobs:
           MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
           IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
           IP2LOCATION_TOKEN: ${{ secrets.IP2LOCATION_TOKEN }}
-        run: python -m airroute_data snapshot --output .build/snapshot --source-ids maxmind dbip ipinfo ip2location iplocate
+        run: python -m airroute_data snapshot --output .build/snapshot --source maxmind --source dbip --source ipinfo --source ip2location --source iplocate
       - name: Replay production IPv6 fusion without publication
         run: python -m tools.audit_ipv6 --snapshot .build/snapshot/snapshot.json --previous .build/previous-geo.ardb --output .build/diagnosis
       - name: Keep bounded nonsecret diagnostic summaries only
