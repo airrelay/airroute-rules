@@ -75,11 +75,50 @@ def _asn_set(value: str) -> tuple[int, ...]:
     return valid_asns(v for v in fields if v)
 
 
-def parse_source(format: str, path: str | Path, source: dict) -> Iterator[RoutingRecord | AuxiliaryRecord]:
+def parse_source(format: str, path: str | Path, source: dict, *, trace=None) -> Iterator[RoutingRecord | AuxiliaryRecord]:
+    """Optional parser accounting, without changing ASN/auxiliary semantics.
+
+    Candidate rows are logical rows, not physical lines. MRT rows count shared
+    prefix/origin payloads after RIB peer grouping; peer claims are separate.
+    """
+    stats = {"records_read": 0, "records_parsed": 0, "ipv4_records": 0, "ipv6_records": 0,
+             "raw_prefix_claim_records": 0, "raw_prefix_peer_claims": 0,
+             "derived_records": 0, "auxiliary_records": 0, "excluded_as0_records": 0,
+             "mrt_records_read": 0, "mrt_rib_entries_read": 0, "mrt_originless_entries": 0}
+    status = "interrupted"
+    error_type = None
+    try:
+        for record in _parse_source(format, path, source, _stats=stats):
+            stats["records_parsed"] += 1
+            stats[f"ipv{record.version}_records"] += 1
+            if isinstance(record, RoutingRecord):
+                if record.origin_prefix_length is not None:
+                    stats["raw_prefix_claim_records"] += 1
+                    stats["raw_prefix_peer_claims"] += len(record.views) if record.views else 1
+                else:
+                    stats["derived_records"] += 1
+            else:
+                stats["auxiliary_records"] += 1
+            yield record
+        status = "parsed" if stats["records_parsed"] else "empty"
+    except Exception as error:
+        status = "failed"
+        error_type = type(error).__name__
+        raise
+    finally:
+        if trace is not None:
+            trace.source_event(str(source["id"]), "parse-routing", status,
+                **stats, error_type=error_type,
+                count_semantics="Candidate logical input rows; MRT counts payloads after within-RIB grouping, peer claims separately. Derived provider rows are not observed BGP claims.")
+
+
+def _parse_source(format: str, path: str | Path, source: dict, *, _stats: dict) -> Iterator[RoutingRecord | AuxiliaryRecord]:
     path = Path(path); sid = str(source["id"])
     collector = str(source.get("collector", sid))
     if format in ("routeviews-mrt", "ris-mrt", "mrt-rib"):
-        yield from parse_mrt(path, sid, collector)
+        for record in parse_mrt(path, sid, collector, _stats=_stats):
+            _stats["records_read"] += 1
+            yield record
         return
     if format in ("ris-whois", "riswhois"):
         # Current RIS dump is a tabular origin-prefix-peercount summary. RPSL
@@ -90,6 +129,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
                 line = raw.strip()
                 if not line or line.startswith(("%", "#")):
                     if network and origins:
+                        _stats["records_read"] += 1
                         yield RoutingRecord.network(network, origins, sid, collector)
                     network, origins = None, []
                     continue
@@ -98,6 +138,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
                 elif line.startswith("origin:"):
                     origins.extend(_asn_set(line.split(":", 1)[1]))
                 elif "/" in line and not line.startswith(("descr:", "remarks:")):
+                    _stats["records_read"] += 1
                     fields = line.split()
                     prefix_index = next((i for i, field in enumerate(fields) if "/" in field), None)
                     if prefix_index is None: continue
@@ -110,21 +151,32 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
                         int(fields[2]) if prefix_index == 0 and len(fields) > 2 else None)
                     yield RoutingRecord.network(prefix, _asn_set(asn), sid, collector, peer_count=peer_count)
             if network and origins:
+                _stats["records_read"] += 1
                 yield RoutingRecord.network(network, origins, sid, collector)
         return
     if format in ("iptoasn-tsv", "iptoasn"):
         with open_text(path) as stream:
             for fields in csv.reader(stream, delimiter="\t"):
                 if not fields or fields[0].startswith("#"): continue
+                _stats["records_read"] += 1
                 if len(fields) < 3: raise ValueError("IPtoASN needs first IP, last IP, ASN")
                 family, start, end = bounds(fields[0], fields[1], source.get("ip_version"))
-                if fields[2] == "0": continue  # Dataset explicitly says not announced.
+                if fields[2] == "0":
+                    _stats["excluded_as0_records"] += 1
+                    continue  # Dataset explicitly says not announced.
                 yield RoutingRecord(family, start, end, _asn_set(fields[2]), sid, collector)
         return
     if format in ("iplocate-asn-csv", "bgp-tools-jsonl"):
         with open_text(path) as stream:
-            rows = (json.loads(line) for line in stream if line.strip()) if format == "bgp-tools-jsonl" else csv.DictReader(stream)
+            def json_rows():
+                for line in stream:
+                    if line.strip():
+                        _stats["records_read"] += 1
+                        yield json.loads(line)
+            rows = json_rows() if format == "bgp-tools-jsonl" else csv.DictReader(stream)
             for row in rows:
+                if format != "bgp-tools-jsonl":
+                    _stats["records_read"] += 1
                 network = row.get("network", row.get("CIDR", row.get("prefix")))
                 origins = row.get("asns", row.get("ASN", row.get("asn")))
                 if network is None or origins is None: raise ValueError("routing row lacks network/ASN")
@@ -137,6 +189,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
             for raw in stream:
                 row = raw.strip().split("|")
                 if len(row) < 7 or raw.startswith("#") or row[2] not in ("ipv4", "ipv6") or row[1] == "*": continue
+                _stats["records_read"] += 1
                 cc = country_code(row[1]); status = row[6]
                 if row[2] == "ipv4":
                     start = int(ipaddress.IPv4Address(row[3])); end = start + int(row[4]) - 1
@@ -150,6 +203,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
         with open_text(path) as stream:
             for row in csv.reader(stream):
                 if not row or row[0].strip().startswith("#"): continue
+                _stats["records_read"] += 1
                 if len(row) < 2: raise ValueError("geofeed needs prefix and country")
                 family, start, end = bounds(row[0].strip())
                 yield AuxiliaryRecord(family, start, end, sid, "operator-geofeed", country_code(row[1]),
@@ -165,6 +219,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
                 # Extract only top-level explicit CIDR rules. An AND/NOT line
                 # containing an IP-CIDR substring is never flattened or mined.
                 if kind not in ("IP-CIDR", "IP-CIDR6", "IP6-CIDR"): continue
+                _stats["records_read"] += 1
                 if len(parts) < 2: raise ValueError("CIDR reference rule lacks its address")
                 family, start, end = bounds(parts[1])
                 if family != (4 if kind == "IP-CIDR" else 6):
@@ -178,6 +233,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Routin
             for raw in stream:
                 line = raw.split("#", 1)[0].strip()
                 if not line: continue
+                _stats["records_read"] += 1
                 # Reference Surge/Clash CIDR lists without policy inference.
                 parts = line.split(",")
                 network = parts[1].strip() if parts[0].upper() in ("IP-CIDR", "IP-CIDR6", "IP6-CIDR") and len(parts) > 1 else line
@@ -240,7 +296,8 @@ def _attributes(payload: bytes, as4: bool) -> tuple[int, ...]:
     return ordinary
 
 
-def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[RoutingRecord]:
+def parse_mrt(path: str | Path, source: str, collector: str = "", *,
+              _stats: dict | None = None) -> Iterator[RoutingRecord]:
     """Decode current TABLE_DUMP_V2 unicast RIBs, including four-byte ASN/ADD-PATH.
 
     Only peer-index and full RIB records are accepted. UPDATE streams must be
@@ -252,6 +309,8 @@ def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[Ro
     peers: list[tuple[bool, str, int]] = []
     with opener(path, "rb") as stream:
         while header := stream.read(12):
+            if _stats is not None:
+                _stats["mrt_records_read"] += 1
             if len(header) != 12: raise ValueError("truncated MRT header")
             _timestamp, kind, subtype, length = struct.unpack("!IHHI", header)
             if length > 64 * 1024 * 1024: raise ValueError("oversized MRT record")
@@ -292,6 +351,8 @@ def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[Ro
             count = int.from_bytes(payload[offset:offset+2], "big"); offset += 2
             equivalent = defaultdict(set)
             for _ in range(count):
+                if _stats is not None:
+                    _stats["mrt_rib_entries_read"] += 1
                 if offset + 8 + (4 if addpath else 0) > len(payload): raise ValueError("truncated MRT RIB entry")
                 peer = int.from_bytes(payload[offset:offset+2], "big"); offset += 6
                 if peer >= len(peers): raise ValueError("MRT RIB references unknown peer")
@@ -307,6 +368,8 @@ def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[Ro
                     _, peer_ip, peer_asn = peers[peer]
                     view = f"{collector}/AS{peer_asn}@{peer_ip}"
                     equivalent[origins].add(view)
+                elif _stats is not None:
+                    _stats["mrt_originless_entries"] += 1
             if offset != len(payload): raise ValueError("trailing MRT RIB bytes")
             # One RIB entry is bounded. Share identical prefix/origin payloads,
             # retaining every peer identity for exact per-peer LPM below.
@@ -316,7 +379,7 @@ def parse_mrt(path: str | Path, source: str, collector: str = "") -> Iterator[Ro
 
 
 def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
-                minimum_prefix_lengths: dict[int, int] | None = None) -> dict:
+                minimum_prefix_lengths: dict[int, int] | None = None, trace=None) -> dict:
     """Longest matching prefix per collector, union all current origin views.
 
     A /25 from one collector does not erase a covering /24 observed by another.
@@ -339,12 +402,19 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
             source_rows[rec.source] += weight
             event_records[rec.source] += 1
             if not isinstance(rec, RoutingRecord) or rec.semantics != "routing-origin":
+                if trace is not None:
+                    trace.route_input(rec, "ignored", "auxiliary-not-origin-membership")
                 counts["auxiliary_rows_not_asn_membership"] += 1; continue
             valid_asns(rec.asns)
-            if not rec.asns: continue
+            if not rec.asns:
+                if trace is not None:
+                    trace.route_input(rec, "filtered", "no-origin-asn")
+                continue
             if rec.origin_prefix_length == 0:
                 # A default route offered by a peer is forwarding reachability,
                 # not ownership of every otherwise unannounced address.
+                if trace is not None:
+                    trace.route_input(rec, "filtered", "default-route-not-ownership")
                 counts[f"ipv{rec.version}_default_routes_ignored"] += weight
                 continue
             width = 32 if rec.version == 4 else 128
@@ -353,6 +423,8 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
                 # Public ASN data describe admitted address membership, not
                 # every observed catch-all announcement. This conservative
                 # guard is explicit product policy, not a geographic claim.
+                if trace is not None:
+                    trace.route_input(rec, "quarantined", "observed-superaggregate-not-admitted-as-AS-owned-range")
                 quarantine_rows += weight
                 quarantine_by_source[rec.source] += weight
                 counts[f"ipv{rec.version}_superaggregate_claims_quarantined"] += weight
@@ -368,7 +440,11 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
                         detail["prefix"] = f"{address(rec.start)}/{width - size.bit_length() + 1}"
                     quarantined.append(detail)
                 continue
-            for start, end in public_intervals(rec.version, rec.start, rec.end):
+            pieces = tuple(public_intervals(rec.version, rec.start, rec.end))
+            if trace is not None:
+                trace.route_input(rec, "accepted" if pieces else "filtered",
+                                  "public-address-portion" if pieces else "outside-public-contract")
+            for start, end in pieces:
                 yield rec.version, start, end, {"asns": rec.asns, "views": rec.views or (rec.collector or rec.source,),
                                              "span": str(rec.end-rec.start), "source": rec.source}
     with event_stream(normalized()) as points:
@@ -464,16 +540,18 @@ def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int
 
 
 def audit_auxiliary(sources: Iterable[dict], geo_groups: dict[int, list[str]], registry: dict,
-                    routing_prefixes: Iterable[str] | None = None) -> dict:
+                    routing_prefixes: Iterable[str] | None = None, *, trace=None) -> dict:
     sources = list(sources)
     if routing_prefixes is not None and any(source["id"] == "bgp-visible" for source in sources):
         raise ValueError("bgp-visible is reserved for the current routing snapshot union")
     counts = Counter()
     def records():
         for source in sources:
-            for record in parse_source(source["format"], source["path"], source):
+            for record in parse_source(source["format"], source["path"], source, trace=trace):
                 if not isinstance(record, AuxiliaryRecord):
                     raise ValueError("auxiliary source returned routing membership")
+                if trace is not None:
+                    trace.route_input(record, "auxiliary", "non-voting-" + record.kind)
                 counts[record.source] += 1
                 yield record
         if routing_prefixes is not None:

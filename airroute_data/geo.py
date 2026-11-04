@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict, OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import bz2
 import csv
 import gzip
@@ -29,6 +29,9 @@ class CountryRecord:
     source: str
     lineage: str
     semantics: str = "country-estimate"
+    # Diagnostic-only source fields. They never affect identity, sorting,
+    # representations, location normalization or the production event payload.
+    raw_fields: dict | None = field(default=None, compare=False, repr=False)
 
     @classmethod
     def network(cls, network: str, country: str | None, source: str,
@@ -98,10 +101,39 @@ def _record(row: dict, source: dict) -> CountryRecord:
         family, start, end = bounds(row["network"])
     else:
         family, start, end = bounds(row["start_ip"], row["end_ip"], source.get("ip_version"))
-    return CountryRecord(family, start, end, country_code(row.get("country_code")), sid, lineage)
+    return CountryRecord(family, start, end, country_code(row.get("country_code")), sid, lineage,
+                         raw_fields={"country_code": row.get("country_code")})
 
 
-def parse_source(format: str, path: str | Path, source: dict) -> Iterator[CountryRecord]:
+def parse_source(format: str, path: str | Path, source: dict, *, trace=None) -> Iterator[CountryRecord]:
+    """Parse unchanged input semantics, with optional non-product accounting.
+
+    records_read counts non-comment candidate CSV IP rows, including a failing
+    row; locations_read counts MaxMind's lookup rows separately. Neither is a
+    physical text-line or unique-address count.
+    """
+    stats = {"records_read": 0, "locations_read": 0, "records_parsed": 0,
+             "ipv4_records": 0, "ipv6_records": 0}
+    status = "interrupted"
+    error_type = None
+    try:
+        for record in _parse_source(format, path, source, _stats=stats):
+            stats["records_parsed"] += 1
+            stats[f"ipv{record.version}_records"] += 1
+            yield record
+        status = "parsed" if stats["records_parsed"] else "empty"
+    except Exception as error:
+        status = "failed"
+        error_type = type(error).__name__
+        raise
+    finally:
+        if trace is not None:
+            trace.source_event(str(source["id"]), "parse-country", status,
+                               **stats, error_type=error_type,
+                               count_semantics="Candidate CSV IP rows; MaxMind location lookup rows separate. Parsed family counts are records, not distinct IPs.")
+
+
+def _parse_source(format: str, path: str | Path, source: dict, *, _stats: dict) -> Iterator[CountryRecord]:
     """Parse only actual IP-country estimates; registration country never substitutes.
 
     IP2Location DB1 numeric IPv6 files require source.ip_version=6, because small
@@ -116,26 +148,35 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Countr
         if not locations or not blocks:
             raise ValueError("GeoLite Country bundle needs Locations-en and Blocks-IPv4/IPv6")
         countries: dict[str, str | None] = {}
+        raw_countries: dict[str, str | None] = {}
         with open_text(locations[0]) as stream:
             for row in csv.DictReader(stream):
+                _stats["locations_read"] += 1
                 countries[row["geoname_id"]] = country_code(row.get("country_iso_code"))
+                raw_countries[row["geoname_id"]] = row.get("country_iso_code")
         for block in blocks:
             with open_text(block) as stream:
                 for row in csv.DictReader(stream):
+                    _stats["records_read"] += 1
                     family, start, end = bounds(row["network"])
                     # registered_country_geoname_id is registration, not location.
                     cc = countries.get(row.get("geoname_id", ""))
-                    yield CountryRecord(family, start, end, cc, sid, lineage)
+                    yield CountryRecord(family, start, end, cc, sid, lineage,
+                        raw_fields={"country_code": raw_countries.get(row.get("geoname_id", "")),
+                                    "geoname_id": row.get("geoname_id"),
+                                    "registered_country_geoname_id": row.get("registered_country_geoname_id")})
         return
     if format in ("dbip-country-csv", "dbip"):
         with open_text(path) as stream:
             for row in csv.reader(stream):
                 if not row or row[0].startswith("#"):
                     continue
+                _stats["records_read"] += 1
                 if len(row) != 3:
                     raise ValueError("DB-IP Country Lite requires exactly three columns")
                 family, start, end = bounds(row[0], row[1])
-                yield CountryRecord(family, start, end, country_code(row[2]), sid, lineage)
+                yield CountryRecord(family, start, end, country_code(row[2]), sid, lineage,
+                                    raw_fields={"country_code": row[2]})
         return
     if format in ("ip2location-db1-csv", "ip2location"):
         paths = sorted(path.rglob("*.CSV")) + sorted(path.rglob("*.csv")) if path.is_dir() else [path]
@@ -150,10 +191,12 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Countr
                 for row in csv.reader(stream):
                     if not row or row[0].startswith("#"):
                         continue
+                    _stats["records_read"] += 1
                     if len(row) < 4:
                         raise ValueError("IP2Location DB1 requires start,end,country code,country name")
                     family, start, end = bounds(row[0], row[1], version)
-                    yield CountryRecord(family, start, end, country_code(row[2]), sid, lineage)
+                    yield CountryRecord(family, start, end, country_code(row[2]), sid, lineage,
+                                        raw_fields={"country_code": row[2]})
         return
     if format in ("ipinfo-lite-csv", "iplocate-country-csv", "country-csv"):
         with open_text(path) as stream:
@@ -162,6 +205,7 @@ def parse_source(format: str, path: str | Path, source: dict) -> Iterator[Countr
             if "country_code" not in fields or not ("network" in fields or {"start_ip", "end_ip"} <= fields):
                 raise ValueError(f"{format}: missing documented location-country fields")
             for row in reader:
+                _stats["records_read"] += 1
                 yield _record(row, source)
         return
     raise ValueError(f"unsupported country format: {format}")
@@ -294,7 +338,8 @@ def intervals_to_cidrs(intervals: Iterable[tuple[int, int, int]]) -> list[str]:
 
 
 def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
-                 *, min_lineages: int = 2, details_path: str | Path | None = None) -> dict:
+                 *, min_lineages: int = 2, details_path: str | Path | None = None,
+                 trace=None) -> dict:
     """Accept agreement, not majority claims of statistical accuracy.
 
     A source's more specific interval supersedes its own covering estimate.
@@ -319,22 +364,53 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
     excluded_addresses = Counter()
     covered = []
     def normalized():
-        for rec in records:
-            source_rows[rec.source] += 1
-            if rec.semantics != "country-estimate":
-                counters["auxiliary_rows_ignored"] += 1
-                continue
-            if rec.version not in (4, 6) or rec.start > rec.end:
-                raise ValueError("invalid country record")
-            kept = 0
-            for start, end in public_intervals(rec.version, rec.start, rec.end):
-                kept += end - start + 1
-                if rec.country in mapping:
-                    usable_sources.add(rec.source); usable_lineages.add(rec.lineage)
-                yield rec.version, start, end, {"source": rec.source, "lineage": rec.lineage,
-                    "country": rec.country, "span": str(rec.end - rec.start),
-                    "original_start": str(rec.start), "original_end": str(rec.end)}
-            excluded_addresses[f"ipv{rec.version}"] += rec.end - rec.start + 1 - kept
+        accounting = defaultdict(Counter) if trace is not None else None
+        completed = False
+        try:
+            for rec in records:
+                stats = None
+                if trace is not None:
+                    trace.geo_input(rec)
+                    stats = accounting[rec.source]
+                    family = f"ipv{rec.version}"
+                    stats[family + "_input_rows"] += 1
+                    stats[family + "_input_addresses_sum"] += rec.end - rec.start + 1
+                    stats[family + ("_country_present_rows" if rec.country is not None else "_country_missing_rows")] += 1
+                source_rows[rec.source] += 1
+                if rec.semantics != "country-estimate":
+                    if stats is not None:
+                        stats[family + "_non_country_semantics_ignored_rows"] += 1
+                        stats[family + "_non_country_semantics_ignored_addresses_sum"] += rec.end - rec.start + 1
+                    counters["auxiliary_rows_ignored"] += 1
+                    continue
+                if rec.version not in (4, 6) or rec.start > rec.end:
+                    raise ValueError("invalid country record")
+                kept = 0
+                for start, end in public_intervals(rec.version, rec.start, rec.end):
+                    kept += end - start + 1
+                    if rec.country in mapping:
+                        usable_sources.add(rec.source); usable_lineages.add(rec.lineage)
+                    yield rec.version, start, end, {"source": rec.source, "lineage": rec.lineage,
+                        "country": rec.country, "span": str(rec.end - rec.start),
+                        "original_start": str(rec.start), "original_end": str(rec.end)}
+                excluded = rec.end - rec.start + 1 - kept
+                excluded_addresses[f"ipv{rec.version}"] += excluded
+                if stats is not None:
+                    stats[family + "_public_kept_addresses_sum"] += kept
+                    stats[family + "_excluded_addresses_sum"] += excluded
+            completed = True
+        finally:
+            if trace is not None:
+                for sid, stats in sorted(accounting.items()):
+                    for version in (4, 6):
+                        for measure in ("input_rows", "input_addresses_sum", "country_present_rows", "country_missing_rows",
+                                        "public_kept_addresses_sum", "excluded_addresses_sum",
+                                        "non_country_semantics_ignored_rows", "non_country_semantics_ignored_addresses_sum"):
+                            stats.setdefault(f"ipv{version}_{measure}", 0)
+                    trace.source_event(sid, "geo-normalization", "completed" if completed else "interrupted",
+                        count_scope="per-input-row sums; overlap not deduplicated; not independent support",
+                        country_count_scope="Presence means normalized country is non-null; raw missing/unknown markers are retained separately.",
+                        **stats)
     output = None
     if details_path:
         details_path = Path(details_path); details_path.parent.mkdir(parents=True, exist_ok=True)
@@ -402,6 +478,11 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                               "status": state, "region_id": region, "sources": selected_sources,
                               "lineages": {k: sorted(v) for k, v in informed.items()},
                               "country_disagreement": len(countries) > 1}
+                    if trace is not None:
+                        trace.geo_decision({**detail,
+                            "start_int": previous, "end_int": point - 1,
+                            "source_regions": {sid: sorted({mapping[c] for c in values if c in mapping})
+                                               for sid, values in selected_sources.items()}})
                     if region is None or detail["country_disagreement"]:
                         issue_total += 1
                         if output: output.write(json.dumps(detail, sort_keys=True) + "\n")
@@ -426,6 +507,8 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                     detail = {"family": family, "start": _ip(family, cursor), "end": _ip(family, gap_end),
                               "status": "missing-all-sources", "region_id": None, "sources": {}, "lineages": {},
                               "country_disagreement": False}
+                    if trace is not None:
+                        trace.geo_decision({**detail, "start_int": cursor, "end_int": gap_end})
                     issue_total += 1
                     if output: output.write(json.dumps(detail, sort_keys=True) + "\n")
                     if len(issues) < 100: issues.append(detail)
@@ -438,6 +521,8 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                 detail = {"family": family, "start": _ip(family, cursor), "end": _ip(family, last),
                           "status": "missing-all-sources", "region_id": None, "sources": {}, "lineages": {},
                           "country_disagreement": False}
+                if trace is not None:
+                    trace.geo_decision({**detail, "start_int": cursor, "end_int": last})
                 issue_total += 1
                 if output: output.write(json.dumps(detail, sort_keys=True) + "\n")
                 if len(issues) < 100: issues.append(detail)

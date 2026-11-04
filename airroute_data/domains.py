@@ -123,13 +123,17 @@ class DLC:
         self.cache: dict[tuple[str, tuple[str, ...]], tuple[Rule, ...]] = {}
         self.include_edges: dict[str, list[dict]] = {}
         self.quarantined: list[dict] = []
+        # Diagnostic counters are source reads, not expanded selector copies.
+        self.read_lines = self.parsed_records = self.include_records = 0
         if not self.root.is_dir():
             raise RuleError("DLC data directory is missing")
         for file in sorted(self.root.iterdir()):
             if not file.is_file() or not re.fullmatch(r"[a-zA-Z0-9_!.-]+", file.name):
                 continue
             rows: list[Rule | tuple[str, tuple[str, ...], int]] = []
-            for number, raw in enumerate(file.read_text(encoding="utf-8").splitlines(), 1):
+            lines = file.read_text(encoding="utf-8").splitlines()
+            self.read_lines += len(lines)
+            for number, raw in enumerate(lines, 1):
                 line = raw.split("#", 1)[0].strip()
                 if not line:
                     continue
@@ -141,6 +145,7 @@ class DLC:
                             raise RuleError("include supports only attribute filters")
                         rows.append((head[8:], tuple(annotations), number))
                         self.include_edges.setdefault(file.name, []).append({"category": head[8:], "filters": annotations, "line": number})
+                        self.include_records += 1
                         continue
                     attrs = frozenset(p[1:] for p in annotations if p.startswith("@"))
                     affiliated = [p[1:] for p in annotations if p.startswith("&")]
@@ -158,6 +163,7 @@ class DLC:
                         if not re.fullmatch(r"[a-zA-Z0-9_!.-]+", target):
                             raise RuleError("unsafe affiliation name")
                     rows.append(rule)
+                    self.parsed_records += 1
                     for target in affiliated:
                         self.affiliations.setdefault(target, []).append(rule)
                 except RuleError as exc:
@@ -408,6 +414,48 @@ def minimize(rules: Iterable[Rule]) -> list[Rule]:
     return sorted(out, key=lambda r: (r.kind not in DOMAIN_KINDS, r.kind, r.value))
 
 
+class CompactionWitness:
+    """Bounded lookup of a final predicate that covers an original rule.
+
+    This describes the existing minimizer; it never decides admission. In
+    particular, arbitrary regex containment is not inferred from a host sample.
+    """
+    def __init__(self, lines: Iterable[str]):
+        self.lines = set(lines)
+        self.suffix = {v for line in self.lines for k, _, v in [line.partition(",")] if k == "DOMAIN-SUFFIX"}
+        self.keywords = sorted(v for line in self.lines for k, _, v in [line.partition(",")] if k == "DOMAIN-KEYWORD")
+        self.strict = {scope: line for line in self.lines for k, _, v in [line.partition(",")]
+                       if k == "DOMAIN-REGEX" and (scope := _strict_subdomain_suffix(v)) is not None}
+
+    def covering(self, rule: Rule) -> str | None:
+        if rule.text in self.lines:
+            return rule.text
+        value = rule.value
+        if rule.kind in IP_KINDS:
+            network = ipaddress.ip_network(value)
+            kind = "IP-CIDR" if network.version == 4 else "IP-CIDR6"
+            for length in range(network.prefixlen - 1, -1, -1):
+                text = f"{kind},{network.supernet(new_prefix=length)}"
+                if text in self.lines:
+                    return text
+            return None
+        strict = _strict_subdomain_suffix(value) if rule.kind == "DOMAIN-REGEX" else None
+        if rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"} or strict is not None:
+            value = strict or value
+            parts = value.split(".")
+            for i in range(len(parts)):
+                parent = ".".join(parts[i:])
+                if parent in self.suffix:
+                    return "DOMAIN-SUFFIX," + parent
+                if i > 0 and parent in self.strict:
+                    return self.strict[parent]
+        if rule.kind in {"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD"}:
+            for keyword in self.keywords:
+                if keyword in value:
+                    return "DOMAIN-KEYWORD," + keyword
+        return None
+
+
 class _CNIndex:
     def __init__(self, cn: list[Rule]):
         self.patterns = [r for r in cn if r.kind == "DOMAIN-KEYWORD" or
@@ -612,11 +660,11 @@ def official_domains(data: object, source_id: str, selector: dict) -> tuple[list
     return rows, rejected
 
 
-def build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dict[str, list[str]], dict]:
-    return _build_domains(sources, products)
+def build_domains(sources: list[dict], products: dict | str | Path, *, trace=None) -> tuple[dict[str, list[str]], dict]:
+    return _build_domains(sources, products, trace=trace)
 
 
-def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[dict[str, list[str]], dict]:
+def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=None) -> tuple[dict[str, list[str]], dict]:
     """Build products from frozen descriptors; paths may point to files or trees.
 
     Selectors bind frozen source classifications and preserve matching scope.
@@ -645,6 +693,11 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
         if len(counted["samples"]) < 12:
             counted["samples"].append(item)
         report["stage_records"] += 1
+        if trace is not None:
+            traced = {**item, "source_id": sid}
+            if stage == "compaction":
+                traced["covering_predicate"] = compaction.covering(rule)
+            trace.domain_event(traced)
     def quarantine(item):
         key = item.get("source", "unknown") + ":" + item["reason"]
         counts = report.setdefault("quarantine_counts", {})
@@ -662,12 +715,16 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
             source_id = selector["source"]
             source = by_id.get(source_id)
             if source is None:
+                if trace is not None:
+                    trace.source_event(source_id, "domain-selector", "unavailable", group=name,
+                                       selector=selector, reason="source unavailable")
                 if selector.get("required", False):
                     raise RuleError(f"required selector {name}/{source_id}: source unavailable")
                 report["unavailable_selectors"].append({"group": name, "source": source_id, "reason": "source unavailable"})
                 continue
             try:
                 rejected = []
+                read_lines = None
                 format = selector.get("format", source.get("format", "surge"))
                 if format == "dlc":
                     if source_id not in dlc:
@@ -677,6 +734,13 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
                             audit(name, selector, Rule("UNSUPPORTED", bad["predicate"], source=bad["source"], line=bad["line"]),
                                   "source-parse", "reject", bad["reason"], scope="source-wide; original file retained")
                         report["dlc_includes"][source_id] = dlc[source_id].include_edges
+                        if trace is not None:
+                            catalog = dlc[source_id]
+                            trace.source_event(source_id, "domain-source-parse", "parsed",
+                                read_lines=catalog.read_lines, parsed_records=catalog.parsed_records,
+                                include_records=catalog.include_records, rejected_records=len(catalog.quarantined),
+                                count_scope="source files read once; selector/include expansions counted separately",
+                                include_edges=catalog.include_edges)
                     for category in selector.get("exclude_categories", []):
                         if category in dlc[source_id].items:
                             for excluded_row in dlc[source_id].expand(category):
@@ -691,13 +755,17 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
                         if keep: rows.append(row)
                 elif format == "official-json":
                     path = Path(source["path"])
-                    data = json.loads(path.read_text(encoding="utf-8"))
+                    payload = path.read_text(encoding="utf-8")
+                    if trace is not None: read_lines = len(payload.splitlines())
+                    data = json.loads(payload)
                     rows, rejected = official_domains(data, source_id, selector)
                 elif format == "official-cidr":
                     if source.get("service") != name or not selector.get("official_service_ips"):
                         raise RuleError("official IP catalogue is not scoped to this product")
+                    payload = Path(source["path"]).read_text()
+                    if trace is not None: read_lines = len(payload.splitlines())
                     rows = [normalize_rule("IP-CIDR", line.strip(), source=source_id, line=i)
-                            for i, line in enumerate(Path(source["path"]).read_text().splitlines(), 1)
+                            for i, line in enumerate(payload.splitlines(), 1)
                             if line.strip() and not line.startswith("#")]
                     official_ip_sources.setdefault(name, set()).add(source_id)
                 else:
@@ -707,7 +775,9 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
                         if relative.is_absolute() or ".." in relative.parts:
                             raise RuleError("unsafe selector path")
                         path = path / relative if path.is_dir() else path
-                    rows, rejected = parse_third_party(path.read_text(encoding="utf-8"), format, f"{source_id}:{selector.get('path', path.name)}", behavior=selector.get("behavior", "classical"))
+                    payload = path.read_text(encoding="utf-8")
+                    if trace is not None: read_lines = len(payload.splitlines())
+                    rows, rejected = parse_third_party(payload, format, f"{source_id}:{selector.get('path', path.name)}", behavior=selector.get("behavior", "classical"))
                 for bad in rejected:
                     quarantine(bad)
                     audit(name, selector, Rule("UNSUPPORTED", bad["predicate"], source=bad["source"], line=bad["line"]),
@@ -715,6 +785,11 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
                 for row in rows:
                     audit(name, selector, row, "parse-normalize", "accept", "semantics-preserved", attributes=sorted(row.attrs))
                     mark_origin(name, selector, row)
+                if trace is not None:
+                    trace.source_event(source_id, "domain-selector-parse", "parsed" if rows else "empty",
+                        group=name, selector=selector, parsed_records=len(rows), rejected_records=len(rejected),
+                        read_lines=read_lines, input_file=selector.get("path", selector.get("category", source.get("path"))),
+                        count_scope="expanded selector predicates; repeated reads/memberships are not unique physical records")
                 # A curated service list can be a primary identity assertion;
                 # it need not get a second vote from its own upstream mirror.
                 # Its declared match scope is still enforced, especially for
@@ -754,6 +829,9 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
                     raise RuleError("required selector has no usable predicates")
                 accepted.extend(rows)
             except (RuleError, OSError, UnicodeError, json.JSONDecodeError) as exc:
+                if trace is not None:
+                    trace.source_event(source_id, "domain-selector", "failed", group=name,
+                                       selector=selector, error_type=type(exc).__name__, error=str(exc))
                 if selector.get("required", False):
                     raise RuleError(f"required selector {name}/{source_id}: {exc}") from exc
                 reason = f"input unavailable ({type(exc).__name__})" if isinstance(exc, (OSError, UnicodeError)) else str(exc)
@@ -779,16 +857,22 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
         include(name)
     cn: list[Rule] = []
     for rule in prepared.get("region/cn", []):
+        reason = None
         if rule.kind not in DOMAIN_KINDS or (rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." not in rule.value):
-            quarantine(_quarantine(rule.source, rule.line, rule.text, "not a named domain predicate; IP geography is generated separately"))
+            reason = "not a named domain predicate; IP geography is generated separately"
         elif rule.kind == "DOMAIN-REGEX" and re.search(rule.value, "unrelated.example"):
-            quarantine(_quarantine(rule.source, rule.line, rule.text, "regional regex matches unrelated negative control"))
+            reason = "regional regex matches unrelated negative control"
         elif rule.kind == "DOMAIN-KEYWORD" and rule.value in {"cn", "china", "ru", "russia"}:
-            quarantine(_quarantine(rule.source, rule.line, rule.text, "country-name keyword is not a service scope"))
+            reason = "country-name keyword is not a service scope"
         elif "!cn" in rule.attrs:
-            quarantine(_quarantine(rule.source, rule.line, rule.text, "source explicitly marks non-CN service"))
+            reason = "source explicitly marks non-CN service"
         else:
             cn.append(rule)
+        if reason is not None:
+            quarantine(_quarantine(rule.source, rule.line, rule.text, reason))
+            if trace is not None:
+                trace.domain_event({"group": "region/cn", "source": rule.source, "line": rule.line,
+                    "predicate": rule.text, "stage": "regional-scope", "status": "excluded", "reason": reason})
     prepared["region/cn"] = cn
     cn_index = _CNIndex(cn)
     # A domestic-access list can contain international service endpoints. Its
@@ -809,10 +893,18 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
             for rule in rows:
                 if rule.kind in IP_KINDS and rule.source not in official_ip_sources.get(name, set()):
                     quarantine(_quarantine(rule.source, rule.line, rule.text, "third-party service IP/ASN does not establish exclusive service identity"))
+                    if trace is not None:
+                        trace.domain_event({"group": name, "source": rule.source, "line": rule.line,
+                            "predicate": rule.text, "stage": "service-scope", "status": "excluded",
+                            "reason": "third-party service IP/ASN does not establish exclusive service identity"})
                 elif rule.kind in IP_KINDS:
                     kept.append(rule)
                 elif "." not in rule.value and rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"}:
                     quarantine(_quarantine(rule.source, rule.line, rule.text, "TLD alone is not service identity"))
+                    if trace is not None:
+                        trace.domain_event({"group": name, "source": rule.source, "line": rule.line,
+                            "predicate": rule.text, "stage": "service-scope", "status": "excluded",
+                            "reason": "TLD alone is not service identity"})
                 elif cn_index.overlaps(rule):
                     declared = next((d for d in declarations.get(name, []) if d.get("predicate") == rule.text
                                      and d.get("source") == rule.source and d.get("reason")), None)
@@ -823,6 +915,10 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
                             "meaning": "CN keyword/regex versus an infinite suffix/pattern language; no disjointness proof. Upstream predicates are retained unchanged, with no inferred priority."})
                         uncertain["count"] += 1
                         if len(uncertain["samples"]) < 12: uncertain["samples"].append(rule.text)
+                        if trace is not None:
+                            trace.domain_event({"group": name, "source": rule.source, "line": rule.line,
+                                "predicate": rule.text, "stage": "cross-market", "status": "retained-conflict",
+                                "reason": "unproven-pattern-disjointness; original predicate retained"})
                         continue
                     if declared is None and market_policy and not cn_named.covers(rule):
                         declared = {"predicate": rule.text, "source": rule.source,
@@ -850,6 +946,7 @@ def _build_domains(sources: list[dict], products: dict | str | Path) -> tuple[di
             report["provenance"].setdefault(name, {}).setdefault(rule.text, []).append({"source": rule.source, "line": rule.line, "attributes": sorted(rule.attrs)})
         groups[name] = [r.text for r in minimize(rows)]
         output_set = set(groups[name])
+        compaction = CompactionWitness(groups[name]) if trace is not None else None
         seen_rows = set()
         for row in rows:
             status = "output" if row.text in output_set and row.text not in seen_rows else "covered"

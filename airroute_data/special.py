@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 from typing import Iterable
 
-from .domains import CoverageIndex, DLC, IP_KINDS, Rule, RuleError, minimize, normalize_rule, parse_third_party
+from .domains import CompactionWitness, CoverageIndex, DLC, IP_KINDS, Rule, RuleError, minimize, normalize_rule, parse_third_party
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "special.json"
 LAN_NETWORKS = tuple(ipaddress.ip_network(s) for s in (
@@ -151,21 +151,41 @@ def _snapshot(source: dict, path: Path | None = None) -> dict:
     return meta
 
 
-def _parse_audit(source: dict, selector: dict, dlc: dict[str, DLC]) -> tuple[list[Rule], list[dict], dict]:
+def _parse_audit(source: dict, selector: dict, dlc: dict[str, DLC], *, trace=None) -> tuple[list[Rule], list[dict], dict]:
     sid = source["id"]
     if selector.get("category"):
         if sid not in dlc:
             dlc[sid] = DLC(source["path"], sid)
+            if trace is not None:
+                catalog = dlc[sid]
+                trace.source_event(sid, "special-source-parse", "parsed",
+                    read_lines=catalog.read_lines, parsed_records=catalog.parsed_records,
+                    include_records=catalog.include_records, rejected_records=len(catalog.quarantined),
+                    count_scope="special DLC parser source files read once, independently from domain-generation reads",
+                    include_edges=catalog.include_edges)
+                for item in catalog.quarantined:
+                    trace.domain_event({"group": selector.get("group", "special/reference"), "source": item["source"],
+                        "source_id": sid, "line": item["line"], "predicate": item["predicate"],
+                        "stage": "source-parse", "status": "reject", "reason": item["reason"],
+                        "scope": "source-wide; original file retained"})
         path = dlc[sid].root / selector["category"]
         return dlc[sid].expand(selector["category"]), [], _snapshot(source, path)
     path = _file(source, selector.get("path"))
-    rows, bad = parse_third_party(path.read_text(encoding="utf-8"), selector.get("format", "surge"), sid,
+    payload = path.read_text(encoding="utf-8")
+    if trace is not None:
+        trace.source_event(sid, "special-source-read", "read", read_lines=len(payload.splitlines()),
+            selector=selector, input_file=selector.get("path", path.name),
+            count_scope="physical lines read for this selector, not unique semantic predicates")
+    rows, bad = parse_third_party(payload, selector.get("format", "surge"), sid,
                                  behavior=selector.get("behavior", "classical"))
     return rows, bad, _snapshot(source, path)
 
 
-def _registry(source: dict) -> dict[str, str]:
+def _registry(source: dict, *, trace=None) -> dict[str, str]:
     text = _file(source).read_text(encoding="utf-8-sig")
+    if trace is not None:
+        trace.source_event(source["id"], "special-registry-read", "read", read_lines=len(text.splitlines()),
+                           count_scope="physical CSV lines including header")
     rows = csv.DictReader(io.StringIO(text))
     if not rows.fieldnames or not {"Address Block", "Name"}.issubset(rows.fieldnames):
         raise RuleError("invalid IANA registry CSV columns")
@@ -182,7 +202,7 @@ def _registry(source: dict) -> dict[str, str]:
     return parsed
 
 
-def build_special(sources: Iterable[dict], config=None) -> tuple[dict[str, list[str]], dict]:
+def build_special(sources: Iterable[dict], config=None, *, trace=None) -> tuple[dict[str, list[str]], dict]:
     config = load_special_config(config)
     by_id = {s["id"]: s for s in sources}
     prepared: dict[str, list[Rule]] = {}
@@ -191,6 +211,13 @@ def build_special(sources: Iterable[dict], config=None) -> tuple[dict[str, list[
               "gaps": list(config.get("gaps", [])), "registry_checks": {},
               "network_activity": "none; frozen public data and maintained RFC/official records only"}
     evidence = config.get("evidence", {})
+    def audit(gid, source, predicate, stage, status, reason, **extra):
+        if trace is not None:
+            trace.domain_event({"group": gid, "source": source, "source_id": source.split(":", 1)[0],
+                                "predicate": predicate, "stage": stage, "status": status, "reason": reason, **extra})
+    def source_audit(sid, stage, status, **extra):
+        if trace is not None:
+            trace.source_event(sid, stage, status, **extra)
     for group in config["groups"]:
         gid = group["id"]
         prepared[gid] = []
@@ -204,31 +231,48 @@ def build_special(sources: Iterable[dict], config=None) -> tuple[dict[str, list[
             source_ids.update(entry["evidence"])
             report["provenance"][gid].setdefault(rule.text, []).append({"reason": entry["reason"],
                 "evidence": [{"id": e, **evidence[e]} for e in entry["evidence"]]})
+            audit(gid, rule.source, rule.text, "maintained-configuration", "accept", entry["reason"],
+                  configuration_version=config["version"], evidence=[{"id": e, **evidence[e]} for e in entry["evidence"]])
         report["catalogue"][gid] = {k: group[k] for k in ("name", "purpose", "content_types", "optional", "minimum_rules")}
         report["catalogue"][gid].update({"kind": "dns-address-mode" if gid.startswith("dns/") else "special-purpose", "source_ids": sorted(source_ids), "required_output": True})
     dlc = {}
     for selector in config.get("selectors", []):
         sid, gid = selector["source"], selector["group"]
         if sid not in by_id:
+            source_audit(sid, "special-selector", "unavailable", group=gid, selector=selector)
             report["selector_health"].append({"group": gid, "source": sid, "selector": selector["category"], "status": "unavailable"})
             continue
         try:
-            rows, bad, snapshot = _parse_audit(by_id[sid], selector, dlc)
+            rows, bad, snapshot = _parse_audit(by_id[sid], selector, dlc, trace=trace)
         except (OSError, UnicodeError, RuleError) as exc:
+            source_audit(sid, "special-selector", "failed", group=gid, selector=selector,
+                         error_type=type(exc).__name__, error=str(exc))
             report["selector_health"].append({"group": gid, "source": sid, "selector": selector["category"], "status": "unavailable", "reason": str(exc)})
             continue
         accepted, rejected = 0, len(bad)
+        source_audit(sid, "special-selector-parse", "parsed" if rows else "empty", group=gid,
+                     selector=selector, parsed_records=len(rows), rejected_records=len(bad),
+                     count_scope="selector predicates; repeated selector expansions are not unique physical records")
+        for item in bad:
+            audit(gid, item.get("source", sid), item.get("predicate", ""), "parse-normalize", "reject",
+                  item["reason"], line=item.get("line", 0), selector=selector)
         for rule in rows:
+            audit(gid, rule.source, rule.text, "parse-normalize", "accept", "semantics-preserved",
+                  line=rule.line, selector=selector)
             # A category name establishes endpoint role only. Broad roots,
             # keyword/regex and IP values are not promoted to DNS exceptions.
             if rule.kind != "DOMAIN":
                 rejected += 1
                 report["excluded"].append({"source": rule.source, "rule": rule.text, "reason": "role catalogue requires exact endpoint; suffix is not an equivalent host"})
+                audit(gid, rule.source, rule.text, "scope", "excluded",
+                      "role catalogue requires exact endpoint; suffix is not an equivalent host", line=rule.line, selector=selector)
                 continue
             prepared[gid].append(rule)
             proof = {"source": rule.source, "line": rule.line, "snapshot": snapshot,
                      "reason": f"explicit {selector['role']} endpoint catalogue; no assertion that Real IP is universally required"}
             report["provenance"][gid].setdefault(rule.text, []).append(proof)
+            audit(gid, rule.source, rule.text, "scope", "accept", proof["reason"], line=rule.line,
+                  selector=selector, snapshot=snapshot)
             accepted += 1
         report["catalogue"][gid]["source_ids"].append(sid)
         report["selectors"].append({"group": gid, "source": sid, "selector": selector["category"],
@@ -238,15 +282,25 @@ def build_special(sources: Iterable[dict], config=None) -> tuple[dict[str, list[
     local_index = CoverageIndex(prepared["special/lan"] + prepared["special/local-name-compat"])
     for selector in config.get("audit_inputs", []):
         sid = selector["source"]
+        gid = "dns/realip-optional" if selector["purpose"] == "realip-compatibility" else "special/lan"
         if sid not in by_id:
+            source_audit(sid, "special-reference-selector", "unavailable", group=gid, selector=selector)
             report["selector_health"].append({"source": sid, "selector": selector.get("path", selector.get("category")), "status": "unavailable"})
             continue
         try:
-            rows, bad, snapshot = _parse_audit(by_id[sid], selector, dlc)
+            rows, bad, snapshot = _parse_audit(by_id[sid], selector, dlc, trace=trace)
         except (OSError, UnicodeError, RuleError) as exc:
+            source_audit(sid, "special-reference-selector", "failed", group=gid, selector=selector,
+                         error_type=type(exc).__name__, error=str(exc))
             report["selector_health"].append({"source": sid, "status": "unavailable", "reason": str(exc)})
             continue
         reasons = {}
+        source_audit(sid, "special-reference-parse", "parsed" if rows else "empty", group=gid,
+                     selector=selector, parsed_records=len(rows), rejected_records=len(bad),
+                     count_scope="selector predicates; repeated selector expansions are not unique physical records")
+        for item in bad:
+            audit(gid, item.get("source", sid), item.get("predicate", ""), "parse-normalize", "reject",
+                  item["reason"], line=item.get("line", 0), selector=selector)
         report["excluded"].extend(bad[:max(0, 1000-len(report["excluded"]))])
         for rule in rows:
             reason = "no-specific-compatibility-or-local-purpose-evidence"
@@ -267,6 +321,9 @@ def build_special(sources: Iterable[dict], config=None) -> tuple[dict[str, list[
             elif rule.kind != "DOMAIN":
                 reason = "broad-suffix-keyword-or-regex-not-a-proven-endpoint-exception"
             reasons[reason] = reasons.get(reason, 0) + 1
+            audit(gid, rule.source, rule.text, "reference-scope",
+                  "accept" if reason.startswith("optional-exact") else "covered" if reason.startswith("already-covered") else "excluded",
+                  reason, line=rule.line, selector=selector, snapshot=snapshot)
             if not reason.startswith(("already-covered", "optional-exact")) and len(report["excluded"]) < 1000:
                 report["excluded"].append({"source": sid, "rule": rule.text, "reason": reason})
         report["selectors"].append({"source": sid, "selector": selector.get("path", selector.get("category")),
@@ -277,20 +334,44 @@ def build_special(sources: Iterable[dict], config=None) -> tuple[dict[str, list[
     # present but incompatible registry fails rather than quietly changing LAN.
     for family, sid in ((4, "iana-special-v4"), (6, "iana-special-v6")):
         if sid not in by_id:
+            source_audit(sid, "special-registry", "unavailable", reason="maintained RFC baseline retained")
             report["registry_checks"][sid] = {"status": "unavailable", "baseline": "maintained RFC records"}
             continue
-        registry = _registry(by_id[sid])
+        try:
+            registry = _registry(by_id[sid], trace=trace)
+        except (OSError, UnicodeError, RuleError) as exc:
+            source_audit(sid, "special-registry-parse", "failed", error_type=type(exc).__name__, error=str(exc))
+            raise
+        source_audit(sid, "special-registry-parse", "parsed", parsed_records=len(registry),
+                     count_scope="unique normalized registry prefixes; registry rows may contain multiple prefixes")
         prefixes = {r.value for gid, rows in prepared.items() for r in rows if r.kind in IP_KINDS and
                     ipaddress.ip_network(r.value).version == family and gid not in {"special/public-dns", "special/multicast"}}
         missing = sorted(prefixes - registry.keys())
         if missing:
+            source_audit(sid, "special-registry-validation", "failed", missing_prefixes=missing)
             raise RuleError("maintained special prefixes absent from frozen IANA registry: " + ", ".join(missing))
         report["registry_checks"][sid] = {"status": "consistent", "checked_prefixes": len(prefixes), "snapshot": _snapshot(by_id[sid], _file(by_id[sid]))}
+        source_audit(sid, "special-registry-validation", "consistent", checked_prefixes=len(prefixes))
     groups = {gid: [r.text for r in minimize(rows)] for gid, rows in prepared.items()}
     # Optional compatibility data need not repeat the conservative default set.
     core = CoverageIndex(prepared["dns/realip"])
     groups["dns/realip-optional"] = [line for line in groups["dns/realip-optional"] if not core.covers(normalize_rule(*line.split(",", 1)))]
     for gid, lines in groups.items():
+        if trace is not None:
+            witness = CompactionWitness(lines)
+            default_witness = CompactionWitness(groups["dns/realip"]) if gid == "dns/realip-optional" else None
+            seen = set()
+            for rule in prepared[gid]:
+                covering = witness.covering(rule)
+                target_group = gid
+                if covering is None and default_witness is not None:
+                    covering = default_witness.covering(rule)
+                    if covering is not None: target_group = "dns/realip"
+                status = "output" if rule.text in witness.lines and rule.text not in seen else "covered"
+                audit(gid, rule.source, rule.text, "compaction", status,
+                      "retained-predicate" if status == "output" else "duplicate-predicate" if rule.text in seen else "semantically-covered",
+                      covering_predicate=covering, covering_group=target_group, line=rule.line)
+                seen.add(rule.text)
         reported_sources = {p["source"].split(":", 1)[0] for proofs in report["provenance"].get(gid, {}).values() for p in proofs if p.get("source")}
         report["catalogue"][gid]["source_ids"] = sorted(set(report["catalogue"][gid]["source_ids"]) | reported_sources)
         report["groups"][gid] = {"output_rules": len(lines), "accepted_before_compaction": len(prepared[gid]),

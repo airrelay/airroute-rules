@@ -1,0 +1,178 @@
+"""Read-only, bounded queries over one build's diagnostic index."""
+from __future__ import annotations
+
+import ipaddress
+import json
+from pathlib import Path
+import sqlite3
+
+from .domains import CoverageIndex, normalize_rule
+from .record import _blob
+
+
+def ranges(connection, table, family, start, end, limit=100, offset=0, product_prefix=None):
+    allowed = {'geo_input', 'geo_issue', 'route_input', 'output_ip', 'geo_change', 'domain_ip_event'}
+    if table not in allowed: raise ValueError('invalid trace table')
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone() is None:
+        return {'records': [], 'has_more': False, 'next_offset': None}
+    found = []; skip = offset
+    for size in range((32 if family == 4 else 128) + 1):
+        # For this span class, length < 2**(size+1). This lower bound avoids
+        # scanning every interval that starts before a high IPv6 address.
+        lower = max(0, start - (1 << (size + 1)) + 2)
+        extra = ' AND product LIKE ?' if product_prefix is not None else ''
+        params = (family, size, _blob(lower), _blob(end), _blob(start))
+        if product_prefix is not None: params += (product_prefix + '%',)
+        rows = connection.execute(f'SELECT rowid AS record_id,* FROM {table} WHERE family=? AND span=? AND start>=? AND start<=? AND end>=?{extra} ORDER BY start,rowid LIMIT ?',
+            (*params, skip + limit + 1))
+        for row in rows:
+            if skip: skip -= 1; continue
+            record = dict(row)
+            kind = ipaddress.IPv4Address if family == 4 else ipaddress.IPv6Address
+            for key in ('start', 'end'):
+                record[key] = str(kind(int.from_bytes(record[key], 'big')))
+            if record.get('details'): record['details'] = json.loads(record['details'])
+            if table=='geo_input':
+                record['original_fields_recorded'] = record.get('raw_fields') is not None
+                if record.get('raw_fields'):record['raw_fields'] = json.loads(record['raw_fields'])
+            found.append(record)
+            if len(found) > limit:
+                return {'records': found[:limit], 'has_more': True, 'next_offset': offset + limit}
+    return {'records': found, 'has_more': False, 'next_offset': None}
+
+
+def _metadata(connection, key, default):
+    row = connection.execute('SELECT value FROM metadata WHERE key=?', (key,)).fetchone()
+    return json.loads(row[0]) if row else default
+
+
+def _page(rows, limit, offset):
+    rows = list(rows)
+    return {'records': rows[offset:offset+limit], 'has_more': len(rows) > offset+limit,
+            'next_offset': offset+limit if len(rows) > offset+limit else None}
+
+
+def explain(directory, *, domain=None, ip=None, asn=None, product=None, limit=100, offset=0):
+    if sum(x is not None for x in (domain, ip, asn, product)) != 1:
+        raise ValueError('choose exactly one domain, IP/prefix, ASN or product')
+    if not 1 <= limit <= 1000 or offset < 0: raise ValueError('limit must be 1..1000 and offset nonnegative')
+    root = Path(directory)
+    # Explicit decompression by user avoids silently expanding a large artifact.
+    connection = sqlite3.connect((root / 'trace.sqlite3').resolve().as_uri() + '?mode=ro', uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        summary = json.loads((root / 'summary.json').read_text())
+        generation_context = summary.get('candidate', {}).get('generation_context') or {}
+        result = {'build_status': summary['status'], 'candidate_version': summary.get('candidate', {}).get('data_version'),
+                  'publication': summary.get('publication'), 'diagnostic_errors': summary.get('diagnostic_errors'),
+                  'pagination': 'Each section is separately bounded; has_more is not a total count. Repeat with next_offset.',
+                  'raw_archive_boundary': 'Original downloaded archives are not in this record. Successful rows retain semantic values and source references, not verbatim input bytes.'}
+        result['generation_context'] = generation_context
+        if ip is not None:
+            network = ipaddress.ip_network(ip, strict=False)
+            a, b = int(network.network_address), int(network.broadcast_address)
+            result['query'] = str(network)
+            for table in ('geo_input', 'geo_issue', 'route_input', 'output_ip', 'geo_change'):
+                result[table] = ranges(connection, table, network.version, a, b, limit, offset)
+            refs = ranges(connection, 'domain_ip_event', network.version, a, b, limit, offset)
+            refs['records'] = [json.loads(connection.execute('SELECT details FROM domain_event WHERE id=?',(r['event_id'],)).fetchone()[0]) for r in refs['records']]
+            result['rule_events'] = refs
+            registry = _metadata(connection, 'regions.json', {'regions': []})
+            mapping = {cc: r['key'] for r in registry['regions'] for cc in r['countries']}
+            records = result['geo_input']['records']
+            for row in records: row['normalized_region'] = mapping.get(row.get('country'))
+            if a == b:
+                from .geo import public_intervals
+                # A bounded ASN/output page must never change the point's Geo
+                # decision; query the disjoint regional/unknown records alone.
+                regions = [r['product'] for r in ranges(connection,'output_ip',network.version,a,b,limit=2,product_prefix='region/')['records']]
+                unknown = ranges(connection,'geo_issue',network.version,a,b,limit=2)['records']
+                result['recorded_geo_decision'] = {'regions': regions, 'unknown_reasons': sorted({r['status'] for r in unknown}),
+                    'scope': 'excluded-nongeographic' if not list(public_intervals(network.version,a,b)) else
+                             'recorded' if regions or unknown else 'no-decision-recorded-or-incomplete-build'}
+            if a == b and not result['geo_input']['has_more'] and offset == 0:
+                selected = []
+                for row in records:
+                    left, right = int(ipaddress.ip_address(row['start'])), int(ipaddress.ip_address(row['end']))
+                    superseded = any(other['source'] == row['source'] and
+                        int(ipaddress.ip_address(other['start'])) >= left and int(ipaddress.ip_address(other['end'])) <= right and
+                        (other['start'], other['end']) != (row['start'], row['end']) for other in records)
+                    row['superseded_by_own_source_more_specific'] = superseded
+                    row['ignored_non_location_evidence'] = row.get('semantics','country-estimate') != 'country-estimate'
+                    if not superseded and not row['ignored_non_location_evidence']: selected.append(row)
+                result['selected_source_records'] = selected
+            if a == b and generation_context.get('mode') != 'domains-only':
+                # Reconstruct the existing per-view longest-interval selection
+                # only for this point. The complete input index avoids logging
+                # every expanded ASN fragment during generation.
+                point_routes = ranges(connection,'route_input',network.version,a,b,limit=1000)
+                views = {}
+                if not point_routes['has_more']:
+                    for row in point_routes['records']:
+                        if row['status'] != 'accepted':continue
+                        info = row['details']; width = info['end']-info['start']
+                        for view in info.get('views') or [info.get('collector') or row['source']]:
+                            old = views.get(view)
+                            if old is None or width<old[0]:views[view]=(width,set(info['asns']),{row['id']})
+                            elif width==old[0]:old[1].update(info['asns']);old[2].add(row['id'])
+                origins = sorted({asn for _,values,_ in views.values() for asn in values})
+                stored = ranges(connection,'output_ip',network.version,a,b,limit=1000,product_prefix='asn/')
+                result['asn_point_selection'] = {'input_complete':not point_routes['has_more'],
+                    'policy':'current-snapshot-longest-match-per-view-origin-union',
+                    'expected_asns_from_recorded_inputs':origins if not point_routes['has_more'] else None,
+                    'stored_asns':sorted({int(r['product'].split('/')[1]) for r in stored['records']}),
+                    'stored_complete':not stored['has_more'], 'view_count':len(views),
+                    'views_sample':[{'view':view,'original_span':width,'selected_asns':sorted(values),'selected_input_ids':sorted(ids)}
+                                    for view,(width,values,ids) in sorted(views.items())[:100]],
+                    'view_samples_complete':len(views)<=100,
+                    'meaning':'Accepted inputs can be masked by a more specific interval in the same view. Views include derived ASN sources; none of this establishes physical location.'}
+            if generation_context.get('mode')=='domains-only':
+                result['ip_provenance_scope']='Geo/ASN outputs retained from binary_base; original IP source rows and observations were not re-parsed in this run. Consult the retained base build record.'
+                result['asn_point_selection']={'applicable':False,'reason':'retained binary outputs; no new routing inputs'}
+            result['scope'] = 'Prefix queries list overlapping records and may span different decisions. No single sampled IP proves a whole prefix. BGP claims are only route_input observed=1; accepted ones form the reported observation mask.'
+        elif asn is not None:
+            number = int(str(asn).removeprefix('AS'))
+            if not 0 < number < 2**32: raise ValueError('invalid ASN')
+            rows = connection.execute('SELECT r.id,r.source,r.status,r.observed,r.details FROM route_input r JOIN route_origin a ON a.input_id=r.id WHERE a.asn=? ORDER BY r.id LIMIT ? OFFSET ?', (number, limit+1, offset)).fetchall()
+            result['inputs'] = _page([dict(r) | {'details': json.loads(r['details'])} for r in rows], limit, 0)
+            result['inputs']['next_offset'] = offset+limit if len(rows)>limit else None
+            result['output_prefixes'] = _page([dict(r) | {'start': str(ipaddress.ip_address(int.from_bytes(r['start'],'big'))) if r['family']==4 else str(ipaddress.IPv6Address(int.from_bytes(r['start'],'big'))),
+                'end': str((ipaddress.IPv4Address if r['family']==4 else ipaddress.IPv6Address)(int.from_bytes(r['end'],'big')))} for r in connection.execute('SELECT product,family,start,end FROM output_ip WHERE product=? ORDER BY family,start LIMIT ? OFFSET ?', ('asn/'+str(number), limit+1, offset))], limit, 0)
+            result['output_prefixes']['next_offset'] = offset+limit if result['output_prefixes']['has_more'] else None
+        elif product is not None:
+            row = connection.execute('SELECT details FROM product WHERE name=?', (product,)).fetchone()
+            result['product'] = json.loads(row[0]) if row else None
+            result['stages'] = [dict(r) for r in connection.execute('SELECT stage,status,reason,COUNT(*) AS event_count FROM domain_event WHERE product=? GROUP BY stage,status,reason', (product,))]
+            result['events'] = {'records': [json.loads(r[0]) for r in connection.execute('SELECT details FROM domain_event WHERE product=? ORDER BY id LIMIT ? OFFSET ?', (product, limit+1, offset))]}
+            result['events'].update(has_more=len(result['events']['records'])>limit, next_offset=offset+limit if len(result['events']['records'])>limit else None)
+            result['events']['records'] = result['events']['records'][:limit]
+        else:
+            rule = normalize_rule('DOMAIN', domain)
+            parts = rule.value.split('.'); ancestors = ['.'.join(parts[i:]) for i in range(len(parts))]
+            placeholders = ','.join('?' for _ in ancestors)
+            clause = f"((kind='DOMAIN' AND value=?) OR (kind='DOMAIN-SUFFIX' AND value IN ({placeholders})) OR kind IN ('DOMAIN-KEYWORD','DOMAIN-REGEX'))"
+            params = (rule.value, *ancestors)
+            def matching(table, select):
+                for row in connection.execute(f'SELECT {select} FROM {table} WHERE {clause}', params):
+                    r = dict(row)
+                    try:
+                        if CoverageIndex([normalize_rule(r['kind'], r['value'])]).covers(rule): yield r
+                    except ValueError:
+                        continue
+            events = matching('domain_event', '*')
+            page = []; skipped = 0
+            for event in events:
+                if skipped < offset: skipped += 1; continue
+                page.append(json.loads(event['details']))
+                if len(page)>limit: break
+            result['events'] = {'records': page[:limit], 'has_more':len(page)>limit, 'next_offset':offset+limit if len(page)>limit else None}
+            outputs = list(matching('output_domain', '*'))
+            result['final_matching_rules'] = _page(outputs, limit, offset)
+            result['unparsed_text_mentions'] = [json.loads(row[0]) for row in connection.execute(
+                "SELECT details FROM domain_event WHERE kind='UNSUPPORTED' AND value LIKE ? ORDER BY id LIMIT ? OFFSET ?", ('%'+rule.value+'%',limit,offset))]
+            result['unparsed_note'] = 'Text mentions in rejected unsupported expressions, not a claim that the expression would match this domain.'
+            result['meaning'] = 'Matching predicates/events, including exclusions and covering final rules; absence from another source is not negative evidence. Earlier retained stages are not final admission.'
+        result['source_states'] = summary.get('sources', [])
+        return result
+    finally:
+        connection.close()

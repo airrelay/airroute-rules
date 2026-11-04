@@ -84,13 +84,13 @@ def usable_sources(snapshot_path: Path, snapshot: dict) -> tuple[list[dict], lis
 
 
 def domain_outputs(usable: list[dict], products: dict, special_config: dict | None,
-                   reports: Path, config_dir: Path) -> dict[str, list[str]]:
+                   reports: Path, config_dir: Path, trace=None) -> dict[str, list[str]]:
     from .domains import build_domains
-    groups, report = build_domains([s for s in usable if s.get("role") in {"domains", "domain"}], products)
+    groups, report = build_domains([s for s in usable if s.get("role") in {"domains", "domain"}], products, trace=trace)
     write_json(reports / "domains.json", report)
     if special_config is not None:
         from .special import build_special
-        special_groups, special_report = build_special(usable, special_config)
+        special_groups, special_report = build_special(usable, special_config, trace=trace)
         groups.update(special_groups)
         write_json(reports / "special.json", special_report)
     from .legacy import audit_legacy
@@ -112,7 +112,7 @@ def _legacy_configs(config_dir: Path) -> list[dict]:
 
 
 def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, *,
-                           baseline: Path, metrics: dict | None = None) -> dict:
+                           baseline: Path, metrics: dict | None = None, trace=None) -> dict:
     """Refresh domain/special products while retaining verified published IP bytes.
 
     This is deliberately not a partial Geo build. Country/ASN credentials and
@@ -123,13 +123,17 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
     from .validation import parse_list
     started = time.monotonic()
     baseline, output, config_dir, snapshot_path = map(Path, (baseline, output, config_dir, snapshot_path))
+    if trace is not None: trace.stage('retained-baseline-verification', 'started')
     # Verify the full base before reading any of its predicates or copying files.
     validate_candidate(baseline)
     base = json.loads((baseline / "manifest.json").read_text())
     registry = json.loads((baseline / "regions.json").read_text())
     if json.loads((config_dir / "regions.json").read_text()) != registry:
         raise ValueError("domain-only build cannot change the Geo region registry; use a complete build")
-    snapshot = verify_snapshot(snapshot_path.parent)
+    snapshot = verify_snapshot(snapshot_path.parent, trace=trace)
+    if trace is not None:
+        trace.inputs(snapshot, config_dir)
+        trace.stage('domains-only', 'started', retained_binary_base=base['data_version'])
     products = load_products(config_dir / "products.json")
     quality = json.loads((config_dir / "quality.json").read_text())
     special_path = config_dir / "special.json"
@@ -144,7 +148,7 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
     refresh_roles = {"domains", "domain", "legacy-domain-reference", "special", "special-reference"}
     current = {**snapshot, "sources": [s for s in snapshot["sources"] if s.get("role") in refresh_roles]}
     usable, skipped = usable_sources(snapshot_path, current)
-    domains = domain_outputs(usable, products, special, reports, config_dir)
+    domains = domain_outputs(usable, products, special, reports, config_dir, trace=trace)
     for region in registry["regions"]:
         key = "region/" + region["key"]
         ips = [line for line in parse_list(baseline / (key + ".list"))
@@ -154,6 +158,7 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
         write_list(safe_file(output, key + ".list"), lines)
     for name in ("geo.ardb", "asn.ardb", "regions.json"):
         shutil.copyfile(baseline / name, output / name)
+    if trace is not None: trace.retained_asn(output/'asn.ardb',base['data_version'])
     retained = [s for s in base["source_snapshot"] if s.get("role") not in refresh_roles]
     fresh_ids = {s["id"] for s in current["sources"]}
     if fresh_ids & {s["id"] for s in retained}:
@@ -185,14 +190,14 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
         "ip_source_snapshot": retained,
         "meaning": "Geo, ASN and regional IP predicates are reused unchanged from this verified base, not recomputed."}
     manifest = finalize_candidate(output, merged, registry, products, quality, summary, baseline=baseline,
-        special_config=special, legacy_configs=_legacy_configs(config_dir), generation_context=context)
+        special_config=special, legacy_configs=_legacy_configs(config_dir), generation_context=context, trace=trace)
     if metrics is not None:
         metrics["domains-only-total"] = round(time.monotonic() - started, 3)
     return manifest
 
 
 def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path | None = None,
-          metrics: dict | None = None) -> dict:
+          metrics: dict | None = None, trace=None) -> dict:
     from .domains import load_products
     from .geo import fuse_country, parse_source as parse_country
     from .routing import fuse_routes, parse_source as parse_routes, audit_auxiliary
@@ -204,11 +209,14 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
         if metrics is not None:
             metrics[name] = round(now - stage_started, 3)
             print(f"stage {name}: {metrics[name]} seconds", file=sys.stderr, flush=True)
+        if trace is not None: trace.stage(name, 'completed', elapsed_seconds=round(now-stage_started, 3))
         stage_started = now
 
     snapshot_path = Path(snapshot_path)
     from .acquire import verify_snapshot
-    snapshot = verify_snapshot(snapshot_path.parent)
+    if trace is not None: trace.stage('input-verification', 'started')
+    snapshot = verify_snapshot(snapshot_path.parent, trace=trace)
+    if trace is not None: trace.inputs(snapshot, config_dir)
     if snapshot.get("schema") != 1:
         raise ValueError("unsupported input snapshot")
     config_dir = Path(config_dir)
@@ -227,16 +235,20 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     country_sources = [s for s in usable if s.get("role") in {"country", "geo"}]
     routing_sources = [s for s in usable if s.get("role") in {"routing", "asn"}]
     mark("inputs")
-    country = fuse_country(itertools.chain.from_iterable(parse_country(s["format"], Path(s["path"]), s) for s in country_sources),
+    if trace is not None: trace.stage('geo', 'started', policy='at-least-N-lineage-agreement-without-cross-macroregion-dissent')
+    country = fuse_country(itertools.chain.from_iterable(parse_country(s["format"], Path(s["path"]), s, trace=trace) for s in country_sources),
                            registry, min_lineages=quality.get("minimum_country_lineages", 2),
-                           details_path=reports / "geo-issues.jsonl")
+                           details_path=reports / "geo-issues.jsonl", trace=trace)
     country["report"]["issue_files"] = shard_issue_report(reports / "geo-issues.jsonl")
     mark("geo")
     floors = quality.get("asn_minimum_source_prefix_length", {"ipv4": 8, "ipv6": 12})
-    routes = fuse_routes(itertools.chain.from_iterable(parse_routes(s["format"], Path(s["path"]), s) for s in routing_sources),
-                         minimum_prefix_lengths={4: floors["ipv4"], 6: floors["ipv6"]})
+    if trace is not None: trace.stage('asn', 'started', policy='current-snapshot-longest-match-per-view-origin-union', floors=floors)
+    routes = fuse_routes(itertools.chain.from_iterable(parse_routes(s["format"], Path(s["path"]), s, trace=trace) for s in routing_sources),
+                         minimum_prefix_lengths={4: floors["ipv4"], 6: floors["ipv6"]}, trace=trace)
+    if trace is not None: trace.route_outputs(routes['groups'])
     mark("asn")
-    domains = domain_outputs(usable, products, special_config, reports, config_dir)
+    if trace is not None: trace.stage('domains-and-special', 'started')
+    domains = domain_outputs(usable, products, special_config, reports, config_dir, trace=trace)
     mark("domains")
     groups = country["groups"]
     for region in registry["regions"]:
@@ -267,7 +279,8 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
             raise ValueError("configured auxiliary view is absent from fixed input")
         auxiliary_sources.append({**parent, **view, "path": str(path), "role": "cn-reference"})
     mark("output-core")
-    auxiliary = audit_auxiliary(auxiliary_sources, groups, registry, routing_prefixes=routes["routed_prefixes"])
+    if trace is not None: trace.stage('auxiliary', 'started')
+    auxiliary = audit_auxiliary(auxiliary_sources, groups, registry, routing_prefixes=routes["routed_prefixes"], trace=trace)
     write_json(reports / "auxiliary.json", auxiliary)
     mark("auxiliary")
     geo4 = geo6 = 0
@@ -298,7 +311,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
                                      "Pin downloads to one release commit and verify manifest lengths and SHA-256.\n", encoding="utf-8")
     manifest = finalize_candidate(output, snapshot, registry, products, quality, summary,
                                   baseline=baseline, special_config=special_config,
-                                  legacy_configs=_legacy_configs(config_dir))
+                                  legacy_configs=_legacy_configs(config_dir), trace=trace)
     mark("manifest-and-validation")
     return manifest
 
@@ -306,7 +319,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
 def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: dict,
                        quality: dict, summary: dict, *, baseline: Path | None = None,
                        special_config: dict | None = None, legacy_configs: list | None = None,
-                       generation_context: dict | None = None) -> dict:
+                       generation_context: dict | None = None, trace=None) -> dict:
     """Bind already computed batch outputs, then validate their exact bytes."""
     output = Path(output)
     stable_inputs = sorted([stable_source(s) for s in snapshot["sources"]], key=lambda s: s["id"])
@@ -368,7 +381,17 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
     if generation_context is not None:
         manifest["generation_context"] = generation_context
     write_json(output / "manifest.json", manifest)
+    if trace is not None:
+        trace.manifest(manifest, baseline)
+        trace.product_outputs(domain_groups, catalogue)
+        trace.stage('quality', 'started', policy_sha256=hashlib.sha256(canonical(quality)).hexdigest())
     # A failed validation leaves the complete local candidate and diagnostic report for inspection;
     # publish() independently validates again and will not move a remote pointer.
-    validate_candidate(output, baseline=baseline, quality=quality)
+    try:
+        validate_candidate(output, baseline=baseline, quality=quality)
+    except Exception as error:
+        if trace is not None: trace.stage('quality', 'failed', error_type=type(error).__name__, error=str(error))
+        raise
+    else:
+        if trace is not None: trace.stage('quality', 'passed')
     return manifest

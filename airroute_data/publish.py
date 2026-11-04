@@ -323,9 +323,11 @@ def _reconcile(repo: Path, remote: str, branch: str, root: Path, state: dict) ->
 
 
 def _push_recorded(repo: Path, remote: str, branch: str, source_branch: str,
-                   root: Path, state: dict) -> dict:
+                   root: Path, state: dict, trace=None) -> dict:
+    if trace is not None: trace.stage('publication-reconcile', 'started', commit=state['commit'], target_branch=branch)
     reconciled = _reconcile(repo, remote, branch, root, state)
     if reconciled:
+        if trace is not None: trace.stage('publication-reconcile', reconciled['status'], commit=state['commit'], remote_commit=reconciled.get('remote_commit'))
         return reconciled
     # Retry the recorded attempt against its original source fence, even if a
     # caller now supplies a different source remote. Old journals predate the
@@ -337,6 +339,7 @@ def _push_recorded(repo: Path, remote: str, branch: str, source_branch: str,
     _credential_config(repo, worker)
     state["status"] = "pushing"
     _json_write(root / "pending.json", state)
+    if trace is not None: trace.stage('publication-push', 'started', commit=state['commit'], base_commit=state['base_commit'])
     try:
         _git(worker, "push", "origin", state["commit"] + ":refs/heads/" + branch, allow_failure=True)
     except PublicationUncertain:
@@ -345,20 +348,28 @@ def _push_recorded(repo: Path, remote: str, branch: str, source_branch: str,
     # retain the original commit and working copy; never rebase/recreate it.
     reconciled = _reconcile(repo, remote, branch, root, state)
     if reconciled:
+        if trace is not None: trace.stage('publication-push', reconciled['status'], commit=state['commit'], remote_commit=reconciled.get('remote_commit'))
         return reconciled
+    if trace is not None: trace.stage('publication-push', 'unconfirmed', commit=state['commit'], journal='pending.json')
     raise PublicationUncertain("Remote has not confirmed the recorded commit; retry the same candidate")
 
 
 def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, attempt: int = 1,
             remote: str = "origin",
             branch: str = "release", source_branch: str = "main", source_remote: str | None = None,
-            replace_legacy_head: str | None = None) -> dict:
+            replace_legacy_head: str | None = None, trace=None) -> dict:
     candidate, repo = Path(candidate).resolve(), Path(repo).resolve()
     order = _publication_order(sequence, attempt)
     source_remote = remote if source_remote is None else source_remote
     if replace_legacy_head is not None and not re.fullmatch(r"[0-9a-f]{40,64}", replace_legacy_head):
         raise PublicationError("Legacy replacement requires the exact expected target commit SHA")
+    if trace is not None: trace.stage('publication-validation', 'started', source_commit=source_sha, target_branch=branch)
     manifest = validate_candidate(candidate)
+    if trace is not None:
+        trace.state['source_commit'] = source_sha
+        trace.state['sources'] = manifest.get('source_snapshot', [])
+        trace.manifest(manifest)
+        trace.stage('publication-validation', 'passed', data_version=manifest.get('data_version'))
     version = _version(manifest.get("data_version", manifest.get("version")))
     manifest_sha = _digest(candidate / "manifest.json")
     root = _state_root(repo, remote, branch)
@@ -376,7 +387,7 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
                     else:
                         raise PublicationUncertain("Another candidate has an unresolved publication; reconcile it first")
                 else:
-                    return _push_recorded(repo, remote, branch, source_branch, root, state)
+                    return _push_recorded(repo, remote, branch, source_branch, root, state, trace=trace)
             elif resolved["version"] == version and resolved["status"] == "published":
                 return resolved
         if _remote_sha(repo, source_remote, source_branch) != source_sha:
@@ -390,6 +401,7 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
         _git(worker, "remote", "add", "origin", url)
         _credential_config(repo, worker)
         base = _remote_sha(repo, remote, branch)
+        if trace is not None: trace.stage('publication-fetch', 'started', target_base_commit=base, source_commit=source_sha)
         if base:
             fetched = _fetch(worker, branch)
             if fetched != base:
@@ -412,7 +424,9 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
             # checked-out payload changes; the normal forward push is retained.
         # One full validation of the original candidate, including private
         # diagnostics, against the freshly fetched public coverage baseline.
+        if trace is not None: trace.stage('publication-semantic-validation', 'started')
         _semantic_validation(candidate, repo, baseline)
+        if trace is not None: trace.stage('publication-semantic-validation', 'passed', target_base_commit=base)
         if previous is not None:
             old_public = _public_manifest(previous)
             if (old_public["data_version"] == version and
@@ -441,7 +455,8 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
                  "source_remote": source_remote, "source_branch": source_branch,
                  "status": "prepared", "publication": public["publication"]}
         _json_write(pending, state)
-        return _push_recorded(repo, remote, branch, source_branch, root, state)
+        if trace is not None: trace.stage('publication-prepared', 'completed', commit=commit, base_commit=base, data_version=version)
+        return _push_recorded(repo, remote, branch, source_branch, root, state, trace=trace)
 
 
 def rollback(repo: Path, version: str, source_sha: str, *, sequence: int, attempt: int = 1,

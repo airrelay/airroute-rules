@@ -171,7 +171,7 @@ def unpack(archive, output, *, compression, strip_root=False,
     return output
 
 
-def tree_digest(path):
+def tree_digest(path, on_file=None):
     """Hash member names and content, independent of filesystem timestamps."""
     path = Path(path)
     if not path.exists() or path.is_symlink():
@@ -189,6 +189,7 @@ def tree_digest(path):
         total += size
         digest.update(relative.encode()); digest.update(b"\0")
         digest.update(str(size).encode()); digest.update(b"\0"); digest.update(data_digest.digest())
+        if on_file is not None: on_file(relative, size, data_digest.hexdigest())
     return digest.hexdigest(), total
 
 
@@ -307,7 +308,7 @@ def _get_source(source, directory, now, commits):
 
 
 def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=None,
-                    now=None, source_ids: Iterable[str] | None = None) -> dict[str, Any]:
+                    now=None, source_ids: Iterable[str] | None = None, trace=None) -> dict[str, Any]:
     """Fix bytes once; each missing optional source is reported independently."""
     config_path, output_dir = Path(config_path), Path(output_dir)
     if output_dir.exists() and any(output_dir.iterdir()):
@@ -336,10 +337,12 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
         else:
             entry["status"] = "pending"
         if entry["status"] != "pending":
+            if trace is not None: trace.source_event(source['id'], 'acquisition', entry['status'])
             result["sources"].append(entry); continue
         missing = [key for key in source.get("requires_env", []) if not os.environ.get(key)]
         if missing and fixture_dir is None:
             entry.update(status="missing-credentials", missing_env=missing)
+            if trace is not None: trace.source_event(source['id'], 'acquisition', 'missing-credentials', missing_env=missing)
             result["sources"].append(entry); continue
         directory = output_dir / "sources" / source["id"]
         try:
@@ -367,11 +370,22 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
                 shutil.rmtree(directory)
             entry.update(status="unavailable", error=str(exc) if isinstance(exc, AcquisitionError) else "invalid or unreadable source payload")
         result["sources"].append(entry)
+        if trace is not None:
+            missing_fields = []
+            if fixture_dir is None:
+                if source.get('transport','http').startswith('github'):
+                    if not source.get('repo'):missing_fields.append('repo')
+                    if source.get('transport')!='github_archive' and not source.get('paths') and not source.get('file'):missing_fields.append('paths/file')
+                elif not source.get('url') and not source.get('files'):missing_fields.append('url/files')
+            diagnostic_status = 'downloaded' if entry['status']=='available' else 'missing-configuration' if missing_fields else 'download-failed'
+            trace.source_event(source['id'], 'acquisition', diagnostic_status,
+                               bytes=entry.get('bytes'), sha256=entry.get('sha256'), error=entry.get('error'), missing_fields=missing_fields)
     output_dir.joinpath("snapshot.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    if trace is not None: trace.inputs(result, config_path.parent)
     return result
 
 
-def verify_snapshot(snapshot_dir):
+def verify_snapshot(snapshot_dir, trace=None):
     snapshot_dir = Path(snapshot_dir).resolve()
     result = json.loads((snapshot_dir / "snapshot.json").read_text())
     if result.get("schema") != 1:
@@ -382,7 +396,8 @@ def verify_snapshot(snapshot_dir):
         path = snapshot_dir.joinpath(*_member_path(source["path"]).parts)
         if not path.resolve().is_relative_to(snapshot_dir):
             raise AcquisitionError("snapshot path escapes input root")
-        digest, size = tree_digest(path)
+        callback = (lambda name, size, digest: trace.source_event(source['id'], 'input-file', 'hashed', file=name, bytes=size, sha256=digest)) if trace is not None else None
+        digest, size = tree_digest(path, on_file=callback)
         if digest != source["sha256"] or size != source["bytes"]:
             raise AcquisitionError("fixed input checksum mismatch")
     return result
