@@ -54,6 +54,12 @@ DOMAIN,static.siege-amazon.com
 DOMAIN,streamingaudio.itunes.apple.com
 DOMAIN,ws.audioscrobbler.com
 DOMAIN,yt3.googleusercontent.com
+DOMAIN-REGEX,(^|\.)apiproxy-device-prod-nlb-.+\.amazonaws\.com$
+DOMAIN-REGEX,(^|\.)apiproxy-website-nlb-prod-.+\.amazonaws\.com$
+DOMAIN-REGEX,(^|\.)dualstack\.apiproxy-.+\.amazonaws\.com$
+DOMAIN-REGEX,(^|\.)dualstack\.ichnaea-web-.+\.amazonaws\.com$
+DOMAIN-REGEX,^[0-9]+vod-adaptive\.akamaized\.net$
+DOMAIN-REGEX,^hses[1-7]?\.akamaized\.net$
 DOMAIN-SUFFIX,112263.com
 DOMAIN-SUFFIX,abc-studios.com
 DOMAIN-SUFFIX,abc.com

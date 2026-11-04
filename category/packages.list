@@ -1,3 +1,4 @@
+DOMAIN-REGEX,.+\.dkr\.ecr\.[^\.]+\.amazonaws\.com$
 DOMAIN-SUFFIX,azurecr.io
 DOMAIN-SUFFIX,crates.io
 DOMAIN-SUFFIX,docker.com

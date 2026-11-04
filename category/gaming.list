@@ -88,6 +88,7 @@ DOMAIN,ubistatic8-a.akamaihd.net
 DOMAIN,ubistatic9-a.akamaihd.net
 DOMAIN,videos-rockstargames-com.akamaized.net
 DOMAIN,wb-agora-hydra-file-storage-k1.s3.amazonaws.com
+DOMAIN-REGEX,^epicgames-download\d\.akamaized\.net$
 DOMAIN-SUFFIX,100classicbooks.com
 DOMAIN-SUFFIX,2k.com
 DOMAIN-SUFFIX,2kcoretech.online
