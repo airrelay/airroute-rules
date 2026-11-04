@@ -78,7 +78,7 @@ IPv6 总览同时提供地址量和前缀数；已观察的原始 BGP 宣告与�
 - `publication-journal-<run_id>-<attempt>`：既有发布恢复身份，在发布失败且已产生 journal 时保留 **7 天**。
 - `candidate-<run_id>-<attempt>`：只有生成和验证步骤通过才上传，保留 **1 天**，用于后续发布；它不是正式规则订阅地址。
 
-诊断打包使用 `record-pack` 压缩索引和详细数据，预算为 **512 MiB 压缩包内容**；`artifact-index.json` 记录实际体积、摘要、保留文件和完整性。超预算时按完整文件排除，不截断 SQLite 数据库；清单会将包标为不完整，不能声称全量证据仍可查询。本地原始记录不因打包而删除。下载后先阅读包内清单，将 `trace.sqlite3.gz` 解压到同目录的 `trace.sqlite3` 再运行上述 explain 命令。
+诊断打包使用 `record-pack` 压缩索引和详细数据，预算为 **1 GiB 压缩包内容**；`artifact-index.json` 记录实际体积、摘要、保留文件和完整性。超预算时按完整文件排除，不截断 SQLite 数据库；清单会将包标为不完整，不能声称全量证据仍可查询。本地原始记录不因打包而删除。下载后先阅读包内清单，将 `trace.sqlite3.gz` 解压到同目录的 `trace.sqlite3` 再运行上述 explain 命令。
 
 ```sh
 python3.12 -m airroute_data record-pack \
@@ -91,7 +91,7 @@ python3.12 -m airroute_data explain \
 
 所有诊断打包/上传步骤均独立尽力执行，失败不掩盖原始构建错误。原始供应商归档、未脱敏的配置、Token、密码、授权头及带凭据的 URL 不进入诊断包；要求原始供应商文件才能复核的细节只能依照许可、凭据与输入摘要另行取得。
 
-`overview.md` 和 `summary.json` 保持直接可读；其他较大的 JSON 可按清单标为 `.json.gz`，阅读前解压。`artifact-index.json` 的 `complete` 表示文件是否全部装入包，`evidence_complete` 才表示生成证据链是否完整；来源缺失状态仍应单独查看。
+`overview.md` 和 `summary.json` 保持直接可读；其他较大的 JSON 可按清单标为 `.json.gz`，阅读前解压。`artifact-index.json` 的 `complete` 表示文件是否全部装入包；`source_evidence_complete` 记录原始生成证据链状态，`evidence_complete` 同时要求原始证据完整且打包未遗漏。来源缺失状态仍应单独查看。
 
 ## 可追溯边界
 
