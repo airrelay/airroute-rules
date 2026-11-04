@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from airroute_data.domains import RuleError
-from airroute_data.legacy import audit_legacy, guard_legacy, legacy_projection
+from airroute_data.legacy import audit_legacy, legacy_projection
 
 
 class LegacyDomainTests(unittest.TestCase):
@@ -33,135 +33,38 @@ class LegacyDomainTests(unittest.TestCase):
     def audit(self, **kw):
         return audit_legacy(self.groups, self.sources, self.config, **kw)
 
-    def test_complete_dispositions_do_not_forge_old_provenance(self):
-        report = self.audit()
-        self.assertEqual(report['source_records'], 6)
-        self.assertEqual(report['domain_records'], 5)
-        self.assertEqual(report['counts']['retained-exact'], 2)
-        self.assertEqual(report['counts']['pending-verification'], 1)
-        self.assertEqual(report['counts']['shared-dependency'], 1)
-        self.assertEqual(report['counts']['inapplicable'], 1)
-        self.assertEqual(report['counts']['outside-domain-scope'], 1)
-        self.assertTrue(all(r['upstream_provenance'] == 'unknown' for r in report['records']))
-        self.assertIn('not disproof', next(r['reason'] for r in report['records'] if r['disposition'] == 'pending-verification'))
-        self.assertIn('legacy-cn', report['source']['id'])
+    def test_coverage_is_descriptive_and_provenance_unknown(self):
+        report=self.audit()
+        self.assertEqual(report['source_records'],6)
+        self.assertEqual(report['counts']['retained-exact'],2)
+        self.assertEqual(report['counts']['pending-verification'],3)
+        self.assertEqual(report['counts']['outside-domain-scope'],1)
+        self.assertTrue(all(row['upstream_provenance']=='unknown' for row in report['records']))
+        self.assertNotIn('protected_rules',report)
+        self.assertNotIn('validation',report)
 
-    def test_legitimate_suffix_can_cover_exact_child_without_text_match(self):
-        self.groups['region/cn'][0] = 'DOMAIN-SUFFIX,mainland.example'
-        report = self.audit()
-        record = next(r for r in report['records'] if r['rule'] == 'DOMAIN,api.mainland.example')
-        self.assertEqual(record['disposition'], 'covered-semantically')
-        self.assertEqual(record['covered_by'], 'DOMAIN-SUFFIX,mainland.example')
-        self.assertIn(record['rule'], report['protected_rules'])
+    def test_provable_suffix_coverage(self):
+        self.groups['region/cn'][0]='DOMAIN-SUFFIX,mainland.example'
+        row=next(row for row in self.audit()['records'] if row['rule']=='DOMAIN,api.mainland.example')
+        self.assertEqual(row['covered_by'],'DOMAIN-SUFFIX,mainland.example')
 
-    def test_exact_child_cannot_claim_retention_of_old_suffix(self):
-        self.groups['region/cn'][1] = 'DOMAIN,api.service.example'
-        report = self.audit()
-        record = next(r for r in report['records'] if r['rule'] == 'DOMAIN-SUFFIX,service.example')
-        self.assertEqual(record['disposition'], 'pending-verification')
-
-    def test_fixed_source_cannot_disappear_change_commit_or_change_bytes(self):
-        for sources in ([], [{**self.sources[0], 'status': 'unavailable'}],
-                        [{**self.sources[0], 'version': 'moving-head'}]):
-            with self.subTest(sources=sources), self.assertRaises(RuleError):
-                audit_legacy(self.groups, sources, self.config)
-        self.path.write_text(self.body + 'DOMAIN,new.example\n')
-        with self.assertRaisesRegex(RuleError, 'checksum'):
-            self.audit()
-
-    def test_no_silent_loss_of_previously_retained_predicate(self):
-        previous = legacy_projection(self.audit())
-        self.groups['region/cn'].pop()
-        with self.assertRaisesRegex(RuleError, 'previously retained legacy domain coverage lost'):
-            self.audit(previous_report=previous)
-
-    def test_semantically_covering_previous_rule_does_not_regress(self):
-        previous = legacy_projection(self.audit())
-        self.groups['region/cn'][0] = 'DOMAIN-SUFFIX,mainland.example'
-        self.audit(previous_report=previous)
-
-    def test_specific_review_with_evidence_can_correct_previous_retention(self):
-        previous = legacy_projection(self.audit())
-        self.groups['region/cn'].pop()
-        self.config['reviewed_dispositions'].append({'predicate': 'DOMAIN-SUFFIX,service.example',
-            'disposition': 'inapplicable', 'reason': 'specific evidenced correction', 'evidence': ['fixture correction source']})
-        self.audit(previous_report=previous)
-        self.config['reviewed_dispositions'][-1].pop('evidence')
-        with self.assertRaisesRegex(RuleError, 'evidence'):
-            self.audit(previous_report=previous)
-
-    def test_new_shared_label_cannot_waive_previous_retention(self):
-        self.groups['region/cn'].append('DOMAIN,customer.cloud.example')
-        previous = legacy_projection(self.audit())
-        self.groups['region/cn'].pop()
-        with self.assertRaisesRegex(RuleError, 'previously retained legacy domain coverage lost'):
-            self.audit(previous_report=previous)
-
-    def test_broad_root_does_not_falsify_migration_coverage(self):
-        for bad in ('DOMAIN-SUFFIX,cn', 'DOMAIN-SUFFIX,cloud.example'):
-            self.groups['region/cn'].append(bad)
-            with self.subTest(bad=bad), self.assertRaisesRegex(RuleError, 'unsafe broad predicate'):
-                self.audit()
-            self.groups['region/cn'].pop()
-
-    def test_projection_rechecked_against_actual_rules(self):
-        report = self.audit(); projection = legacy_projection(report)
-        self.assertNotIn('records', projection)
-        self.assertNotIn('samples_by_reason', projection)
-        guard_legacy(projection, groups=self.groups, config=self.config)
-        self.groups['region/cn'].append('DOMAIN,new.example')
-        with self.assertRaisesRegex(RuleError, 'does not match actual'):
-            guard_legacy(projection, groups=self.groups, config=self.config)
-
-    def test_streamed_records_are_complete_and_path_independent(self):
-        outputs = []
-        for name in ('one', 'two'):
-            p = self.root / name / 'legacy.jsonl'
-            report = self.audit(records_path=p)
-            self.assertNotIn('records', report)
-            self.assertEqual(report['records_file'], 'legacy.jsonl')
-            self.assertEqual(len(p.read_text().splitlines()), 6)
-            outputs.append((report, p.read_bytes()))
-        self.assertEqual(outputs[0], outputs[1])
-
-    def test_endpoint_under_shared_root_can_be_retained_with_current_evidence(self):
-        self.groups['region/cn'].append('DOMAIN,customer.cloud.example')
-        report = self.audit()
-        record = next(r for r in report['records'] if r['rule'] == 'DOMAIN,customer.cloud.example')
-        self.assertEqual(record['disposition'], 'retained-exact')
-        self.assertFalse(record['reviewed'])
-
-    def test_projection_cannot_hide_missing_disposition_rows(self):
-        report = legacy_projection(self.audit())
-        report['counts']['pending-verification'] = 0
-        with self.assertRaisesRegex(RuleError, 'counts are incomplete'):
-            guard_legacy(report, groups=self.groups, config=self.config)
-
-    def test_rehashed_output_and_forged_projection_cannot_hide_broad_root(self):
-        report = legacy_projection(self.audit())
+    def test_valid_tld_is_not_a_migration_veto(self):
         self.groups['region/cn'].append('DOMAIN-SUFFIX,cn')
-        report['unsafe_covering_predicates'] = []
-        report['output_domain_sha256'] = hashlib.sha256('\n'.join(sorted(self.groups['region/cn'])).encode()).hexdigest()
-        with self.assertRaisesRegex(RuleError, 'unsafe broad predicate'):
-            guard_legacy(report, groups=self.groups, config=self.config)
+        row=next(row for row in self.audit()['records'] if row['rule']=='DOMAIN-SUFFIX,cn')
+        self.assertEqual(row['disposition'],'retained-exact')
 
-    def test_duplicate_reviewed_predicate_rejected(self):
-        self.config['reviewed_dispositions'].append(copy.deepcopy(self.config['reviewed_dispositions'][0]))
-        with self.assertRaisesRegex(RuleError, 'duplicate legacy reviewed disposition'):
+    def test_missing_optional_corpus(self):
+        report=audit_legacy(self.groups,[],self.config)
+        self.assertEqual(report['status'],'missing-optional')
+
+    def test_corrupt_present_input_fails(self):
+        self.path.write_text('changed')
+        with self.assertRaisesRegex(RuleError,'checksum'):
             self.audit()
 
-    def test_strict_wildcard_does_not_retain_old_apex(self):
-        self.body = 'DOMAIN,mainland.example\nDOMAIN-REGEX,^.+\\.mainland\\.example$\n'
-        self.path.write_text(self.body)
-        self.config['source'].update(sha256=hashlib.sha256(self.body.encode()).hexdigest(), records=2, domain_records=2)
-        self.groups['region/cn'] = [r'DOMAIN-REGEX,^.+\.mainland\.example$']
-        first = self.audit()
-        self.assertEqual(first['counts']['retained-exact'], 1)
-        self.assertEqual(first['counts']['pending-verification'], 1)
-        self.groups['region/cn'] = ['DOMAIN-SUFFIX,mainland.example']
-        second = self.audit(previous_report=legacy_projection(first))
-        self.assertEqual(second['counts']['covered-semantically'], 2)
-
-
-if __name__ == '__main__':
-    unittest.main()
+    def test_streaming_and_compact_projection(self):
+        target=self.root/'records.jsonl'
+        report=self.audit(records_path=target)
+        self.assertEqual(len(target.read_text().splitlines()),6)
+        self.assertNotIn('records',report)
+        self.assertEqual(legacy_projection(report)['counts'],report['counts'])

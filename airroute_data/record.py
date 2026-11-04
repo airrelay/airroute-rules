@@ -25,32 +25,38 @@ import subprocess
 import urllib.parse
 
 
-def clean(value):
-    """Never persist authorization fields or URL credentials/query values."""
-    if isinstance(value, dict):
-        return {str(k): ('[redacted]' if re.search(r'(?i)(?:^(?:auth|authorization|proxy-authorization|cookie)$|(?:^|[_-])(?:password|passwd|secret|token|api[_-]?key|license[_-]?key)(?:$|[_-]))', str(k)) else clean(v))
-                for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [clean(v) for v in value]
-    if isinstance(value, Path):
-        return value.name
-    if not isinstance(value, str):
-        return value
+_SECRET_KEYS = ('GITHUB_TOKEN', 'GH_TOKEN', 'RULES_PUBLISH_TOKEN', 'MAXMIND_LICENSE_KEY', 'IPINFO_TOKEN', 'IP2LOCATION_TOKEN')
+_SECRET_FIELD = re.compile(r'(?i)(?:^(?:auth|authorization|proxy-authorization|cookie)$|(?:^|[_-])(?:password|passwd|secret|token|api[_-]?key|license[_-]?key)(?:$|[_-]))')
+_URL = re.compile(r'https?://[^\s<>"\']+')
+_CREDENTIAL = re.compile(r'(?i)(Bearer\s+|(?:token|password|license_key|secret)\s*[=:]\s*)[^\s,;]+')
+_AUTHORIZATION = re.compile(r'(?i)(?:proxy-)?authorization\s*:\s*[^\r\n]*')
+
+
+def clean(value, *, secrets=None):
+    """Redact once per object, not an environment lookup for every nested string."""
+    if secrets is None:
+        secrets = tuple(v for key in _SECRET_KEYS if (v := os.environ.get(key)) and len(v) >= 4)
     def url(match):
         try:
             u = urllib.parse.urlsplit(match.group())
             return urllib.parse.urlunsplit((u.scheme, u.hostname or '', u.path, '', ''))
         except ValueError:
             return '[redacted-url]'
-    value = re.sub(r'https?://[^\s<>"\']+', url, value)
-    value = re.sub(r'(?i)(Bearer\s+|(?:token|password|license_key|secret)\s*[=:]\s*)[^\s,;]+', r'\1[redacted]', value)
-    value = re.sub(r'(?i)(?:proxy-)?authorization\s*:\s*[^\r\n]*', 'Authorization: [redacted]', value)
-    # Only known credential variables, never a dump of the environment.
-    for key in ('GITHUB_TOKEN', 'GH_TOKEN', 'RULES_PUBLISH_TOKEN', 'MAXMIND_LICENSE_KEY', 'IPINFO_TOKEN', 'IP2LOCATION_TOKEN'):
-        secret = os.environ.get(key)
-        if secret and len(secret) >= 4:
-            value = value.replace(secret, '[redacted]')
-    return value
+    def visit(item):
+        if isinstance(item, dict):
+            return {str(k): '[redacted]' if _SECRET_FIELD.search(str(k)) else visit(v) for k, v in item.items()}
+        if isinstance(item, (list, tuple, set)):
+            return [visit(v) for v in item]
+        if isinstance(item, Path): return item.name
+        if not isinstance(item, str): return item
+        if 'http://' in item or 'https://' in item: item = _URL.sub(url, item)
+        low = item.lower()
+        if any(word in low for word in ('bearer', 'token', 'password', 'license_key', 'secret')):
+            item = _CREDENTIAL.sub(r'\1[redacted]', item)
+        if 'authorization' in low: item = _AUTHORIZATION.sub('Authorization: [redacted]', item)
+        for secret in secrets: item = item.replace(secret, '[redacted]')
+        return item
+    return visit(value)
 
 
 def json_write(path, value):
@@ -101,6 +107,7 @@ class BuildRecord:
             'schema': 1, 'started_at': dt.datetime.now(dt.timezone.utc).isoformat(),
             'status': 'started', 'publication': {'status': 'not-started'}, 'diagnostic_errors': [], 'stages': []}
         self.broken = False
+        self.secrets = tuple(v for key in _SECRET_KEYS if (v := os.environ.get(key)) and len(v) >= 4)
         self.pending = defaultdict(list)
         self.pending_count = 0
         self.geo_counts = defaultdict(Counter)
@@ -117,8 +124,8 @@ class BuildRecord:
           CREATE TABLE IF NOT EXISTS source_event(source TEXT,stage TEXT,status TEXT,details TEXT);
           CREATE TABLE IF NOT EXISTS domain_event(id INTEGER PRIMARY KEY,product TEXT,source TEXT,kind TEXT,value TEXT,stage TEXT,status TEXT,reason TEXT,details TEXT);
           CREATE TABLE IF NOT EXISTS geo_input(id INTEGER PRIMARY KEY,family INTEGER,span INTEGER,start BLOB,end BLOB,source TEXT,lineage TEXT,country TEXT,semantics TEXT DEFAULT 'country-estimate',raw_fields TEXT);
-          CREATE TABLE IF NOT EXISTS geo_issue(id INTEGER PRIMARY KEY,family INTEGER,span INTEGER,start BLOB,end BLOB,status TEXT);
-          CREATE TABLE IF NOT EXISTS route_input(id INTEGER PRIMARY KEY,family INTEGER,span INTEGER,start BLOB,end BLOB,source TEXT,status TEXT,observed INTEGER,details TEXT);
+          CREATE TABLE IF NOT EXISTS geo_issue(id INTEGER PRIMARY KEY,family INTEGER,span INTEGER,start BLOB,end BLOB,status TEXT,details TEXT);
+          CREATE TABLE IF NOT EXISTS route_input(id INTEGER PRIMARY KEY,family INTEGER,span INTEGER,start BLOB,end BLOB,source TEXT,status TEXT,observed INTEGER,origin_prefix_length INTEGER,details TEXT);
           CREATE TABLE IF NOT EXISTS route_origin(asn INTEGER,input_id INTEGER);
           CREATE TABLE IF NOT EXISTS product(name TEXT PRIMARY KEY,details TEXT);
           CREATE TABLE IF NOT EXISTS output_domain(product TEXT,kind TEXT,value TEXT);
@@ -131,6 +138,10 @@ class BuildRecord:
             self.connection.execute("ALTER TABLE geo_input ADD COLUMN semantics TEXT DEFAULT 'country-estimate'")
         if 'raw_fields' not in {r[1] for r in self.connection.execute('PRAGMA table_info(geo_input)')}:
             self.connection.execute('ALTER TABLE geo_input ADD COLUMN raw_fields TEXT')
+        if 'details' not in {r[1] for r in self.connection.execute('PRAGMA table_info(geo_issue)')}:
+            self.connection.execute('ALTER TABLE geo_issue ADD COLUMN details TEXT')
+        if 'origin_prefix_length' not in {r[1] for r in self.connection.execute('PRAGMA table_info(route_input)')}:
+            self.connection.execute('ALTER TABLE route_input ADD COLUMN origin_prefix_length INTEGER')
         self.next_route = self.connection.execute('SELECT COALESCE(MAX(id),0) FROM route_input').fetchone()[0]
         self.state['python'] = platform.python_version()
 
@@ -143,9 +154,10 @@ class BuildRecord:
     def flush(self):
         for table, rows in self.pending.items():
             if rows:
-                columns = {'domain_event': 'product,source,kind,value,stage,status,reason,details',
+                columns = {'route_input':'id,family,span,start,end,source,status,observed,origin_prefix_length,details',
+                           'domain_event': 'product,source,kind,value,stage,status,reason,details',
                            'geo_input': 'family,span,start,end,source,lineage,country,semantics,raw_fields',
-                           'geo_issue': 'family,span,start,end,status',
+                           'geo_issue': 'family,span,start,end,status,details',
                            'geo_change': 'family,span,start,end,before,after,status'}.get(table)
                 target = table + (f'({columns})' if columns else '')
                 self.connection.executemany(f'INSERT INTO {target} VALUES({",".join("?" for _ in rows[0])})', rows)
@@ -197,12 +209,14 @@ class BuildRecord:
 
     @best_effort
     def source_event(self, source_id, stage, status, **stats):
-        self._add('source_event', (source_id, stage, status, json.dumps(clean(stats), sort_keys=True)))
+        self._add('source_event', (source_id, stage, status, json.dumps(clean(stats, secrets=self.secrets), sort_keys=True)))
 
     @best_effort
     def domain_event(self, item):
-        item = clean(item)
-        kind, _, value = item.get('predicate', item.get('rule', '')).partition(',')
+        item = clean(item, secrets=self.secrets)
+        predicate = item.get('predicate', item.get('rule', ''))
+        kind, _, value = predicate.partition(',')
+
         self._add('domain_event', (item.get('group'), item.get('source'), kind, value,
                   item.get('stage'), item.get('status'), item.get('reason'), json.dumps(item, sort_keys=True)))
 
@@ -210,7 +224,7 @@ class BuildRecord:
     def geo_input(self, rec):
         raw = getattr(rec,'raw_fields',None)
         self._add('geo_input', (rec.version, span(rec.start, rec.end), _blob(rec.start), _blob(rec.end), rec.source, rec.lineage, rec.country, rec.semantics,
-                               json.dumps(clean(raw),sort_keys=True) if raw is not None else None))
+                               json.dumps(clean(raw,secrets=self.secrets),sort_keys=True) if raw is not None else None))
 
     @best_effort
     def geo_decision(self, detail):
@@ -221,10 +235,15 @@ class BuildRecord:
         size = b - a + 1
         counts = self.geo_counts[str(family)]
         counts[state + '_intervals'] += 1; counts[state + '_addresses'] += size
-        if detail.get('region_id') is not None:
-            return
-        self._add('geo_issue', (family, span(a, b), _blob(a), _blob(b), state))
-        if state == 'conflicting-regions':
+        assigned = detail.get('region_id') is not None
+        dissent = detail.get('region_disagreement', False) or detail.get('country_disagreement', False)
+        if assigned and not dissent: return
+        decision = {key: detail.get(key) for key in ('selected_source', 'selected_country', 'region_id', 'source_order',
+                    'country_disagreement', 'region_disagreement')}
+        decision['assigned'] = assigned
+        self._add('geo_issue', (family, span(a, b), _blob(a), _blob(b), state,
+                               json.dumps(clean(decision,secrets=self.secrets),sort_keys=True)))
+        if detail.get('region_disagreement') or state == 'conflicting-regions':
             # Region-combination summary is bounded; the index remains lossless.
             signature = '|'.join(s + ':' + ','.join(str(x) for x in v)
                                  for s, v in sorted(detail.get('source_regions', {}).items()))
@@ -254,7 +273,7 @@ class BuildRecord:
         info = asdict(rec); info['reason'] = reason
         observed = getattr(rec, 'origin_prefix_length', None) is not None
         self._add('route_input', (identifier, rec.version, span(rec.start, rec.end), _blob(rec.start), _blob(rec.end),
-                  rec.source, status, int(observed), json.dumps(clean(info), sort_keys=True)))
+                  rec.source, status, int(observed), getattr(rec,'origin_prefix_length',None), json.dumps(clean(info,secrets=self.secrets), sort_keys=True)))
         for asn in getattr(rec, 'asns', ()): self._add('route_origin', (asn, identifier))
 
     @best_effort
@@ -284,12 +303,13 @@ class BuildRecord:
 
     @best_effort
     def product_outputs(self, groups, catalogue):
+        from .domains import parse_rule_line
         for name, lines in groups.items():
             self.connection.execute('INSERT OR REPLACE INTO product VALUES(?,?)', (name, json.dumps(clean(catalogue.get(name, {})), sort_keys=True)))
             for line in lines:
-                kind, value = line.split(',', 1)
-                if kind in {'IP-CIDR', 'IP-CIDR6'}: self.output_ip(name, value)
-                else: self._add('output_domain', (name, kind, value))
+                rule = parse_rule_line(line)
+                if rule.kind in {'IP-CIDR', 'IP-CIDR6'}: self.output_ip(name, rule.value)
+                else: self._add('output_domain', (name, rule.kind, rule.value))
 
     @best_effort
     def manifest(self, manifest, baseline=None):
@@ -321,7 +341,7 @@ class BuildRecord:
         if self.geo_conflict_regions:
             self.state['conflict_claimant_regions_nonadditive'] = {k:dict(v) for k,v in self.geo_conflict_regions.items()}
             self.state['conflict_region_note'] = 'A conflict may involve several claimed regions. These overlap; do not sum as distinct output coverage.'
-        if self.largest: self.state['largest_unknown_ranges_sample'] = [{'family': f, 'start': str((ipaddress.IPv4Address if f == 4 else ipaddress.IPv6Address)(a)),
+        if self.largest: self.state['largest_conflict_or_unknown_ranges_sample'] = [{'family': f, 'start': str((ipaddress.IPv4Address if f == 4 else ipaddress.IPv6Address)(a)),
             'end': str((ipaddress.IPv4Address if f == 4 else ipaddress.IPv6Address)(b)), 'status': state,
             'addresses': n, 'cidr_count': cidr_count(f, a, b)} for bucket in self.largest.values()
             for n, f, a, b, state in sorted(bucket, reverse=True)]
@@ -350,15 +370,15 @@ class BuildRecord:
 
     @best_effort
     def bgp_summary(self):
-        """Exposure to admitted original BGP claims, never derived ASN coverage."""
+        """Association with actual non-default BGP observations, never ASN ownership or location proof."""
         context = self.state.get('candidate', {}).get('generation_context') or {}
         if context.get('mode')=='domains-only':
-            self.state['bgp']={'applicable':False,'scope':'Retained IP binaries; BGP observations were not recomputed in this domain-only refresh.',
-                               'binary_base':context.get('binary_base')}
+            self.state['bgp']={'applicable':False,'scope':'Retained regional IP lists and ASN database; BGP observations were not recomputed in this domain-only refresh.',
+                               'retained_ip_base':context.get('retained_ip_base')}
             return
         from bisect import bisect_left
         union = {4: [], 6: []}
-        for family, a, b in self.connection.execute("SELECT family,start,end FROM route_input WHERE observed=1 AND status='accepted' ORDER BY family,start"):
+        for family, a, b in self.connection.execute("SELECT family,start,end FROM route_input WHERE observed=1 AND origin_prefix_length>0 ORDER BY family,start"):
             a, b = int.from_bytes(a, 'big'), int.from_bytes(b, 'big')
             rows = union[family]
             if rows and a <= rows[-1][1] + 1: rows[-1] = (rows[-1][0], max(rows[-1][1], b))
@@ -382,7 +402,7 @@ class BuildRecord:
             bucket['decision_intervals'] += 1; bucket['interval_cidr_sum'] += cidr_count(family, a, b)
             bucket['addresses'] += b - a + 1; bucket['observed_bgp_addresses'] += n
             bucket['not_observed_bgp_addresses'] += b - a + 1 - n
-        for sample in self.state.get('largest_unknown_ranges_sample', []):
+        for sample in self.state.get('largest_conflict_or_unknown_ranges_sample', []):
             sample['observed_bgp_addresses'] = overlap(sample['family'], int(ipaddress.ip_address(sample['start'])), int(ipaddress.ip_address(sample['end'])))
         # Bounded examples are enriched from the same exact input index used by
         # explain, without duplicating every source range in millions of issues.
@@ -393,14 +413,16 @@ class BuildRecord:
             row = self.connection.execute("SELECT value FROM metadata WHERE key='regions.json'").fetchone()
             registry = json.loads(row[0]) if row else {'regions': []}
             mapping = {cc: r['key'] for r in registry['regions'] for cc in r['countries']}
-            for sample in self.state.get('largest_unknown_ranges_sample', []):
+            for sample in self.state.get('largest_conflict_or_unknown_ranges_sample', []):
                 point = int(ipaddress.ip_address(sample['start']))
                 evidence = ranges(self.connection,'geo_input',sample['family'],point,point,limit=20)
                 for item in evidence['records']:item['normalized_region']=mapping.get(item.get('country'))
                 sample['source_values_at_start'] = evidence
                 sample['scope'] = 'Representative input at interval start; use complete index for other points. Not a physical-location verification.'
         finally:self.connection.row_factory = previous_factory
-        self.state['bgp'] = {'scope': 'Only accepted original prefix claims in this fixed snapshot; derived IPtoASN and auxiliary synthetic bgp-visible are excluded. Not observing a route is not proof of no global announcement or no reachability. BGP is not location truth.',
+        default_rows = {str(f): n for f,n in self.connection.execute('SELECT family,COUNT(*) FROM route_input WHERE observed=1 AND origin_prefix_length=0 GROUP BY family')}
+        self.state['bgp'] = {'scope': 'Original non-default prefix observations in this fixed snapshot, including special-ASN observations; derived IPtoASN and forwarding defaults are excluded from the association mask. Broad non-default observations are preserved, not assertions of exclusive ASN ownership. No observed route is not proof of no global announcement or no reachability. BGP is not location truth.',
+                            'default_forwarding_observations':default_rows,
                             'regions': {k: dict(v) for k, v in regions.items()}, 'issues': {k: dict(v) for k, v in issues.items()},
                             'observed_union_prefixes': {str(f): len(v) for f, v in union.items()},
                             'interval_cidr_sum_note': 'Sum of exact CIDRs per decision interval, not deduplicated global route or output prefix count.'}
@@ -422,7 +444,7 @@ class BuildRecord:
             summary = candidate.get('summary') or {}
             lines += ['', '## 候选结果', '', '```json', json.dumps(summary, ensure_ascii=False, sort_keys=True), '```',
                       '', '| 集合 | 域名规则 | IPv4 CIDR | IPv6 CIDR |', '|---|---:|---:|---:|']
-            for key in ('region/cn','region/ru','region/europe','special/lan','dns/realip','category/ai'):
+            for key in ('region/cn-ip','region/cn-domain','region/ru','region/europe','special/lan','special/realip','category/ai'):
                 profile = (candidate.get('product_coverage') or {}).get(key)
                 if profile:
                     lines.append(f"| {key} | {profile.get('domain_predicates',0)} | {profile.get('ipv4_cidrs',0)} | {profile.get('ipv6_cidrs',0)} |")
@@ -443,8 +465,8 @@ class BuildRecord:
                 if removed or any(changes.get(f'ipv{f}', {}).get('removed_addresses', 0) for f in (4,6)):
                     if len(lines) < 130:
                         lines.append(f"- {name}: 未完整保留的旧域名谓词 {removed}；IP 地址变化见比较明细。")
-        lines += ['', '完整区间及规则处理记录见 trace.sqlite3；样本不代表全部证据。',
-                  'comparison.json 区分候选与此前已发布产物。Geo、ASN、.list 的最终结果不受诊断影响。',
+        lines += ['', '完整冲突/未知区间及规则处理记录见 trace.sqlite3；样本不代表全部证据。',
+                  'comparison.json 区分候选与此前已发布产物。地域 .list 与 special/asn.ardb 的最终结果不受诊断影响。',
                   '原始下载归档不保留；位置、路由和服务归属是不同事实。']
         lines += ['旧 auxiliary 报告中的 bgp-visible 是混合 ASN 并集；summary.bgp 才是本次原始 BGP 宣告关联，且不能证明物理地域。']
         if self.state['diagnostic_errors']: lines += ['', '诊断不完整：' + json.dumps(self.state['diagnostic_errors'])]

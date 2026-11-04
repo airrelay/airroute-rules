@@ -141,9 +141,9 @@ class CrossRepositoryPublicationTests(unittest.TestCase):
             module.rollback(self.repo, 'a2', self.sha, sequence=4,
                 remote='products', branch='main', source_remote='origin')
 
-    def test_cli_separates_source_and_target_and_keeps_single_repo_default(self):
+    def test_cli_separates_source_and_target_with_explicit_remote(self):
         base = ['publish', '--candidate', 'candidate', '--source-sha', self.sha, '--sequence', '1']
-        original = parser().parse_args(base)
+        original = parser().parse_args(base + ['--remote', 'origin'])
         self.assertIsNone(original.source_remote)
         self.assertEqual(original.remote, 'origin')
         split = parser().parse_args(base + ['--remote', 'products', '--branch', 'main', '--source-remote', 'origin'])

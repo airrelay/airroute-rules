@@ -1,7 +1,9 @@
 """AirRoute ARDB v1 production writer and strict, allocation-bounded verifier.
 
 Only CIDR records live in these files. Provenance and registry identity belong to
-an immutable release manifest; ASN IDs and Geo region IDs have distinct meanings.
+an immutable release manifest. Production emits only special/asn.ardb (kind 2).
+The generic kind-1 codec remains solely for historical wire-contract goldens;
+it is not a generated, retained, validated or published Geo product.
 """
 from __future__ import annotations
 

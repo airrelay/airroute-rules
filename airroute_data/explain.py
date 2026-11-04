@@ -87,7 +87,8 @@ def explain(directory, *, domain=None, ip=None, asn=None, product=None, limit=10
                 # decision; query the disjoint regional/unknown records alone.
                 regions = [r['product'] for r in ranges(connection,'output_ip',network.version,a,b,limit=2,product_prefix='region/')['records']]
                 unknown = ranges(connection,'geo_issue',network.version,a,b,limit=2)['records']
-                result['recorded_geo_decision'] = {'regions': regions, 'unknown_reasons': sorted({r['status'] for r in unknown}),
+                result['recorded_geo_decision'] = {'regions': regions, 'unknown_reasons': sorted({r['status'] for r in unknown if not (r.get('details') or {}).get('assigned')}),
+                    'recorded_conflicts': [r for r in unknown if (r.get('details') or {}).get('assigned')],
                     'scope': 'excluded-nongeographic' if not list(public_intervals(network.version,a,b)) else
                              'recorded' if regions or unknown else 'no-decision-recorded-or-incomplete-build'}
             if a == b and not result['geo_input']['has_more'] and offset == 0:
@@ -101,6 +102,17 @@ def explain(directory, *, domain=None, ip=None, asn=None, product=None, limit=10
                     row['ignored_non_location_evidence'] = row.get('semantics','country-estimate') != 'country-estimate'
                     if not superseded and not row['ignored_non_location_evidence']: selected.append(row)
                 result['selected_source_records'] = selected
+                policy = _metadata(connection, 'geo-policy.json', {})
+                order = policy.get('source_order', [])
+                by_source = {}
+                for row in selected:
+                    if row.get('normalized_region') is not None: by_source.setdefault(row['source'], set()).add(row['normalized_region'])
+                chosen = next((sid for sid in order if len(by_source.get(sid, ())) == 1), None)
+                result['source_selection'] = {'configured_order': order, 'selected_source': chosen,
+                    'selected_region': next(iter(by_source[chosen])) if chosen else None,
+                    'policy': 'fixed-primary-then-gap-fill; other-source dissent is retained, not a veto',
+                    'complete': not result['geo_input']['has_more'],
+                    'note': 'Selected from normalized current-source ranges at this point; same-source ambiguous overlapping regions are skipped, not arbitrarily resolved.'}
             if a == b and generation_context.get('mode') != 'domains-only':
                 # Reconstruct the existing per-view longest-interval selection
                 # only for this point. The complete input index avoids logging
@@ -111,10 +123,10 @@ def explain(directory, *, domain=None, ip=None, asn=None, product=None, limit=10
                     for row in point_routes['records']:
                         if row['status'] != 'accepted':continue
                         info = row['details']; width = info['end']-info['start']
-                        for view in info.get('views') or [info.get('collector') or row['source']]:
+                        for view in info.get('views') or [row['source']+'/'+(info.get('collector') or row['source'])]:
                             old = views.get(view)
-                            if old is None or width<old[0]:views[view]=(width,set(info['asns']),{row['id']})
-                            elif width==old[0]:old[1].update(info['asns']);old[2].add(row['id'])
+                            if old is None or width<old[0]:views[view]=(width,set(info.get('compiled_asns') if info.get('compiled_asns') is not None else info['asns']),{row['id']})
+                            elif width==old[0]:old[1].update(info.get('compiled_asns') if info.get('compiled_asns') is not None else info['asns']);old[2].add(row['id'])
                 origins = sorted({asn for _,values,_ in views.values() for asn in values})
                 stored = ranges(connection,'output_ip',network.version,a,b,limit=1000,product_prefix='asn/')
                 result['asn_point_selection'] = {'input_complete':not point_routes['has_more'],
@@ -127,9 +139,9 @@ def explain(directory, *, domain=None, ip=None, asn=None, product=None, limit=10
                     'view_samples_complete':len(views)<=100,
                     'meaning':'Accepted inputs can be masked by a more specific interval in the same view. Views include derived ASN sources; none of this establishes physical location.'}
             if generation_context.get('mode')=='domains-only':
-                result['ip_provenance_scope']='Geo/ASN outputs retained from binary_base; original IP source rows and observations were not re-parsed in this run. Consult the retained base build record.'
-                result['asn_point_selection']={'applicable':False,'reason':'retained binary outputs; no new routing inputs'}
-            result['scope'] = 'Prefix queries list overlapping records and may span different decisions. No single sampled IP proves a whole prefix. BGP claims are only route_input observed=1; accepted ones form the reported observation mask.'
+                result['ip_provenance_scope']='Regional IP lists and special/asn.ardb retained from retained_ip_base; original IP source rows and observations were not re-parsed in this run. Consult the recorded source version/time and retained base build record.'
+                result['asn_point_selection']={'applicable':False,'reason':'retained ASN database; no new routing inputs'}
+            result['scope'] = 'Prefix queries list overlapping records and may span different decisions. No single sampled IP proves a whole prefix. BGP observations are route_input observed=1; non-default observations form the association mask. Forwarding defaults are reported separately, not treated as ASN ownership of all addresses.'
         elif asn is not None:
             number = int(str(asn).removeprefix('AS'))
             if not 0 < number < 2**32: raise ValueError('invalid ASN')
@@ -139,6 +151,9 @@ def explain(directory, *, domain=None, ip=None, asn=None, product=None, limit=10
             result['output_prefixes'] = _page([dict(r) | {'start': str(ipaddress.ip_address(int.from_bytes(r['start'],'big'))) if r['family']==4 else str(ipaddress.IPv6Address(int.from_bytes(r['start'],'big'))),
                 'end': str((ipaddress.IPv4Address if r['family']==4 else ipaddress.IPv6Address)(int.from_bytes(r['end'],'big')))} for r in connection.execute('SELECT product,family,start,end FROM output_ip WHERE product=? ORDER BY family,start LIMIT ? OFFSET ?', ('asn/'+str(number), limit+1, offset))], limit, 0)
             result['output_prefixes']['next_offset'] = offset+limit if result['output_prefixes']['has_more'] else None
+            refs = connection.execute("SELECT product,kind,value FROM output_domain WHERE kind='IP-ASN' AND value IN (?,?) ORDER BY product LIMIT ? OFFSET ?", (str(number),'AS'+str(number),limit+1,offset)).fetchall()
+            result['rule_references'] = _page([dict(r) for r in refs],limit,0)
+            result['rule_references']['next_offset'] = offset+limit if result['rule_references']['has_more'] else None
         elif product is not None:
             row = connection.execute('SELECT details FROM product WHERE name=?', (product,)).fetchone()
             result['product'] = json.loads(row[0]) if row else None

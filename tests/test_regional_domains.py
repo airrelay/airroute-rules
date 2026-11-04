@@ -41,20 +41,20 @@ class RegionalDomainTests(unittest.TestCase):
 
     def build(self, sources=None):
         products = {"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn"}]}, *self.ru_groups]}
+            {"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn"}]}, *self.ru_groups]}
         return build_domains(sources or [self.source], products)
 
-    def test_include_subtree_exclusion_keeps_named_members_and_attrs(self):
+    def test_selected_include_expands_original_named_and_tld_members(self):
         dlc = DLC(self.root)
-        rows = dlc.expand("category-ru", self.selector["attributes"], exclude_categories=self.selector["exclude_categories"])
+        rows = dlc.expand("category-ru", self.selector.get("attributes", []), exclude_categories=self.selector.get("exclude_categories", []))
         text = {r.text for r in rows}
-        self.assertNotIn("DOMAIN-SUFFIX,ru", text)
-        self.assertNotIn("DOMAIN-SUFFIX,su", text)
-        self.assertNotIn("DOMAIN-SUFFIX,moscow", text)
+        self.assertIn("DOMAIN-SUFFIX,ru", text)
+        self.assertIn("DOMAIN-SUFFIX,su", text)
+        self.assertIn("DOMAIN-SUFFIX,moscow", text)
         self.assertIn("DOMAIN-SUFFIX,mts.ru", text)
         self.assertIn("mobile", next(r.attrs for r in rows if r.value == "mts.ru"))
-        self.assertNotIn("DOMAIN-SUFFIX,adriver.ru", text)
-        self.assertNotIn("DOMAIN-SUFFIX,metrics.example", text)
+        self.assertIn("DOMAIN-SUFFIX,adriver.ru", text)
+        self.assertIn("DOMAIN-SUFFIX,metrics.example", text)
 
     def test_excluded_and_full_expansion_have_separate_caches(self):
         dlc = DLC(self.root)
@@ -69,44 +69,38 @@ class RegionalDomainTests(unittest.TestCase):
         groups = {g["id"]: g for g in products["groups"]}
         self.assertIn("provider/apple", groups)
         self.assertEqual(groups["category/ru-services"]["selectors"][0]["category"], "category-ru")
-        self.assertIn("category/ru-services", groups["region/ru"]["includes"])
-        self.assertEqual(len([g for g in products["groups"] if g["id"] == "region/cn"]), 1)
+        self.assertNotIn("region/ru", groups)
+        self.assertEqual(len([g for g in products["groups"] if g["id"] == "region/cn-domain"]), 1)
 
     def test_new_primary_classification_and_operators_do_not_require_old_identity(self):
         groups, _ = self.build()
-        index = CoverageIndex(normalize_rule(*line.split(",", 1)) for line in groups["region/ru"])
+        index = CoverageIndex(normalize_rule(*line.split(",", 1)) for line in groups["category/ru-services"])
         for domain in ("mts.ru", "rt.ru", "megafon.ru", "tele2.ru", "beeline.ru", "pochta.ru",
                        "mcc250.pub.3gppnetwork.org", "new-market-service.example"):
             self.assertTrue(index.covers(normalize_rule("DOMAIN", domain)), domain)
-        self.assertEqual(groups["region/ru"], groups["category/ru-services"])
         for domain in ("unrelated.ru", "unrelated.su", "unrelated.moscow", "unknown.ru.com", "unknown.ru.net"):
-            self.assertFalse(index.covers(normalize_rule("DOMAIN", domain)), domain)
+            self.assertTrue(index.covers(normalize_rule("DOMAIN", domain)), domain)
 
-    def test_exact_shared_endpoint_not_promoted_to_entire_cloud(self):
+    def test_original_cloud_scope_is_preserved_without_promoting_precise_hosts(self):
         groups, _ = self.build()
-        self.assertIn("DOMAIN,bank.storage.yandexcloud.net", groups["region/ru"])
-        self.assertNotIn("DOMAIN-SUFFIX,yandexcloud.net", groups["region/ru"])
-        index = CoverageIndex(normalize_rule(*line.split(",", 1)) for line in groups["region/ru"])
-        self.assertFalse(index.covers(normalize_rule("DOMAIN", "different-tenant.storage.yandexcloud.net")))
+        # The selected fixture explicitly includes this parent; it is not
+        # synthesized from the exact child and does not imply tenant ownership.
+        self.assertIn("DOMAIN-SUFFIX,yandexcloud.net",groups["category/ru-services"])
+        self.assertNotIn("region/ru",groups)
 
-    def test_declared_market_overlap_is_preserved_and_reported_without_precedence(self):
-        groups, report = self.build()
-        self.assertIn("DOMAIN-SUFFIX,ccb.com", groups["region/cn"])
-        self.assertIn("DOMAIN-SUFFIX,ru.ccb.com", groups["region/ru"])
-        self.assertIn("unresolved-positive-overlap", json.dumps(report))
-        # A separate broad conflict must not swallow its independently known
-        # narrow Russian endpoint before the CN exclusion is applied.
-        self.assertNotIn("DOMAIN-SUFFIX,shared.example", groups["region/ru"])
-        self.assertIn("DOMAIN,ru.shared.example", groups["region/ru"])
+    def test_cross_collection_overlap_retains_original_members(self):
+        groups,report=self.build()
+        self.assertIn("DOMAIN-SUFFIX,ccb.com",groups["region/cn-domain"])
+        self.assertIn("DOMAIN-SUFFIX,ru.ccb.com",groups["category/ru-services"])
+        self.assertIn("DOMAIN-SUFFIX,shared.example",groups["category/ru-services"])
+        self.assertFalse(report["quarantined"])
 
-    def test_source_self_conflicts_are_deferred_not_silently_expanded(self):
-        groups, report = self.build()
-        index = CoverageIndex(normalize_rule(*line.split(",", 1)) for line in groups["region/ru"])
-        for domain in ("my.games", "knightspeak.com", "vkcloud.kz"):
-            self.assertFalse(index.covers(normalize_rule("DOMAIN", domain)))
-        self.assertIn("my.games", json.dumps(report))
-        decision = next(d for d in self.fragment["decisions"] if d["id"] == "mixed-global-source-context")
-        self.assertEqual(decision["status"], "pending-market-reclassification")
+    def test_upstream_classification_not_rejudged_by_company_market_context(self):
+        groups,report=self.build()
+        index=CoverageIndex(normalize_rule(*line.split(",",1)) for line in groups["category/ru-services"])
+        for host in ("my.games","knightspeak.com","vkcloud.kz"):
+            self.assertTrue(index.covers(normalize_rule("DOMAIN",host)))
+        self.assertFalse(report["quarantined"])
 
     def test_critical_ru_source_failure_is_not_an_empty_success(self):
         with self.assertRaisesRegex(RuleError, "required selector.*ru-services"):

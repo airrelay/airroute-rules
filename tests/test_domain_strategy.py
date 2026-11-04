@@ -38,7 +38,7 @@ class DomainStrategyTests(unittest.TestCase):
 
     def build(self, cn_selectors, *groups, **cn_fields):
         return build_domains(self.sources, {"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": cn_selectors, **cn_fields}, *groups]})
+            {"id": "region/cn-domain", "selectors": cn_selectors, **cn_fields}, *groups]})
 
     @staticmethod
     def index(lines):
@@ -51,20 +51,39 @@ class DomainStrategyTests(unittest.TestCase):
             {"source": "dlc", "category": "cn", "mode": "primary"},
             {"source": "chinamax", "mode": "primary"},
         ])
-        self.assertEqual(set(groups["region/cn"]), {
+        self.assertEqual(set(groups["region/cn-domain"]), {
             "DOMAIN-SUFFIX,new-primary.example", "DOMAIN-SUFFIX,new-supplement.example"})
         self.assertNotIn("reference_decisions", report)
         self.assertFalse(any("identity-catalogue" in x["reason"] for x in report["quarantined"]))
 
     def test_actual_cn_selectors_do_not_restore_identity_gate(self):
         products = load_products(ROOT / "config/products.json")
-        cn = next(g for g in products["groups"] if g["id"] == "region/cn")
+        cn = next(g for g in products["groups"] if g["id"] == "region/cn-domain")
         mature = [s for s in cn["selectors"] if s["source"] in {"blackmatrix", "acl4ssr", "sukka"}]
         self.assertTrue(mature)
         self.assertTrue(any("ChinaMax" in s.get("path", "") for s in mature))
         for selector in mature:
             self.assertEqual(selector.get("mode", "primary"), "primary", selector)
             self.assertNotIn("identity_catalogues", selector)
+
+    def test_global_category_configuration_includes_cn_parts_without_filter_gates(self):
+        products=load_products(ROOT/"config/products.json")
+        groups={g["id"]:g for g in products["groups"]}
+        for group,category in [("category/ai","category-ai-cn"),("category/cloud-storage","category-netdisk-cn"),
+                               ("category/social","category-social-media-cn"),("category/education","category-scholar-cn")]:
+            self.assertTrue(any(s.get("category")==category for s in groups[group]["selectors"]))
+        for group in groups.values():
+            for selector in group.get("selectors",[]):
+                self.assertFalse({"-cn","-!cn","!cn"}&set(selector.get("attributes",[])))
+                self.assertFalse({"owned_roots","bounded_service","domain_only","shared_roots"}&selector.keys())
+
+    def test_cn_official_catalogue_can_include_non_cn_dependency(self):
+        path=self.root/"official.json"
+        path.write_text(json.dumps([{"id":1,"serviceArea":"Common","urls":["shared.service.example","*.tenant.global.example"]}]))
+        self.source("official",path,"official-json")
+        groups,report=self.build([{"source":"official","format":"official-json","adapter":"microsoft365"}])
+        self.assertIn("DOMAIN,shared.service.example",groups["region/cn-domain"])
+        self.assertFalse(report["quarantined"])
 
     def test_russian_tld_subtree_removal_preserves_named_classes(self):
         self.dlc_file("tld-ru", "ru\nsu\nmoscow\n")
@@ -80,16 +99,14 @@ class DomainStrategyTests(unittest.TestCase):
         self.assertFalse(index.covers(normalize_rule("DOMAIN", "unrelated.ru")))
         self.assertFalse(index.covers(normalize_rule("DOMAIN", "unrelated.su")))
 
-    def test_precise_cloud_dependency_never_promotes_shared_parent(self):
-        self.third_party("chinamax", "DOMAIN-SUFFIX,cloudfront.net\nDOMAIN,tenant.cloudfront.net\n")
-        groups, report = self.build([{"source": "chinamax", "mode": "primary"}],
-                                    shared_roots=["cloudfront.net"])
-        self.assertEqual(groups["region/cn"], ["DOMAIN,tenant.cloudfront.net"])
-        index = self.index(groups["region/cn"])
+    def test_precise_cloud_dependency_keeps_original_scope(self):
+        self.third_party("chinamax", "DOMAIN,tenant.cloudfront.net\n")
+        groups, report = self.build([{"source": "chinamax", "mode": "primary"}])
+        self.assertEqual(groups["region/cn-domain"], ["DOMAIN,tenant.cloudfront.net"])
+        index = self.index(groups["region/cn-domain"])
         for domain in ("other.cloudfront.net", "nested.tenant.cloudfront.net"):
             self.assertFalse(index.covers(normalize_rule("DOMAIN", domain)))
-        self.assertTrue(any(q["reason"] == "shared-parent-needs-precise-endpoint"
-                            for q in report["quarantined"]))
+        self.assertFalse(report["quarantined"])
 
     def test_reason_samples_are_bounded_per_source_not_by_global_prefix(self):
         # A large earlier rejection category must not hide a later source's
@@ -98,7 +115,7 @@ class DomainStrategyTests(unittest.TestCase):
         self.third_party("later", "DOMAIN-SUFFIX,cloudfront.net\nDOMAIN,new-market.example\n")
         groups, report = self.build([
             {"source": "first", "exclude_roots": ["example"]},
-            {"source": "later", "shared_roots": ["cloudfront.net"]},
+            {"source": "later", "exclude_roots": ["cloudfront.net"]},
         ])
         first = [q for q in report["quarantined"] if q["source"].startswith("first:")]
         later = [q for q in report["quarantined"] if q["source"].startswith("later:")]
@@ -106,57 +123,40 @@ class DomainStrategyTests(unittest.TestCase):
         self.assertEqual(len(later), 1)
         self.assertEqual(sum(v for k, v in report["quarantine_counts"].items()
                              if k.startswith("first:")), 1005)
-        self.assertEqual(groups["region/cn"], ["DOMAIN,new-market.example"])
+        self.assertEqual(groups["region/cn-domain"], ["DOMAIN,new-market.example"])
         json.dumps(report)  # The bounded report remains JSON serializable.
 
     def test_semantic_compaction_keeps_exact_hosts_exact(self):
         self.third_party("mature", "DOMAIN-SUFFIX,bank.example\nDOMAIN,login.bank.example\n"
                          "DOMAIN,exact-only.example\nDOMAIN,exact-only.example\n")
         groups, report = self.build([{"source": "mature"}])
-        self.assertEqual(set(groups["region/cn"]), {
+        self.assertEqual(set(groups["region/cn-domain"]), {
             "DOMAIN-SUFFIX,bank.example", "DOMAIN,exact-only.example"})
-        self.assertFalse(self.index(groups["region/cn"]).covers(
+        self.assertFalse(self.index(groups["region/cn-domain"]).covers(
             normalize_rule("DOMAIN", "sub.exact-only.example")))
-        buckets = report["decisions"]["region/cn"]
+        buckets = report["decisions"]["region/cn-domain"]
         compactions = [value for phases in buckets.values() for key, value in
                        phases.get("compaction", {}).items() if key.startswith("covered:")]
         self.assertEqual(sum(x["count"] for x in compactions), 2)
 
-    def test_cn_ru_overlap_requires_exact_predicate_and_provenance(self):
+    def test_cn_and_ru_service_overlap_is_preserved_without_exceptions(self):
         self.dlc_file("cn", "ccb.com\ncn.shared.example\n")
         self.dlc_file("ru", "ru.ccb.com\nother.ccb.com\nshared.example\nfull:ru.shared.example\n")
-        exception = {"predicate": "DOMAIN-SUFFIX,ru.ccb.com", "source": "dlc:ru",
-                     "reason": "Explicit Russian-market branch; no implicit routing precedence."}
-        ru = {"id": "region/ru", "selectors": [{"source": "dlc", "category": "ru"}],
-              "cn_market_overlaps": [exception]}
+        ru = {"id": "category/ru-services", "selectors": [{"source": "dlc", "category": "ru"}]}
         groups, report = self.build([{"source": "dlc", "category": "cn"}], ru)
-        self.assertIn(exception["predicate"], groups["region/ru"])
-        self.assertNotIn("DOMAIN-SUFFIX,other.ccb.com", groups["region/ru"])
-        self.assertNotIn("DOMAIN-SUFFIX,shared.example", groups["region/ru"])
-        self.assertIn("DOMAIN,ru.shared.example", groups["region/ru"])
-        self.assertEqual(len(report["market_conflicts"]), 1)
-        self.assertEqual(report["market_conflicts"][0]["status"], "unresolved-positive-overlap")
-        with self.assertRaisesRegex(RuleError, "CN/overseas domain overlap"):
-            validate_domain_groups(groups)
-        validate_domain_groups(groups, market_overlaps={"region/ru": [exception]})
-        wrong = deepcopy(ru)
-        wrong["cn_market_overlaps"][0]["source"] = "dlc:wrong-origin"
-        wrong_groups, wrong_report = self.build([{"source": "dlc", "category": "cn"}], wrong)
-        self.assertNotIn(exception["predicate"], wrong_groups["region/ru"])
-        self.assertFalse(wrong_report["market_conflicts"])
+        index = self.index(groups["category/ru-services"])
+        for host in ("ru.ccb.com", "other.ccb.com", "ru.shared.example"):
+            self.assertTrue(index.covers(normalize_rule("DOMAIN",host)))
+        self.assertFalse(report["quarantined"])
+        validate_domain_groups(groups)
 
-    def test_mixed_market_patterns_cannot_bypass_top_level_exclusion(self):
+    def test_valid_top_level_upstream_rules_are_preserved(self):
         self.dlc_file("cn", "keyword:alipay\n")
         self.dlc_file("ru", "ru\nyandex\nmts.ru\n")
-        products = {"schema": 1, "policy": {"cn_exclusion": "named-mainland-services; report mixed-market overlaps"},
-            "groups": [{"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn"}]},
-                       {"id": "region/ru", "selectors": [{"source": "dlc", "category": "ru"}]}]}
-        groups, report = build_domains(self.sources, products)
-        self.assertEqual(groups["region/ru"], ["DOMAIN-SUFFIX,mts.ru"])
-        with self.assertRaisesRegex(RuleError, "top-level shortcut"):
-            validate_domain_groups({"region/cn": [], "region/ru": ["DOMAIN-SUFFIX,ru"]},
-                market_overlaps={"region/ru": [{"predicate": "DOMAIN-SUFFIX,ru", "source": "fixture", "reason": "tamper"}]})
-        self.assertEqual(sum(x["reason"] == "TLD alone is not service identity" for x in report["quarantined"]), 2)
+        groups, report = self.build([{"source":"dlc","category":"cn"}],
+            {"id":"category/ru-services","selectors":[{"source":"dlc","category":"ru"}]})
+        self.assertEqual(groups["category/ru-services"],["DOMAIN-SUFFIX,ru","DOMAIN-SUFFIX,yandex"])
+        self.assertFalse(report["quarantined"])
 
     def test_missing_required_source_or_selector_is_a_failure(self):
         with self.assertRaisesRegex(RuleError, "required selector.*source unavailable"):

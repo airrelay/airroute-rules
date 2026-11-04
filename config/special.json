@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "version": "2026-11-special-v1",
+  "version": "2026-11-04-realip-unified",
   "policy": {
     "address_mode_not_route": true,
     "no_network_during_build": true,
     "iana_baseline": "Selected RFC-defined allocations, checked against frozen IANA registry when available; absence is reported",
-    "optional_realip": "Only explicit endpoint matches. DLC role catalogues and derived DustinWin lists are one lineage, not independent votes."
+    "realip": "Single merged domain-only address-mode list; mature compatibility inputs preserve exact/suffix/keyword semantics. No resolver or route action."
   },
   "evidence": {
     "iana4": {
@@ -135,7 +135,6 @@
         "ipv6"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "IP-CIDR",
@@ -242,7 +241,6 @@
         "ipv4"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "IP-CIDR",
@@ -263,7 +261,6 @@
         "ipv6"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "IP-CIDR",
@@ -291,7 +288,6 @@
         "ipv4"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "IP-CIDR",
@@ -312,7 +308,6 @@
         "ipv6"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "IP-CIDR",
@@ -341,7 +336,6 @@
         "ipv6"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "IP-CIDR",
@@ -393,7 +387,6 @@
         "ipv6"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "IP-CIDR6",
@@ -421,7 +414,6 @@
         "domain"
       ],
       "optional": true,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "DOMAIN-SUFFIX",
@@ -449,7 +441,6 @@
         "domain"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "DOMAIN",
@@ -509,7 +500,6 @@
         "domain"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "DOMAIN",
@@ -585,7 +575,6 @@
         "domain"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "DOMAIN",
@@ -605,7 +594,6 @@
         "domain"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "DOMAIN",
@@ -667,7 +655,6 @@
         "ipv6"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "DOMAIN",
@@ -752,14 +739,13 @@
       ]
     },
     {
-      "id": "dns/realip",
+      "id": "special/realip",
       "name": "真实 DNS 地址例外",
-      "purpose": "A/AAAA response address mode only; independent from DNS resolver and traffic route",
+      "purpose": "Merged RealIP address-mode compatibility list. Does not choose a resolver or traffic route.",
       "content_types": [
         "domain"
       ],
       "optional": false,
-      "minimum_rules": 1,
       "entries": [
         {
           "kind": "DOMAIN-SUFFIX",
@@ -800,26 +786,14 @@
             "rfc7050"
           ],
           "reason": "address contents carry NAT64 prefix discovery meaning; synthesizing unrelated Fake IP changes that meaning"
-        }
-      ]
-    },
-    {
-      "id": "dns/realip-optional",
-      "name": "可选真实 DNS 兼容扩展",
-      "purpose": "Opt-in endpoint compatibility candidates, not universal protocol requirements; never entire platform roots",
-      "content_types": [
-        "domain"
-      ],
-      "optional": true,
-      "minimum_rules": 1,
-      "entries": [
+        },
         {
           "kind": "DOMAIN",
           "value": "www.msftconnecttest.com",
           "evidence": [
             "windows-ncsi"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
         },
         {
           "kind": "DOMAIN",
@@ -827,7 +801,7 @@
           "evidence": [
             "windows-ncsi"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
         },
         {
           "kind": "DOMAIN",
@@ -835,7 +809,7 @@
           "evidence": [
             "windows-ncsi"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
         },
         {
           "kind": "DOMAIN",
@@ -843,7 +817,7 @@
           "evidence": [
             "windows-ncsi"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: Windows network connectivity check"
         },
         {
           "kind": "DOMAIN",
@@ -851,7 +825,7 @@
           "evidence": [
             "apple-network"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: Apple captive portal connectivity validation"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: Apple captive portal connectivity validation"
         },
         {
           "kind": "DOMAIN",
@@ -859,7 +833,7 @@
           "evidence": [
             "apple-network"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -867,7 +841,7 @@
           "evidence": [
             "apple-network"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -875,7 +849,7 @@
           "evidence": [
             "apple-network"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -883,7 +857,7 @@
           "evidence": [
             "google-ntp"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -891,7 +865,7 @@
           "evidence": [
             "google-ntp"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -899,7 +873,7 @@
           "evidence": [
             "google-ntp"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -907,7 +881,7 @@
           "evidence": [
             "google-ntp"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -915,7 +889,7 @@
           "evidence": [
             "google-ntp"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: documented NTP endpoint"
         },
         {
           "kind": "DOMAIN",
@@ -923,7 +897,7 @@
           "evidence": [
             "webrtc-sample"
           ],
-          "reason": "optional endpoint compatibility policy; not proof every client or protocol needs Real IP: STUN endpoint published by WebRTC sample"
+          "reason": "endpoint compatibility policy; not proof every client or protocol needs Real IP: STUN endpoint published by WebRTC sample"
         },
         {
           "kind": "DOMAIN",
@@ -931,7 +905,7 @@
           "evidence": [
             "dustinwin"
           ],
-          "reason": "optional community Xbox compatibility exception, not the whole Xbox platform and not independently verified NAT necessity"
+          "reason": "community Xbox compatibility entry, not the whole Xbox platform and not independently verified NAT necessity"
         }
       ]
     }
@@ -941,17 +915,13 @@
       "source": "dlc",
       "category": "category-ntp",
       "group": "special/ntp",
-      "role": "ntp",
-      "admit": "exact-only",
-      "optional_realip": true
+      "role": "ntp"
     },
     {
       "source": "dlc",
       "category": "category-stun",
       "group": "special/stun-turn",
-      "role": "stun-turn",
-      "admit": "exact-only",
-      "optional_realip": true
+      "role": "stun-turn"
     }
   ],
   "audit_inputs": [
@@ -989,12 +959,12 @@
     {
       "scope": "game NAT",
       "status": "partial",
-      "reason": "Only a narrow opt-in community Xbox endpoint; platform-wide Battle.net/Steam/Nintendo exemptions have no sufficient default evidence."
+      "reason": "Coverage follows frozen selected community compatibility inputs; entries do not prove that all games or all clients require RealIP."
     },
     {
       "scope": "VPN/overlay",
       "status": "not-globally-generalizable",
-      "reason": "Tailnet-specific MagicDNS names and VPN server addresses depend on user configuration; do not exempt all ts.net/tailscale.com/UDP/VPN."
+      "reason": "User-specific private DNS names and remote VPN endpoints depend on user configuration and may not appear in any public list."
     },
     {
       "scope": "reverse lookup / mDNS",

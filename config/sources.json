@@ -437,7 +437,8 @@
         "rule/Surge/PlayStation/PlayStation.list",
         "rule/Surge/Nintendo/Nintendo.list",
         "rule/Surge/Lan/Lan.list",
-        "rule/Surge/China/China_Domain.list"
+        "rule/Surge/China/China_Domain.list",
+        "rule/Surge/GoogleSearch/GoogleSearch.list"
       ],
       "access": "Public selected Surge files; no MITM/UA modules",
       "update_frequency": "continuous",
@@ -468,7 +469,8 @@
         "Clash/Ruleset/Steam.list",
         "Clash/Ruleset/Telegram.list",
         "Clash/ChinaDomain.list",
-        "Clash/ChinaMedia.list"
+        "Clash/ChinaMedia.list",
+        "Clash/Ruleset/DisneyPlus.list"
       ],
       "access": "Public selected list",
       "update_frequency": "continuous",
@@ -606,7 +608,7 @@
       "publish_allowed": true,
       "id": "telegram-endpoints",
       "format": "official-cidr",
-      "service": "service/telegram",
+      "service": "provider/telegram",
       "lineage": "telegram-official",
       "publisher": "Telegram",
       "field_semantics": "Official service destination networks, not country/location data and not all networks of any origin ASN",

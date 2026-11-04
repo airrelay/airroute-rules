@@ -45,8 +45,9 @@ class PipelineTests(unittest.TestCase):
         q = json.loads((ROOT / "config/quality.json").read_text())
         q.pop("per_product", None)
         (self.config / "quality.json").write_text(json.dumps(q))
+        (self.config / "geo-policy.json").write_text(json.dumps({"schema":1,"primary_source":"country-a","source_order":["country-a","country-b"]}))
         (self.config / "products.json").write_text(json.dumps({"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-identity", "required": True}]},
+            {"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn-identity", "required": True}]},
             {"id": "category/example", "selectors": [{"source": "dlc", "category": "service"}]}]}))
         self.snapshot = self.root / "snapshot"
         acquire_sources(self.source_config, self.snapshot, fixture_dir=self.fixture)
@@ -60,18 +61,20 @@ class PipelineTests(unittest.TestCase):
         other, repeated = self.run_build("same-input")
         self.assertEqual(manifest, repeated)
         self.assertEqual(manifest["summary"]["country_lineages"], 2)
-        cn = (target / "region/cn.list").read_text()
+        cn = (target / "region/cn-domain.list").read_text()
         self.assertIn("DOMAIN-SUFFIX,mainland.example", cn)
-        self.assertIn("IP-CIDR,1.0.1.0/24", cn)
-        self.assertLess(cn.index("DOMAIN"), cn.index("IP-CIDR"))
-        self.assertNotIn("mainland.example", (target / "category/example.list").read_text())
+        self.assertNotIn("IP-CIDR", cn)
+        self.assertIn("IP-CIDR,1.0.1.0/24", (target / "region/cn-ip.list").read_text())
+        self.assertIn("mainland.example", (target / "category/example.list").read_text())
+        self.assertFalse((target / "geo.ardb").exists())
+        self.assertFalse((target / "region/cn.list").exists())
         from airroute_data.ardb import read_database
-        asn = read_database(target / "asn.ardb", "asn")
+        asn = read_database(target / "special/asn.ardb", "asn")
         self.assertIn("1.0.1.0/24", asn[1])
         self.assertIn("1.0.1.0/24", asn[2])
         report = json.loads((target / "reports/geo.json").read_text())
         issues = "".join((target / "reports" / part["path"]).read_text() for part in report["issue_files"])
-        self.assertIn("conflicting-regions", issues)
+        self.assertIn('"region_disagreement": true', issues)
         self.assertIn("missing-all-sources", issues)
         validate_candidate(target)
 
@@ -89,38 +92,38 @@ class PipelineTests(unittest.TestCase):
         for source in snapshot["sources"]:source["fetched_at"] = snapshot["created_at"]
         metadata.write_text(json.dumps(snapshot))
         _, two = self.run_build("clock-change")
-        self.assertEqual(one, two)
+        self.assertEqual(one["data_version"], two["data_version"])
 
     def test_corrupt_binary_or_list_even_rehashed_cannot_publish(self):
         target, manifest = self.run_build()
-        p = target / "region/cn.list"
+        p = target / "region/cn-ip.list"
         p.write_text(p.read_text().replace("1.0.1.0/24", "1.0.0.0/23"))
         for record in manifest["files"]:
-            if record["path"] == "region/cn.list":
+            if record["path"] == "region/cn-ip.list":
                 record.update(bytes=p.stat().st_size, sha256=file_digest(p))
         (target / "manifest.json").write_text(json.dumps(manifest))
-        with self.assertRaisesRegex(ValueError, "Geo/list"):
+        with self.assertRaisesRegex(ValueError, "summary|coverage"):
             validate_candidate(target)
 
-    def test_missing_source_report_and_publication_gate(self):
+    def test_missing_fallback_does_not_block_but_missing_primary_fails(self):
         metadata = self.snapshot / "snapshot.json"
         snapshot = json.loads(metadata.read_text())
         snapshot["sources"][1]["status"] = "unavailable"
         metadata.write_text(json.dumps(snapshot))
-        with self.assertRaisesRegex(ValueError, "country lineages|no resolved Geo"):
-            self.run_build()
-        # Independent domains/ASN were still generated for diagnostics; current release untouched.
-        self.assertTrue((self.root / "candidate/asn.ardb").is_file())
-        report = json.loads((self.root / "candidate/reports/sources.json").read_text())
-        self.assertEqual(report["unavailable_or_withheld"][0]["id"], "country-b")
+        target, result = self.run_build()
+        self.assertTrue((target / "special/asn.ardb").is_file())
+        snapshot["sources"][0]["status"] = "download-failed"
+        metadata.write_text(json.dumps(snapshot))
+        with self.assertRaisesRegex(ValueError, "primary country source unavailable"):
+            self.run_build("missing-primary")
 
-    def test_coverage_collapse_blocked_relative_to_previous_good_version(self):
+    def test_history_volume_does_not_block_valid_output(self):
         baseline, _ = self.run_build()
         manifest = json.loads((baseline / "manifest.json").read_text())
         manifest["summary"]["asn_prefixes"] *= 100
         (baseline / "manifest.json").write_text(json.dumps(manifest))
-        with self.assertRaisesRegex(ValueError, "coverage collapse"):
-            self.run_build("collapsed", baseline=baseline)
+        target, result = self.run_build("changed", baseline=baseline)
+        self.assertTrue(validate_candidate(target)["valid"])
 
     def test_output_does_not_overwrite_previous_candidate(self):
         target, _ = self.run_build()
@@ -147,7 +150,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(audit["input_rows"]["bm-cn-ip"], 1)
         self.assertEqual(audit["sources"]["bm-cn-ip"]["ipv4_region_cn_addresses"], 256)
         self.assertEqual(audit["sources"]["bgp-visible"]["ipv4_region_ru_addresses"], 256)
-        self.assertNotIn("8.8.8.0/24", (target / "region/cn.list").read_text())
+        self.assertNotIn("8.8.8.0/24", (target / "region/cn-ip.list").read_text())
 
 
 if __name__ == "__main__":

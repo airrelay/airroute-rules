@@ -1,4 +1,4 @@
-"""Offline rule semantics and deliberately conservative product classification.
+"""Offline conversion and merging of configured upstream rule classifications.
 
 Only consumes frozen public files. No DNS, TLS, HTTP target or ownership probes.
 The returned rule text is the subset accepted by AirRoute Core's Surge parser.
@@ -25,6 +25,7 @@ class Rule:
     attrs: frozenset[str] = frozenset()
     source: str = ""
     line: int = 0
+    removed_modifiers: tuple[str, ...] = ()
 
     @property
     def text(self) -> str:
@@ -33,6 +34,7 @@ class Rule:
 
 DOMAIN_KINDS = frozenset({"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "DOMAIN-REGEX"})
 IP_KINDS = frozenset({"IP-CIDR", "IP-CIDR6"})
+NON_IP_KINDS = DOMAIN_KINDS | frozenset({"PROCESS-NAME", "IP-ASN"})
 
 
 def _ascii_lower(value: str) -> str:
@@ -86,6 +88,14 @@ def normalize_rule(kind: str, value: str, **kwargs) -> Rule:
             re.compile(value)
         except re.error as exc:
             raise RuleError("invalid regex") from exc
+    elif kind == "IP-ASN":
+        if not value.strip().isascii() or not value.strip().isdigit() or not 0 <= int(value.strip()) < 2**32:
+            raise RuleError("invalid ASN predicate")
+        value = str(int(value.strip()))
+    elif kind == "PROCESS-NAME":
+        value = value.strip()
+        if not value or any(c in value for c in ",\r\n\0"):
+            raise RuleError("invalid process-name predicate")
     elif kind in IP_KINDS:
         try:
             network = ipaddress.ip_network(value, strict=False)
@@ -96,6 +106,14 @@ def normalize_rule(kind: str, value: str, **kwargs) -> Rule:
     else:
         raise RuleError(f"unsupported predicate {kind}")
     return Rule(kind, value, **kwargs)
+
+
+def parse_rule_line(line: str) -> Rule:
+    """Parse modifier-free canonical AirRoute output."""
+    parts = line.split(",")
+    if len(parts) != 2:
+        raise RuleError("invalid output predicate fields; generated rules do not carry modifiers")
+    return normalize_rule(parts[0], parts[1])
 
 
 def _attribute_matches(attrs: frozenset[str], filters: Iterable[str]) -> bool:
@@ -302,14 +320,21 @@ def parse_third_party(text: str, format: str, source: str = "source", *, behavio
                 raise RuleError("wildcard dialect is ambiguous; Core includes apex for *.suffix")
             if kind == "DOMAIN-REGEX" and len(pieces) != 2:
                 raise RuleError("regex comma/policy cannot be disambiguated by Core CSV")
-            if len(pieces) > 3 or any("=" in p for p in pieces[2:]):
+            if len(pieces) > 4 or any("=" in p for p in pieces[2:]):
                 raise RuleError("unsupported rule modifiers/conditions")
+            no_resolve = False
+            policy = None
             for extra in pieces[2:]:
-                if extra.lower() == "no-resolve" and kind not in IP_KINDS:
-                    raise RuleError("no-resolve on a non-IP rule")
-                # A single policy target does not constrain the predicate and is
-                # intentionally omitted: this repository never picks an exit.
-            rules.append(normalize_rule(kind, value, source=source, line=number))
+                if extra.lower() == "no-resolve":
+                    if kind not in IP_KINDS | {"IP-ASN"}:
+                        raise RuleError("no-resolve on a non-IP rule")
+                    no_resolve = True
+                elif policy is None:
+                    # Exit actions are intentionally not imposed by a product.
+                    policy = extra
+                else:
+                    raise RuleError("multiple policy targets or unknown modifiers")
+            rules.append(normalize_rule(kind, value, removed_modifiers=("no-resolve",) if no_resolve else (), source=source, line=number))
         except (RuleError, ValueError, TypeError) as exc:
             quarantine.append(_quarantine(source, number, raw, str(exc)))
     return rules, quarantine
@@ -325,6 +350,7 @@ class CoverageIndex:
 
     def __init__(self, rules: Iterable[Rule]):
         rules = list(rules)
+        self.predicates = {r.text for r in rules}
         self.exact = {r.value for r in rules if r.kind == "DOMAIN"}
         self.suffix = {r.value for r in rules if r.kind == "DOMAIN-SUFFIX"}
         self.strict = {scope for r in rules if r.kind == "DOMAIN-REGEX"
@@ -333,7 +359,13 @@ class CoverageIndex:
         self.regex = {r.value for r in rules if r.kind == "DOMAIN-REGEX"}
 
     def covers(self, rule: Rule) -> bool:
+        if rule.text in self.predicates:
+            return True
         value = rule.value
+        if rule.kind in IP_KINDS:
+            network = ipaddress.ip_network(value)
+            return any(f"{rule.kind},{network.supernet(new_prefix=length)}" in self.predicates
+                       for length in range(network.prefixlen - 1, -1, -1))
         if rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"}:
             if _covered_domain(value, self.suffix) or any(k in value for k in self.keywords):
                 return True
@@ -386,7 +418,7 @@ def minimize(rules: Iterable[Rule]) -> list[Rule]:
         if not any(k in keyword for k in short):
             short.append(keyword)
     out: list[Rule] = []
-    ips: dict[int, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {4: [], 6: []}
+    ips: dict[int, list] = {4: [], 6: []}
     for (kind, value), rule in unique.items():
         if kind in IP_KINDS:
             network = ipaddress.ip_network(value)
@@ -408,8 +440,8 @@ def minimize(rules: Iterable[Rule]) -> list[Rule]:
                 out.append(rule)
         else:
             out.append(rule)
-    for version in (4, 6):
-        for network in ipaddress.collapse_addresses(ips[version]):
+    for version, networks in ips.items():
+        for network in ipaddress.collapse_addresses(networks):
             out.append(normalize_rule("IP-CIDR", str(network)))
     return sorted(out, key=lambda r: (r.kind not in DOMAIN_KINDS, r.kind, r.value))
 
@@ -456,74 +488,6 @@ class CompactionWitness:
         return None
 
 
-class _CNIndex:
-    def __init__(self, cn: list[Rule]):
-        self.patterns = [r for r in cn if r.kind == "DOMAIN-KEYWORD" or
-                         (r.kind == "DOMAIN-REGEX" and _strict_subdomain_suffix(r.value) is None)]
-        self.exact = {r.value for r in cn if r.kind == "DOMAIN"}
-        self.suffix = {r.value for r in cn if r.kind == "DOMAIN-SUFFIX"}
-        self.strict = {scope for r in cn if r.kind == "DOMAIN-REGEX"
-                       and (scope := _strict_subdomain_suffix(r.value)) is not None}
-        self.reversed = sorted(".".join(v.split(".")[::-1]) for v in self.exact | self.suffix | self.strict)
-
-    def _has_descendant(self, value: str) -> bool:
-        prefix = ".".join(value.split(".")[::-1]) + "."
-        at = bisect_left(self.reversed, prefix)
-        return at < len(self.reversed) and self.reversed[at].startswith(prefix)
-
-    def witnesses(self, rule: Rule, limit: int = 8) -> list[str]:
-        value = _strict_subdomain_suffix(rule.value) if rule.kind == "DOMAIN-REGEX" else rule.value
-        if not value or rule.kind not in {"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-REGEX"}:
-            return ["nonliteral language requires explicit subtraction review"]
-        values = []
-        for pattern in self.patterns:
-            if pattern.value in value if pattern.kind == "DOMAIN-KEYWORD" else re.search(pattern.value, value):
-                values.append(pattern.text)
-        parts = value.split(".")
-        for i in range(len(parts)):
-            name = ".".join(parts[i:])
-            if name in self.suffix: values.append("DOMAIN-SUFFIX," + name)
-            if i == 0 and name in self.exact: values.append("DOMAIN," + name)
-            if i > 0 and name in self.strict: values.append("strict-subdomains:" + name)
-        if rule.kind != "DOMAIN":
-            prefix = ".".join(value.split(".")[::-1]) + "."
-            at = bisect_left(self.reversed, prefix)
-            for reversed_name in self.reversed[at:at + limit]:
-                if not reversed_name.startswith(prefix): break
-                name = ".".join(reversed_name.split(".")[::-1])
-                if name in self.suffix: values.append("DOMAIN-SUFFIX," + name)
-                elif name in self.exact: values.append("DOMAIN," + name)
-                else: values.append("strict-subdomains:" + name)
-        return sorted(set(values))[:limit]
-
-    def overlaps(self, rule: Rule) -> bool:
-        if self.patterns:
-            if rule.kind == "DOMAIN":
-                if any((p.value in rule.value if p.kind == "DOMAIN-KEYWORD" else re.search(p.value, rule.value)) for p in self.patterns):
-                    return True
-            else:
-                # A suffix denotes all descendants: matching only its apex
-                # cannot prove disjointness from an arbitrary keyword/regex.
-                return True
-        if rule.kind == "DOMAIN-REGEX" and (scope := _strict_subdomain_suffix(rule.value)) is not None:
-            # The apex alone is outside this exact language. A CN suffix at or
-            # above the scope, or any known CN descendant, does intersect it.
-            return _covered_domain(scope, self.suffix | self.strict) or self._has_descendant(scope)
-        if rule.kind not in {"DOMAIN", "DOMAIN-SUFFIX"}:
-            # General regex/keywords require language subtraction, which .list
-            # cannot express. Quarantine rather than relying on client ordering.
-            return True
-        if rule.value in self.exact or _covered_domain(rule.value, self.suffix):
-            return True
-        parent = rule.value.partition(".")[2]
-        if parent and _covered_domain(parent, self.strict):
-            return True
-        if rule.kind == "DOMAIN-SUFFIX":
-            prefix = ".".join(rule.value.split(".")[::-1])
-            at = bisect_left(self.reversed, prefix)
-            return at < len(self.reversed) and (self.reversed[at] == prefix or self.reversed[at].startswith(prefix + "."))
-        return False
-
 
 def load_products(path: str | Path) -> dict:
     path = Path(path)
@@ -544,78 +508,43 @@ def _validate_products(value: dict) -> dict:
     if value.get("schema") != 1 or not isinstance(value.get("groups"), list):
         raise RuleError("invalid product registry")
     ids = [g.get("id") for g in value["groups"]]
-    if len(ids) != len(set(ids)) or any(not isinstance(k, str) or not re.fullmatch(r"(?:region|provider|service|category)/[a-z0-9-]+", k) for k in ids):
+    if len(ids) != len(set(ids)) or any(not isinstance(k, str) or not re.fullmatch(r"(?:region|provider|category|special)/[a-z0-9-]+", k) for k in ids):
         raise RuleError("invalid or duplicate product ID")
-    if ids.count("region/cn") != 1:
-        raise RuleError("exactly one public CN collection is required")
+    if ids.count("region/cn-domain") != 1:
+        raise RuleError("exactly one CN non-IP collection is required")
     for group in value["groups"]:
         if not isinstance(group.get("includes", []), list) or any(k not in ids for k in group.get("includes", [])):
             raise RuleError("product includes an unknown group")
     return value
 
 
-def validate_domain_groups(groups: dict[str, list[str]], *, market_overlaps: dict | None = None,
-                           unresolved_pattern_groups: Iterable[str] = ()) -> dict:
-    """Recheck publication bytes, independently of the build's provenance report.
-
-    Geo IP prefixes may coexist in region products; they are checked elsewhere
-    against Geo. A manifest hash alone does not prove the CN exclusion invariant.
-    """
-    parsed: dict[str, list[Rule]] = {}
+def validate_domain_groups(groups: dict[str, list[str]]) -> dict:
+    """Validate canonical predicates and product types, never identity/overlap."""
+    counts = {}
     for name, lines in groups.items():
-        rules = []
+        if not re.fullmatch(r"(?:region|category|provider|special)/[a-z0-9-]+", name):
+            raise RuleError(f"invalid product ID: {name}")
         seen = set()
         for line in lines:
             if line.startswith("#") or not line.strip():
                 continue
-            pieces = line.split(",")
-            if len(pieces) != 2:
-                raise RuleError(f"noncanonical output predicate in {name}")
-            rule = normalize_rule(*pieces)
+            rule = parse_rule_line(line)
             if rule.text != line:
                 raise RuleError(f"nonnormalized output predicate in {name}")
-            if (name.startswith(("region/", "provider/", "service/", "category/"))
-                    and rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." not in rule.value):
-                raise RuleError(f"top-level shortcut in {name}: {rule.text}")
             if rule.text in seen:
                 raise RuleError(f"duplicate output predicate in {name}")
+            if name.startswith("region/"):
+                if name == "region/cn-domain" and rule.kind not in NON_IP_KINDS:
+                    raise RuleError("CN non-IP output contains an IP predicate")
+                if name != "region/cn-domain" and rule.kind not in IP_KINDS:
+                    raise RuleError(f"IP-only region contains a non-IP predicate: {name}")
             seen.add(rule.text)
-            rules.append(rule)
-        parsed[name] = rules
-    cn = [r for r in parsed.get("region/cn", []) if r.kind in DOMAIN_KINDS]
-    if any(r.kind not in DOMAIN_KINDS or
-           (r.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." not in r.value) or
-           (r.kind == "DOMAIN-REGEX" and re.search(r.value, "unrelated.example")) for r in cn):
-        raise RuleError("CN output contains unbounded identity predicate")
-    index = _CNIndex(cn)
-    checked = 0
-    declared = 0
-    potential = 0
-    unresolved_pattern_groups = set(unresolved_pattern_groups)
-    allowed = {name: {d["predicate"] for d in entries if d.get("source") and d.get("reason")}
-               for name, entries in (market_overlaps or {}).items()}
-    for name, rows in parsed.items():
-        if name == "region/cn" or not name.startswith(("region/", "provider/", "service/", "category/")):
-            continue
-        for rule in rows:
-            if rule.kind in IP_KINDS:
-                continue
-            if index.overlaps(rule):
-                if (name in unresolved_pattern_groups and index.patterns and not index.witnesses(rule)):
-                    potential += 1
-                elif rule.text in allowed.get(name, set()):
-                    if rule.kind not in DOMAIN_KINDS:
-                        raise RuleError("market overlap must be an explicitly classified domain predicate")
-                    declared += 1
-                else:
-                    raise RuleError(f"CN/overseas domain overlap in {name}: {rule.text}")
-            checked += 1
-    return {"cn_domain_rules": len(cn), "overseas_domain_rules": checked, "cn_overlap": declared,
-            "declared_market_overlaps": declared, "unresolved_pattern_intersections": potential, "priority": "none imposed by the data producer"}
+        counts[name] = len(seen)
+    return {"rules": counts, "overlap_policy": "Collections may overlap; no routing action or implicit priority."}
 
 
 def official_domains(data: object, source_id: str, selector: dict) -> tuple[list[Rule], list[dict]]:
-    """Service endpoint catalogues, not all dependencies in an allowlist."""
+    """Preserve explicitly selected official endpoint catalogues, including dependencies."""
     endpoints = []
     adapter = selector.get("adapter")
     if adapter == "microsoft365":
@@ -643,15 +572,6 @@ def official_domains(data: object, source_id: str, selector: dict) -> tuple[list
             if not isinstance(value, str):
                 raise RuleError("official endpoint URL must be text")
             domain = _domain(value[2:] if value.startswith("*.") else value)
-            if _covered_domain(domain, set(selector.get("dependency_roots", []))):
-                raise RuleError("certificate/shared dependency is not service ownership")
-            if (suffix := selector.get("regional_suffix")) and not domain.endswith(suffix):
-                raise RuleError("common dependency is not a region-specific endpoint")
-            # Official connectivity allowlists also list wildcard shared cloud
-            # providers. They are dependencies, not exclusive GitHub identity.
-            if (roots := selector.get("owned_roots")) and not _covered_domain(domain, set(roots)):
-                if value.startswith("*.") or not selector.get("allow_exact_dependencies", False):
-                    raise RuleError("shared provider/dependency is not exclusive service identity")
             kind, payload = ("DOMAIN-REGEX", r"^.+\." + re.escape(domain) + "$") if value.startswith("*.") else ("DOMAIN", domain)
             rows.append(normalize_rule(kind, payload, source=source_id, line=number))
         except RuleError as exc:
@@ -678,9 +598,8 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
     by_id = {s["id"]: s for s in sources if s.get("path") and s.get("status", "available") in {"available", "ok", "downloaded"}}
     dlc: dict[str, DLC] = {}
     prepared: dict[str, list[Rule]] = {}
-    official_ip_sources: dict[str, set[str]] = {}
-    report: dict = {"quarantined": [], "unavailable_selectors": [], "groups": {}, "cn_overlap_removed": [], "provenance": {}, "selectors": [],
-                    "decisions": {}, "stage_records": 0, "dlc_includes": {}, "market_conflicts": [],
+    report: dict = {"quarantined": [], "unavailable_selectors": [], "groups": {}, "provenance": {}, "selectors": [],
+                    "decisions": {}, "stage_records": 0, "dlc_includes": {},
                     "sources": [{k: s[k] for k in ("id", "status", "version", "sha256", "lineage", "domain_role", "format") if k in s} for s in sources]}
     def audit(group, selector, rule, stage, status, reason, **extra):
         sid = selector.get("source", rule.source.split(":", 1)[0])
@@ -767,7 +686,6 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                     rows = [normalize_rule("IP-CIDR", line.strip(), source=source_id, line=i)
                             for i, line in enumerate(payload.splitlines(), 1)
                             if line.strip() and not line.startswith("#")]
-                    official_ip_sources.setdefault(name, set()).add(source_id)
                 else:
                     path = Path(source["path"])
                     if selector.get("path"):
@@ -783,41 +701,36 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                     audit(name, selector, Rule("UNSUPPORTED", bad["predicate"], source=bad["source"], line=bad["line"]),
                           "parse-normalize", "reject", bad["reason"])
                 for row in rows:
-                    audit(name, selector, row, "parse-normalize", "accept", "semantics-preserved", attributes=sorted(row.attrs))
+                    if row.removed_modifiers:
+                        audit(name, selector, row, "conversion", "normalized", "upstream-resolution-modifier-removed",
+                              removed_modifiers=list(row.removed_modifiers), policy="AirRoute products do not carry no-resolve")
+                    audit(name, selector, row, "parse-normalize", "accept", "normalized-upstream-predicate", attributes=sorted(row.attrs))
                     mark_origin(name, selector, row)
                 if trace is not None:
                     trace.source_event(source_id, "domain-selector-parse", "parsed" if rows else "empty",
                         group=name, selector=selector, parsed_records=len(rows), rejected_records=len(rejected),
                         read_lines=read_lines, input_file=selector.get("path", selector.get("category", source.get("path"))),
                         count_scope="expanded selector predicates; repeated reads/memberships are not unique physical records")
-                # A curated service list can be a primary identity assertion;
-                # it need not get a second vote from its own upstream mirror.
-                # Its declared match scope is still enforced, especially for
-                # shared cloud/CDN parents and compound predicates.
+                # Upstream classifications are the input. Only an explicit
+                # exclusion with proven whole-predicate coverage is applied;
+                # unknown regex intersections cannot justify removing a rule.
                 scoped = []
-                excluded = _CNIndex([normalize_rule("DOMAIN-SUFFIX", root) for root in selector.get("exclude_roots", [])]) if selector.get("exclude_roots") else None
-                owned = CoverageIndex(normalize_rule("DOMAIN-SUFFIX", root) for root in selector.get("owned_roots", [])) if selector.get("owned_roots") and format != "official-json" else None
+                excluded = CoverageIndex(normalize_rule("DOMAIN-SUFFIX", root)
+                    for root in selector.get("exclude_roots", []))
                 for row in rows:
                     reason = None
                     if row.text in group.get("exclude_predicates", []) or row.text in selector.get("exclude_predicates", []):
                         reason = "explicit-predicate-exclusion"
-                    elif selector.get("domain_only") and row.kind not in DOMAIN_KINDS:
-                        reason = "selector admits domain identities only"
-                    elif selector.get("bounded_service") and (row.kind not in {"DOMAIN", "DOMAIN-SUFFIX"} or "." not in row.value):
-                        reason = "curated service selector requires bounded literal domains"
-                    elif owned is not None and not owned.covers(row):
-                        reason = "outside configured service-owned roots"
-                    elif excluded is not None and excluded.overlaps(row):
-                        reason = "overlaps shared infrastructure or excluded service scope"
+                    elif excluded.covers(row):
+                        reason = "covered-by-explicit-excluded-root"
+                    elif name == "region/cn-domain" and row.kind in IP_KINDS:
+                        reason = "IP predicate belongs to separately generated regional IP data"
                     if reason:
                         quarantine(_quarantine(row.source, row.line, row.text, reason))
                         audit(name, selector, row, "scope", "excluded", reason)
-                    elif row.value in group.get("shared_roots", []) + selector.get("shared_roots", []) and row.kind != "DOMAIN":
-                        quarantine(_quarantine(row.source, row.line, row.text, "shared-parent-needs-precise-endpoint"))
-                        audit(name, selector, row, "scope", "pending", "shared-parent-needs-precise-endpoint")
                     else:
                         scoped.append(row)
-                        audit(name, selector, row, "scope", "accept", "selector-scope")
+                        audit(name, selector, row, "scope", "accept", "upstream-classification")
                 prior = CoverageIndex(accepted)
                 report["selectors"].append({"group": name, "source": source_id,
                     "selector": selector.get("category", selector.get("path", selector.get("adapter", format))),
@@ -825,8 +738,6 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                     "input_rules": len(rows), "scope_admitted": len(scoped),
                     "scope_rejected": len(rows) - len(scoped), "already_covered": sum(prior.covers(r) for r in scoped)})
                 rows = scoped
-                if selector.get("required") and not rows:
-                    raise RuleError("required selector has no usable predicates")
                 accepted.extend(rows)
             except (RuleError, OSError, UnicodeError, json.JSONDecodeError) as exc:
                 if trace is not None:
@@ -837,8 +748,7 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                 reason = f"input unavailable ({type(exc).__name__})" if isinstance(exc, (OSError, UnicodeError)) else str(exc)
                 report["unavailable_selectors"].append({"group": name, "source": source_id, "selector": selector.get("category", selector.get("path")), "reason": reason})
         prepared[name] = accepted
-    # Resolve memberships after all selectors/references, before the same CN
-    # exclusion is applied to both services and their containing categories.
+    # Resolve memberships after selectors; categories retain all included members.
     definitions = {g["id"]: g for g in products["groups"]}
     resolved = set()
     def include(name: str, trail: tuple[str, ...] = ()) -> None:
@@ -851,96 +761,13 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
             for row in prepared[child]:
                 audit(name, {"source": row.source.split(":", 1)[0]}, row, "membership", "accept", "included-product", child=child)
             prepared[name].extend(prepared[child])
-            official_ip_sources.setdefault(name, set()).update(official_ip_sources.get(child, set()))
         resolved.add(name)
     for name in definitions:
         include(name)
-    cn: list[Rule] = []
-    for rule in prepared.get("region/cn", []):
-        reason = None
-        if rule.kind not in DOMAIN_KINDS or (rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"} and "." not in rule.value):
-            reason = "not a named domain predicate; IP geography is generated separately"
-        elif rule.kind == "DOMAIN-REGEX" and re.search(rule.value, "unrelated.example"):
-            reason = "regional regex matches unrelated negative control"
-        elif rule.kind == "DOMAIN-KEYWORD" and rule.value in {"cn", "china", "ru", "russia"}:
-            reason = "country-name keyword is not a service scope"
-        elif "!cn" in rule.attrs:
-            reason = "source explicitly marks non-CN service"
-        else:
-            cn.append(rule)
-        if reason is not None:
-            quarantine(_quarantine(rule.source, rule.line, rule.text, reason))
-            if trace is not None:
-                trace.domain_event({"group": "region/cn", "source": rule.source, "line": rule.line,
-                    "predicate": rule.text, "stage": "regional-scope", "status": "excluded", "reason": reason})
-    prepared["region/cn"] = cn
-    cn_index = _CNIndex(cn)
-    # A domestic-access list can contain international service endpoints. Its
-    # inclusion is not a claim that an entire international product is CN-only.
-    # DLC's named CN classifications remain the exclusion anchor; no published
-    # output or external identity lookup is needed to admit new CN rules.
-    cn_named = CoverageIndex(r for r in cn if r.source.startswith("dlc:"))
-    market_policy = products.get("policy", {}).get("cn_exclusion") == "named-mainland-services; report mixed-market overlaps"
-    declarations = {g["id"]: g["cn_market_overlaps"] for g in products["groups"] if g.get("cn_market_overlaps")}
-    report["market_overlap_declarations"] = declarations
-    report["unresolved_pattern_intersections"] = {}
     groups: dict[str, list[str]] = {}
     for group in products.get("groups", []):
         name = group["id"]
         rows = prepared[name]
-        if name != "region/cn":
-            kept = []
-            for rule in rows:
-                if rule.kind in IP_KINDS and rule.source not in official_ip_sources.get(name, set()):
-                    quarantine(_quarantine(rule.source, rule.line, rule.text, "third-party service IP/ASN does not establish exclusive service identity"))
-                    if trace is not None:
-                        trace.domain_event({"group": name, "source": rule.source, "line": rule.line,
-                            "predicate": rule.text, "stage": "service-scope", "status": "excluded",
-                            "reason": "third-party service IP/ASN does not establish exclusive service identity"})
-                elif rule.kind in IP_KINDS:
-                    kept.append(rule)
-                elif "." not in rule.value and rule.kind in {"DOMAIN", "DOMAIN-SUFFIX"}:
-                    quarantine(_quarantine(rule.source, rule.line, rule.text, "TLD alone is not service identity"))
-                    if trace is not None:
-                        trace.domain_event({"group": name, "source": rule.source, "line": rule.line,
-                            "predicate": rule.text, "stage": "service-scope", "status": "excluded",
-                            "reason": "TLD alone is not service identity"})
-                elif cn_index.overlaps(rule):
-                    declared = next((d for d in declarations.get(name, []) if d.get("predicate") == rule.text
-                                     and d.get("source") == rule.source and d.get("reason")), None)
-                    witnesses = cn_index.witnesses(rule)
-                    if declared is None and market_policy and not cn_named.covers(rule) and cn_index.patterns and not witnesses:
-                        kept.append(rule)
-                        uncertain = report["unresolved_pattern_intersections"].setdefault(name, {"count": 0, "samples": [],
-                            "meaning": "CN keyword/regex versus an infinite suffix/pattern language; no disjointness proof. Upstream predicates are retained unchanged, with no inferred priority."})
-                        uncertain["count"] += 1
-                        if len(uncertain["samples"]) < 12: uncertain["samples"].append(rule.text)
-                        if trace is not None:
-                            trace.domain_event({"group": name, "source": rule.source, "line": rule.line,
-                                "predicate": rule.text, "stage": "cross-market", "status": "retained-conflict",
-                                "reason": "unproven-pattern-disjointness; original predicate retained"})
-                        continue
-                    if declared is None and market_policy and not cn_named.covers(rule):
-                        declared = {"predicate": rule.text, "source": rule.source,
-                            "reason": "Domestic-access coverage overlaps an explicitly classified international service. Preserve its original predicate; this is not a mainland-only identity or an implicit rule priority."}
-                        entries = declarations.setdefault(name, [])
-                        if declared not in entries: entries.append(declared)
-                    item = {"group": name, "predicate": rule.text, "source": rule.source,
-                            "reason": declared["reason"] if declared else "CN overlap or non-subtractable predicate",
-                            "cn_witnesses": witnesses}
-                    if declared:
-                        kept.append(rule)
-                        item["status"] = "unresolved-positive-overlap"
-                        item["priority"] = "none; consumer must choose policy"
-                        report["market_conflicts"].append(item)
-                    else:
-                        item["status"] = "pending-nonsubtractable-overlap"
-                        report["cn_overlap_removed"].append(item)
-                    audit(name, {"source": rule.source.split(":", 1)[0]}, rule, "cross-market",
-                          "retained-conflict" if declared else "pending", item["reason"], cn_witnesses=item["cn_witnesses"])
-                else:
-                    kept.append(rule)
-            rows = kept
         report["groups"][name] = {"accepted_before_compaction": len(rows), "selector_count": len(group.get("selectors", []))}
         for rule in rows:
             report["provenance"].setdefault(name, {}).setdefault(rule.text, []).append({"source": rule.source, "line": rule.line, "attributes": sorted(rule.attrs)})
@@ -954,9 +781,8 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
             for selector in origins.get((name, row.source, row.line, row.text), [{"source": row.source.split(":", 1)[0]}]):
                 audit(name, selector, row, "compaction", status, reason)
             seen_rows.add(row.text)
-        if group.get("required_output") and not groups[name]:
-            raise RuleError(f"required product has no accepted rules: {name}")
         report["groups"][name]["output_rules"] = len(groups[name])
+        report["groups"][name]["status"] = "generated" if groups[name] else "empty"
         support = {}
         for rule in rows:
             sid = rule.source.split(":", 1)[0]
@@ -968,6 +794,5 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
     report["sample_limit_per_source_reason"] = 12
     report["output_rules"] = sum(map(len, groups.values()))
     report["memberships"] = {g["id"]: g["includes"] for g in products["groups"] if g.get("includes")}
-    report["exclusion_validation"] = validate_domain_groups(groups, market_overlaps=declarations,
-        unresolved_pattern_groups=report["unresolved_pattern_intersections"])
+    report["format_validation"] = validate_domain_groups(groups)
     return groups, report

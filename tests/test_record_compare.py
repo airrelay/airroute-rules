@@ -42,6 +42,13 @@ class RecordCompareTests(unittest.TestCase):
         (root / "manifest.json").write_text(json.dumps(manifest))
         return root
 
+    def test_cn_ip_path_migration_is_not_geographical_reassignment(self):
+        old = self.candidate("old", {"region/cn": ["IP-CIDR,1.0.0.0/24"]})
+        new = self.candidate("new", {"region/cn-ip": ["IP-CIDR,1.0.0.0/24"]})
+        report = compare_build(new, old)
+        self.assertEqual(report['geo_changes']['changed_intervals'], 0)
+        self.assertEqual(report['geo_changes']['families']['ipv4']['unchanged']['addresses'], 256)
+
     def test_added_removed_reassigned_and_unchanged_are_distinct(self):
         old = self.candidate("old", {"region/cn": ["IP-CIDR,1.0.0.0/24"],
                                       "region/ru": ["IP-CIDR,2.0.0.0/24"]}, published=True)
@@ -122,7 +129,7 @@ class RecordCompareTests(unittest.TestCase):
     def test_changed_samples_are_explicitly_bounded_but_trace_is_complete(self):
         old = self.candidate("old", {})
         lines = [f"DOMAIN,host{i}.example.com" for i in range(50)]
-        new = self.candidate("new", {"service/test": lines})
+        new = self.candidate("new", {"provider/test": lines})
         sink = Sink()
         report = compare_build(new, old, sink)
         self.assertEqual(len(sink.domains), 50)

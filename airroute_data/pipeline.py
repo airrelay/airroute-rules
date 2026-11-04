@@ -95,6 +95,10 @@ def domain_outputs(usable: list[dict], products: dict, special_config: dict | No
         write_json(reports / "special.json", special_report)
     from .legacy import audit_legacy
     for config in _legacy_configs(config_dir):
+        if not any(source["id"] == config["source"]["id"] for source in usable):
+            write_json(reports / ("legacy-" + config["group"].replace("/", "-") + "-domains.json"),
+                {"group": config["group"], "status": "missing-optional", "source": config["source"]})
+            continue
         audit = audit_legacy(groups, usable, config, include_records=False)
         audit["acquisition"].pop("fetched_at", None)
         # This is a semantic comparison, not a second permanent corpus or an
@@ -111,11 +115,15 @@ def _legacy_configs(config_dir: Path) -> list[dict]:
     return [json.loads(path.read_text()) for path in paths if path.is_file()]
 
 
+def region_product(region: dict) -> str:
+    return "region/" + ("cn-ip" if region["key"] == "cn" else region["key"])
+
+
 def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, *,
                            baseline: Path, metrics: dict | None = None, trace=None) -> dict:
     """Refresh domain/special products while retaining verified published IP bytes.
 
-    This is deliberately not a partial Geo build. Country/ASN credentials and
+    This refresh reuses regional IP lists and ASN bytes. Country/ASN credentials and
     parsers are never consulted; their existing source versions remain visible.
     """
     from .acquire import verify_snapshot
@@ -133,7 +141,7 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
     snapshot = verify_snapshot(snapshot_path.parent, trace=trace)
     if trace is not None:
         trace.inputs(snapshot, config_dir)
-        trace.stage('domains-only', 'started', retained_binary_base=base['data_version'])
+        trace.stage('domains-only', 'started', retained_ip_base=base['data_version'])
     products = load_products(config_dir / "products.json")
     quality = json.loads((config_dir / "quality.json").read_text())
     special_path = config_dir / "special.json"
@@ -149,24 +157,25 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
     current = {**snapshot, "sources": [s for s in snapshot["sources"] if s.get("role") in refresh_roles]}
     usable, skipped = usable_sources(snapshot_path, current)
     domains = domain_outputs(usable, products, special, reports, config_dir, trace=trace)
-    for region in registry["regions"]:
-        key = "region/" + region["key"]
-        ips = [line for line in parse_list(baseline / (key + ".list"))
-               if line.startswith(("IP-CIDR,", "IP-CIDR6,"))]
-        write_list(output / (key + ".list"), domains.pop(key, []) + ips)
+    retained_files = [region_product(region) + ".list" for region in registry["regions"]]
+    retained_files += ["special/asn.ardb", "regions.json"]
+    for name in retained_files:
+        destination = safe_file(output, name)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(safe_file(baseline, name), destination)
     for key, lines in sorted(domains.items()):
         write_list(safe_file(output, key + ".list"), lines)
-    for name in ("geo.ardb", "asn.ardb", "regions.json"):
-        shutil.copyfile(baseline / name, output / name)
-    if trace is not None: trace.retained_asn(output/'asn.ardb',base['data_version'])
+    if trace is not None: trace.retained_asn(output/'special/asn.ardb',base['data_version'])
     retained = [s for s in base["source_snapshot"] if s.get("role") not in refresh_roles]
     fresh_ids = {s["id"] for s in current["sources"]}
     if fresh_ids & {s["id"] for s in retained}:
         raise ValueError("source role changed across domain-only refresh; use a complete build")
-    merged = {"schema": 1, "sources": retained + current["sources"]}
+    acquisition = {source["id"]: source for source in base.get("source_acquisition", [])}
+    retained_descriptors = [{**source, "fetched_at": acquisition.get(source["id"], {}).get("fetched_at")} for source in retained]
+    merged = {"schema": 1, "created_at": snapshot.get("created_at"), "sources": retained_descriptors + current["sources"]}
     summary = {**base["summary"],
         "domain_rules": sum(sum(line.startswith("DOMAIN") for line in parse_list(p)) for p in output.rglob("*.list")),
-        "products": len(list(output.rglob("*.list"))),
+        "products": len(list(output.rglob("*.list"))) + 1,
         "source_count_available": sum(s.get("status") in {"available", "ok", "downloaded"} and
                                       s.get("publish_allowed") is not False for s in merged["sources"]),
         "source_count_unavailable_or_withheld": sum(s.get("status") not in {"available", "ok", "downloaded"} or
@@ -182,13 +191,15 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
         label = f"[{source.get('publisher', source['id'])}]({link})" if link else source["id"]
         attribution.append(f"- {label}: {source.get('license', 'See source documentation')}; version {source.get('version', 'content SHA-256')}; source SHA-256 {source['sha256']}")
     (output / "ATTRIBUTION.md").write_text("\n".join(attribution) + "\n")
-    binary_base = base.get("generation_context", {}).get("binary_base") or {
+    retained_ip_base = base.get("generation_context", {}).get("retained_ip_base") or {
         "data_version": base["data_version"], "manifest_sha256": file_digest(baseline / "manifest.json"),
+        "input_snapshot_time": base.get("input_snapshot_time"),
+        "source_acquisition": base.get("source_acquisition", []),
         "files": {name: {"sha256": file_digest(baseline / name), "bytes": (baseline / name).stat().st_size}
-                  for name in ("geo.ardb", "asn.ardb", "regions.json")}}
-    context = {"mode": "domains-only", "binary_base": binary_base,
+                  for name in retained_files}}
+    context = {"mode": "domains-only", "retained_ip_base": retained_ip_base,
         "ip_source_snapshot": retained,
-        "meaning": "Geo, ASN and regional IP predicates are reused unchanged from this verified base, not recomputed."}
+        "meaning": "Regional IP lists and ASN database are reused unchanged from this verified base; source versions and acquisition times are retained, not newly acquired."}
     manifest = finalize_candidate(output, merged, registry, products, quality, summary, baseline=baseline,
         special_config=special, legacy_configs=_legacy_configs(config_dir), generation_context=context, trace=trace)
     if metrics is not None:
@@ -199,7 +210,7 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
 def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path | None = None,
           metrics: dict | None = None, trace=None) -> dict:
     from .domains import load_products
-    from .geo import fuse_country, parse_source as parse_country
+    from .geo import fuse_country, parse_source as parse_country, load_geo_policy
     from .routing import fuse_routes, parse_source as parse_routes, audit_auxiliary
 
     stage_started = time.monotonic()
@@ -235,16 +246,27 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     country_sources = [s for s in usable if s.get("role") in {"country", "geo"}]
     routing_sources = [s for s in usable if s.get("role") in {"routing", "asn"}]
     mark("inputs")
-    if trace is not None: trace.stage('geo', 'started', policy='at-least-N-lineage-agreement-without-cross-macroregion-dissent')
-    country = fuse_country(itertools.chain.from_iterable(parse_country(s["format"], Path(s["path"]), s, trace=trace) for s in country_sources),
-                           registry, min_lineages=quality.get("minimum_country_lineages", 2),
+    if not routing_sources:
+        raise ValueError("required ASN routing input unavailable")
+    geo_policy = load_geo_policy(config_dir / "geo-policy.json")
+    primary = next((source for source in country_sources if source["id"] == geo_policy["primary_source"]), None)
+    write_json(reports / "sources.json", {"used": [stable_source(source) for source in usable], "unavailable_or_withheld": skipped})
+    if primary is None:
+        raise ValueError("required primary country source unavailable: " + geo_policy["primary_source"])
+    if trace is not None: trace.stage('geo', 'started', policy=geo_policy)
+    country = fuse_country(itertools.chain.from_iterable(parse_country(source["format"], Path(source["path"]), source, trace=trace)
+                           for source in country_sources), registry, source_order=geo_policy["source_order"],
                            details_path=reports / "geo-issues.jsonl", trace=trace)
     country["report"]["issue_files"] = shard_issue_report(reports / "geo-issues.jsonl")
+    write_json(reports / "geo.json", country["report"])
+    primary_rows = country["report"]["source_valid_country_rows"].get(primary["id"], {})
+    required_families = primary.get("address_families", [4, 6])
+    if any(not primary_rows.get(f"ipv{family}") for family in required_families):
+        raise ValueError("primary country source has no valid mapped input for a declared address family: " + primary["id"])
     mark("geo")
-    floors = quality.get("asn_minimum_source_prefix_length", {"ipv4": 8, "ipv6": 12})
-    if trace is not None: trace.stage('asn', 'started', policy='current-snapshot-longest-match-per-view-origin-union', floors=floors)
-    routes = fuse_routes(itertools.chain.from_iterable(parse_routes(s["format"], Path(s["path"]), s, trace=trace) for s in routing_sources),
-                         minimum_prefix_lengths={4: floors["ipv4"], 6: floors["ipv6"]}, trace=trace)
+    if trace is not None: trace.stage('asn', 'started', policy='observed-origin-union-per-real-view-not-ownership')
+    routes = fuse_routes(itertools.chain.from_iterable(parse_routes(source["format"], Path(source["path"]), source, trace=trace)
+                         for source in routing_sources), trace=trace)
     if trace is not None: trace.route_outputs(routes['groups'])
     mark("asn")
     if trace is not None: trace.stage('domains-and-special', 'started')
@@ -254,15 +276,11 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     for region in registry["regions"]:
         groups.setdefault(region["id"], [])
         ip_rules = [("IP-CIDR6," if ":" in prefix else "IP-CIDR,") + prefix for prefix in groups[region["id"]]]
-        # Regional domains identify curated local services/institutions, never
-        # the physical location of a hostname's current server.
-        prefix = domains.pop("region/" + region["key"], [])
-        write_list(output / "region" / f"{region['key']}.list", prefix + ip_rules)
+        write_list(output / (region_product(region) + ".list"), ip_rules)
     for key, rules in sorted(domains.items()):
-        path = safe_file(output, key + ".list")
-        write_list(path, rules)
-    write_database(output / "geo.ardb", "geo", groups, allowed_geo_ids=[r["id"] for r in registry["regions"]])
-    write_database(output / "asn.ardb", "asn", routes["groups"])
+        write_list(safe_file(output, key + ".list"), rules)
+    (output / "special").mkdir(exist_ok=True)
+    write_database(output / "special/asn.ardb", "asn", routes["groups"])
     write_json(output / "regions.json", registry)
     write_json(reports / "geo.json", country["report"])
     write_json(reports / "asn.json", routes["report"])
@@ -276,7 +294,10 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
         if parent is None:continue
         path = safe_file(Path(parent["path"]), view["path"])
         if not path.is_file():
-            raise ValueError("configured auxiliary view is absent from fixed input")
+            if view.get("required", False):
+                raise ValueError("required auxiliary view is absent from fixed input")
+            if trace is not None: trace.source_event(view["id"], "auxiliary-view", "missing-optional", source=view["source"], path=view["path"])
+            continue
         auxiliary_sources.append({**parent, **view, "path": str(path), "role": "cn-reference"})
     mark("output-core")
     if trace is not None: trace.stage('auxiliary', 'started')
@@ -296,8 +317,9 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
         domain_count += sum(1 for line in path.read_text().splitlines() if line.startswith("DOMAIN"))
     summary = {"country_lineages": len(country["report"]["usable_lineages"]),
                "geo_prefixes": sum(map(len, groups.values())), "geo_v4_addresses": geo4, "geo_v6_addresses": geo6,
+               "asn_input_families": routes["report"]["input_families"],
                "asn_groups": len(routes["groups"]), "asn_prefixes": sum(map(len, routes["groups"].values())),
-               "domain_rules": domain_count, "products": len(list(output.rglob("*.list"))),
+               "domain_rules": domain_count, "products": len(list(output.rglob("*.list"))) + 1,
                "source_count_available": len(usable), "source_count_unavailable_or_withheld": len(skipped)}
     attribution = ["# Data attribution", "", "Derived data retain the applicable upstream licenses; see manifest source_snapshot.", ""]
     for s in usable:
@@ -306,7 +328,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
         attribution.append(f"- {label}: {s.get('license', 'See source documentation')}; version {s.get('version', 'content SHA-256')}; source SHA-256 {s['sha256']}")
     (output / "ATTRIBUTION.md").write_text("\n".join(attribution) + "\n", encoding="utf-8")
     (output / "README.md").write_text("# AirRoute build candidate\n\n"
-                                     "The publisher exports rules, ARDB files, registry, manifest and attribution at the release root.\n"
+                                     "The publisher exports region/category/provider/special rules, special/asn.ardb and release metadata.\n"
                                      "Build diagnostics stay in Actions artifacts, not the release branch.\n"
                                      "Pin downloads to one release commit and verify manifest lengths and SHA-256.\n", encoding="utf-8")
     manifest = finalize_candidate(output, snapshot, registry, products, quality, summary,
@@ -340,12 +362,12 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
     geo_sources = sorted(s["id"] for s in snapshot["sources"] if s.get("role") in {"country", "geo"}
                          and s.get("status") == "available" and s.get("publish_allowed") is not False)
     for region in registry["regions"]:
-        catalogue["region/" + region["key"]] = {
-            "name": region["name"], "kind": "region", "required_output": bool(quality.get("per_product", {}).get("minimum_addresses", {}).get("region/" + region["key"])),
-            "purpose": "Cleaned macroregion IP coverage; any domain membership is explicit service identity, not server location.",
-            "content_types": ["domain", "ipv4", "ipv6"], "includes": [],
-            "source_ids": geo_sources, "ip_source_ids": geo_sources, "domain_source_ids": [],
-            "domain_gap": "No justified regional domain selector configured"}
+        catalogue[region_product(region)] = {
+            "name": region["name"] + (" IP" if region["key"] == "cn" else ""),
+            "kind": "region", "required_output": True,
+            "purpose": "Macroregion IPv4/IPv6 estimates selected by fixed primary and ordered fallback; not domain service markets.",
+            "content_types": ["ipv4", "ipv6"], "includes": [],
+            "source_ids": geo_sources, "ip_source_ids": geo_sources, "domain_source_ids": []}
     for group in products["groups"]:
         name = group["id"]
         catalogue[name] = {**catalogue.get(name, {}),
@@ -365,9 +387,14 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
     special_path = output / "reports/special.json"
     special_health = json.loads(special_path.read_text()) if special_path.is_file() else {}
     catalogue.update(special_health.get("catalogue", {}))
+    catalogue["special/asn"] = {"name": "ASN database", "kind": "special", "content_types": ["asn"],
+        "path": "special/asn.ardb", "required_output": True, "purpose": "Nonexclusive observed origin membership for compile-time expansion, not geography or ownership",
+        "source_ids": sorted(source["id"] for source in snapshot["sources"] if source.get("role") in {"routing", "asn"})}
     manifest = {"schema": 1, "format_version": 1, "version": version, "data_version": version,
-                "generator_version": __version__, "geo_registry_version": registry["version"],
+                "generator_version": __version__, "region_registry_version": registry["version"],
                 "files": files, "source_snapshot": stable_inputs, "summary": summary,
+                "input_snapshot_time": snapshot.get("created_at"),
+                "source_acquisition": [{"id": source["id"], "fetched_at": source.get("fetched_at"), "version": source.get("version")} for source in snapshot["sources"]],
                 "product_coverage": profiles(domain_groups),
                 "product_catalogue": catalogue,
                 "selector_health": domain_health.get("selectors", []) + special_health.get("selector_health", []),
@@ -375,9 +402,9 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
                 "regional_domain_semantics": {g["id"]: g["domain_semantics"] for g in products["groups"]
                                               if g["id"].startswith("region/") and g.get("domain_semantics")}}
     from .legacy import legacy_projection
-    manifest["legacy_coverage"] = {report["group"]: legacy_projection(report, include_protected=False)
+    manifest["legacy_coverage"] = {report["group"]: legacy_projection(report)
         for path in sorted((output / "reports").glob("legacy*domains.json"))
-        for report in [json.loads(path.read_text())]}
+        for report in [json.loads(path.read_text())] if report.get("source_records") is not None}
     if generation_context is not None:
         manifest["generation_context"] = generation_context
     write_json(output / "manifest.json", manifest)

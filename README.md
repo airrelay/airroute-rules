@@ -1,120 +1,65 @@
 # AirRoute Data
 
-面向 **AirRoute** 的被动数据生产系统：GitHub Actions 编排，Python 3.11+ 批处理。源码在 `main`，`airrelay/rules` 仓库的 `main` 分支保存生成产物。它从零替换了旧的 Rust 控制中心、Web Console、数据库服务、节点和 Globalping 调度；没有旧接口或兼容层。
+面向 **AirRoute** 的被动数据生产系统：Python 3.11+ 批处理，GitHub Actions 编排。源码在 `airrelay/airroute-rules` 的 `main`，最终产物继续发布到 `airrelay/rules` 的 `main`；这是用户确认的当前目标，不改回旧同仓 `release`。下载地址及旧地址迁移见 [发布说明](docs/PUBLISHING.md)。没有常驻 Rust 服务、Web Console、探测节点、Globalping 或旧接口兼容层。
 
-只下载已经存在的公开资料。**不会对规则目标进行 DNS、TLS、HTTP、ping 或 traceroute 测量**，不使用 MITM，不生成 UA，不决定客户端最终出口，也不输出其他客户端格式。
+只下载已经存在的公开资料，不对规则目标发起 DNS、TLS、HTTP、ping 或 traceroute 测量。不使用 MITM、不生成 UA，不为其他客户端生成格式，不决定用户的最终出口。
 
 ## 本地运行
 
-Python 标准库即可运行生产链，不需要安装数据库、Rust 服务或 Node.js。
+生产链使用 Python 标准库。每轮使用新的空输入、输出及记录目录，固定输入后离线计算：
 
 ```sh
-python3.12 -m unittest discover -s tests -v
-python3.12 -m airroute_data snapshot --output .build/input
+python3.12 -m airroute_data snapshot \
+  --output .build/input --record-dir .build/record
 python3.12 -m airroute_data build \
   --snapshot .build/input/snapshot.json --output .build/candidate \
-  --report .build/build-report.json
+  --report .build/build-report.json --record-dir .build/record
 python3.12 -m airroute_data validate .build/candidate
+python3.12 -m unittest discover -s tests -v
 ```
 
-每次使用新的空输入/输出目录，避免在计算中途刷新来源。构建阶段离线运行；重放同一输入与配置得到相同字节。`snapshot --source dbip --source iplocate ...` 可选择来源做针对性验证，未选来源会如实标记。离线获取测试支持 `--fixture-dir`；完整合成输入和端到端示例见 `tests/test_pipeline.py`，不能把夹具覆盖量当作真实全网覆盖。
+同一输入、配置及生成器产生确定性输出。`snapshot --source <id>` 可选择材料；未选来源如实标记，不以样本冒充完整库。构建必需的主地域源下载、解析或完整性校验失败时明确失败，不能用备选整库悄悄替代。可选来源缺少凭据不会被伪称成功，也不阻塞与其无关的工作。
 
-域名专项更新可以使用已固定提交、文件完整的正式 release 作为基线，不必重新下载或解析 Geo/ASN：
+只更新域名和特殊规则时，可复用一个固定提交、完整且通过工程校验的当前格式产物目录：
 
 ```sh
-# .build/release-base 为从一个固定 release 提交导出的完整产物目录
 python3.12 -m airroute_data build-domains \
   --snapshot .build/domain-input/snapshot.json \
   --baseline .build/release-base --output .build/domain-candidate \
-  --report .build/domain-build-report.json
-python3.12 -m airroute_data validate .build/domain-candidate \
-  --baseline .build/release-base
+  --record-dir .build/domain-record
 ```
 
-命令先验证基线的完整 manifest、文件长度、摘要和格式；不能仅复制几份 `.list` 充当基线。它更新域名与特殊规则，原样复用 `geo.ardb`、`asn.ardb`、`regions.json` 的字节及各地域 IP 谓词，保留原 IP 来源版本，并在 manifest 标明 `domains-only` 和基线。新域名快照里有更新的国家库描述也不会被宣传为新 Geo；这不是重新获取的地域数据。地域注册表变化必须使用完整构建。每日 Actions 的普通 `build` 仍生成完整 Geo、ASN、地域和服务产物。
+该路径复用地域 **IP 列表**和 `special/asn.ardb`，在记录中保留实际来源版本、基线及获取时间，不重新解析国家库，也不把旧 IP 宣传成新数据。不读取或保留隐藏 Geo 数据库；旧格式基线应先完整重建。
 
-五家国家库均有获取与解析入口，但不是五家都能匿名下载：
+## 四类客户端产物
 
-| 来源 | 免费获取条件 | 默认公开派生 |
-| --- | --- | --- |
-| MaxMind GeoLite Country | 免费账号、`MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY` | 已启用派生构建，保留署名和更新/删除义务 |
-| DB-IP Country Lite | 匿名月度 CSV | 可用，保留署名 |
-| IPinfo Lite | 免费账号、`IPINFO_TOKEN` | 有完整库凭据时使用，样本不充当整库 |
-| IP2Location LITE DB1 | 免费账号、`IP2LOCATION_TOKEN` | 有凭据时使用，遵守下载与署名条款 |
-| IPLocate Country | 官方公开 Git 数据发布链 | 可用，保留署名及 share-alike 条款 |
+| 分类 | 主要内容 |
+| --- | --- |
+| `region` | 16 个既有大区的 IP 列表；中国大陆分为 `region/cn-ip.list` 和 `region/cn-domain.list`，后者仅为域名等受支持非 IP 类型。其他地域（含俄罗斯）仅含 IPv4/IPv6 |
+| `category` | AI、开发、游戏、媒体、金融、俄罗斯服务等用途集合；允许合理重叠，也保留上游中国服务成员 |
+| `provider` | 服务商自身产品及有独立分流价值的单项服务；原独立 `service` 产品移到这里，不把单项服务扩写成整家公司 |
+| `special` | LAN、特殊地址/端点、统一的 `special/realip.list`，以及唯一的二进制 `special/asn.ardb` |
 
-凭据仅通过环境变量或 Actions Secrets 提供，不放进配置、日志或产物。本地遗留的私有 `.cache/` 有意保留并忽略，不参与新系统或发布；本次重建不清理仓库外数据、生产环境或历史凭据。详细版本、频率、许可、字段语义和当前状态见 [来源说明](docs/SOURCES.md)。
+不再输出 `geo.ardb`、旧 `region/cn.list`、`service/` 或 `dns/` 产物。CN 两份列表是语义明确的拆分，无长期兼容别名。客户端和下载配置需要同步改路径；本仓库没有修改客户端，也不宣称新订阅已自动生效。
 
-## 输出与判断边界
+`manifest.json` 将列表、ASN、来源版本及逐文件长度和 SHA-256 绑定到同一个数据版本。`regions.json` 是大区映射元数据，`ATTRIBUTION.md` 保存来源许可署名；它们不是新增的客户端规则分类。构建报告和详细索引只保留在本地或 Actions artifact，不混入正式订阅。manifest 使用 `region_registry_version` 记录地域映射版本。
 
-公开数据包含：
+## 生成原则
 
-- `region/*.list`：16 个版本化大区；中国大陆只有 **`region/cn.list`** 一个公开集合，先域名再 IP。俄罗斯、东北亚、港澳、欧洲、西亚按显式本地服务/机构清单补充域名；这些域名不表示服务器物理位置。
-- `provider/*.list`、`service/*.list`、`category/*.list`：12 个服务商、38 个独立服务、21 个用途类别和保留的流媒体聚合视图。独立服务通过配置同时包含于对应类别，类别间允许合理重叠；具名大陆服务被完整覆盖的谓词从其他集合排除；仅大陆可用性造成的混合市场交集逐项报告，不虚称全部互斥。
-- `special/lan.list`：RFC1918、IPv6 ULA、环回、链路本地及标准本地名称。共享地址、组播、广播、文档、基准测试、NAT64 各自单列，不能因“特殊”而全当 LAN；198.18.0.0/15 不在 LAN 中。其他 `special/*.list` 描述连通检测、NTP、STUN/TURN、更新和公共 DNS 端点，均不内置出口动作。
-- `dns/realip.list`：保守的 DNS 返回真实地址例外；`dns/realip-optional.list` 是精确主机的可选兼容扩展。**不是路由集合，不表示直连，不指定解析器**。现有客户端还没有这一名单的专用订阅导入能力，生成后不会自动生效，最小对接见 [LAN 与 Real IP](docs/SPECIAL.md)。
-- `geo.ardb`、`asn.ardb`：ARDB v1 的未压缩随机读取文件。地区 `.list` 和 Geo 文件来自同一份清洗结果；ASN 多起源允许跨组重复。
-- `regions.json`：稳定数值 ID 与大区映射。俄罗斯为独立分组，不重复进入欧洲和亚洲。
-- `manifest.json`：同一数据版本、格式/注册表版本、逐文件长度和 SHA-256，以及每个产品的用途、内容类型、来源与包含关系。
-- `ATTRIBUTION.md`：输入版本与来源署名。原始供应商库和凭据不进入公开产物。
+地域来源顺序集中在 `config/geo-policy.json`：**IPLocate → MaxMind → DB-IP → IPinfo → IP2Location**。按真实区间边界切分，同一来源内部处理更具体范围；主源有有效地域就采用，其他源冲突只记录，不把整段改为未知。主源在某段缺信息时按顺序补缺；全部缺信息才报告未知。这是确定的产品策略，不是来源绝对准确或统计独立的证明。
 
-完整候选另含 `reports/` 审计报告与构建说明，只保留在本地或 Actions artifact，**不进入正式规则仓库**。来源、处理步骤、失败原因和域名/IP/ASN 反查见 [构建记录与结果反查](docs/BUILD_RECORDS.md)；详细诊断与正式规则分开保存。
+域名以 DLC、blackmatrix7、ACL4SSR、Sukka 及官方机器可读端点为生成输入。正确展开 include、属性和引用，保留精确/后缀/关键词/正则原意，只做格式检查、必要规范化及可证明等价的去重。不要求候选先命中厂商根域、身份目录或多源投票。CN 与全球用途集合可以重叠；不能用差集悄悄删掉中国成员。详见 [规则语义](docs/RULES.md) 和 [CN/俄罗斯归类](docs/REGIONAL-DOMAINS.md)。
 
-国家数据先统一区间边界，再映射项目大区。默认至少两个有信息的血缘组一致、没有跨大区反对信息时才归类；来源缺失不投票，同源镜像不加票。该策略是保守门槛，**不是统计独立性证明或准确率**。冲突、单源与全源缺失保持未知，在明确的地址空间契约内完整报告；不会把未知默认为海外。
+BGP、RIR、注册国和 geofeed 是各自语义的辅助信息，不单独作为物理地域真值。ASN 保留可用双栈、多起源及采集视角，宽前缀与特殊 ASN 明确报告；观测成员不等于网络实际所有权。详见 [地域与 ASN](docs/GEO.md)。
 
-BGP/ASN 表示当前采集视角的路由起源。RIR 注册国、RPKI、路由清单和 geofeed 都不单独证明物理位置。DLC、ChinaMax 等成熟分类与官方端点表达服务、市场或分流用途，不通过 DNS/IP 位置反推服务；新增域名不要求先命中旧身份目录。完整 MRT 支持更具体前缀和逐 peer 视角；RIS 摘要缺少的粒度如实记录。
+`.list` 不包含 DIRECT/PROXY 动作，输出不携带 `no-resolve`；上游显式标志也按产品约定去除。不能由 Core 等价表达的规则记录来源、类型和原因，不扁平化 AND/NOT。`special/realip.list` 只描述 DNS 返回地址模式：不返回 FakeIP，不等于直连，也不选择解析器；对接边界见 [特殊规则](docs/SPECIAL.md)。
 
-`.list` 只输出本项目已验证的 Core 规则子集，不包含动作或默认 `no-resolve`。不能等价表示的 AND、NOT、嵌套、歧义通配符及不兼容正则进入隔离报告，不进行有损扁平化。更多见 [规则语义](docs/RULES.md)、[Geo/ASN 语义](docs/GEO.md) 和 [覆盖审计](docs/COVERAGE.md)。
+## 来源、记录与发布
 
-## Actions 与发布
+五家地域来源均有解析入口。MaxMind 需要 `MAXMIND_ACCOUNT_ID` / `MAXMIND_LICENSE_KEY`，IPinfo 需要 `IPINFO_TOKEN`，IP2Location 需要 `IP2LOCATION_TOKEN`；DB-IP 与 IPLocate 有无需令牌的公开下载链。凭据只放环境变量或 Actions Secrets。来源事实、许可和血缘见 [SOURCES](docs/SOURCES.md)，当轮可用状态以实际快照与记录为准。
 
-[工作流](.github/workflows/build.yml) 每天 03:17 UTC 或手动从 `main` 执行：测试 → 固定输入 → 生成候选 → 验证 → 发布。免费供应商的访问频率优先；不绕过限制，不为补五源使用镜像。构建只读权限，发布任务才授予 `contents: write`。
+Actions 每天 03:17 UTC 或手动运行：基本检查 → 固定输入 → 完整构建 → 工程校验 → 按工作流参数发布。历史数量、地址量、增减幅度与未收录项用于解释变化，不作为自创的内容正确性门槛；损坏、必需输入缺失、格式不兼容、摘要或 manifest 不一致仍失败。发布保持原子 Git 提交、并发防护和普通非 force push，失败保留上一版。
 
-发布同时检查逐地区双栈地址保留、逐产品域名语言保留、关键来源及选择器状态；覆盖回归不能被其他集合的增长抵消。`python -m airroute_data compare --before <上版基线> --after <候选目录> --report <对比.json>` 输出语义变化；不能把文本差异当作网站缺口。
+正式树不使用 `versions/` 或哈希路径。整包消费需固定产物仓库 `main` 的提交 SHA，再读取 manifest 和各文件，避免移动分支跨请求混版。具体流程及回退见 [PUBLISHING](docs/PUBLISHING.md)。
 
-`release` 布局：
-
-```text
-manifest.json
-geo.ardb
-asn.ardb
-regions.json
-ATTRIBUTION.md
-region/*.list
-provider/*.list
-service/*.list
-category/*.list
-special/*.list
-dns/*.list
-```
-
-没有 `versions/`、哈希目录、`current.json` 或运行报告。保留分类目录，直接使用稳定规则路径。manifest 绑定同版本的全部公开文件；整个文件树在同一个 Git 提交中替换。整包下载需先固定产物仓库 main 的提交 SHA，再从该提交读取 manifest 和文件，防止多个请求跨版本；只使用移动分支 URL 无法保证整包一致。旧数据保留在 Git 历史，回退是正常向前提交。失败、异常覆盖变化、过期源码、旧发布序号或分支竞争不能覆盖成功版本；内容相同不提交。普通非 force push，超时按已保存提交 SHA 对账。
-
-本地发布命令会实际写远端，需自行确认账号与仓库；日常构建不隐式发布：
-
-```sh
-python3.12 -m airroute_data publish --candidate .build/candidate \
-  --repo . --source-sha "$(git rev-parse HEAD)" --sequence 123 --attempt 1 --remote products --branch main --source-remote origin
-# 回退是一个正常向前提交，序号必须更新：
-python3.12 -m airroute_data rollback --repo . --version <已有版本> \
-  --source-sha "$(git rev-parse HEAD)" --sequence 124 --remote products --branch main --source-remote origin
-```
-
-序号对应工作流 `run_number`，重试对应 `run_attempt`。手动运行也必须保持递增。历史目录保留用于回退；来源许可不允许历史保留时，不可直接加入公开生成链。恢复限制与隔离 Git 验证见 [发布说明](docs/PUBLISHING.md)。
-
-## 二进制与客户端互操作
-
-[ARDB v1 说明](docs/FORMAT.md) 和 `tests/golden/` 是共享契约。只有一个小型 Rust 验证工具，**不是运行组件或 Rust crate**：它链接实际 Core 读取器，读取 Python 写出的同一组黄金样例及损坏文件。
-
-```sh
-AIRROUTE_CORE_IP_DATA=/path/to/AirRoute/crates/ip-data/src/lib.rs \
-  python3.12 -m unittest discover -s tests -p test_ardb.py -v
-```
-
-未指定 Core 源码时，该跨仓库测试明确跳过；普通 Python 格式测试继续运行。已验证的文件读写不代表客户端安装层已接入这份大区注册表、manifest 和原子切换；该边界仍须在客户端另行验证。本仓库不修改客户端或 Core。
-
-实际验证范围与缺源见 [验证记录](docs/VALIDATION.md)。
-
-当前目录扩展的逐项结果、语义覆盖前后比较、旧目录归并及仍未接入客户端的部分见 [最新覆盖验收](docs/COVERAGE.md)。本地与真实 Actions / release 的验收分别记录，源码提交、数据版本和远端校验见该报告。
-
-跨仓库发布使用 `RULES_PUBLISH_TOKEN`（仅 `airrelay/rules` 的 Contents 读写权限）；源码校验仍绑定 `airrelay/airroute-rules/main`。首次替换旧产物绑定目标提交 SHA，随后普通非 force push，旧内容保留在目标 Git 历史。原源码仓库 release 不再更新。
+[构建记录](docs/BUILD_RECORDS.md) 支持按域名、IP/前缀、ASN 和产品反查；成功、失败和跳过发布分别标识。[覆盖说明](docs/COVERAGE.md) 解释计数口径，[验证说明](docs/VALIDATION.md) 列出当前检查边界。ASN 的 [ARDBv001 契约](docs/FORMAT.md) 不变；跨仓库读取和客户端接入必须用实际证据另行确认。

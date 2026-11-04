@@ -14,17 +14,17 @@ def mrt_record(subtype,payload,kind=13):
     return struct.pack('!IHHI',1,kind,subtype,len(payload))+payload
 
 
-def peer_index():
+def peer_index(view=b''):
     # Two-octet peer ASN deliberately: RIB AS_PATH must still use four octets.
     peer=b'\x00'+ipaddress.IPv4Address('8.8.8.8').packed+ipaddress.IPv4Address('8.8.4.4').packed+struct.pack('!H',64500)
-    return mrt_record(1,b'\0'*4+struct.pack('!HH',0,1)+peer)
+    return mrt_record(1,b'\0'*4+struct.pack('!H',len(view))+view+struct.pack('!H',1)+peer)
 
 
-def rib(prefix,asns,*,asset=False,addpath=False):
+def rib(prefix,asns,*,asset=False,addpath=False,peer=0):
     net=ipaddress.ip_network(prefix); length=(net.prefixlen+7)//8
     aspath=bytes([1 if asset else 2,len(asns)])+b''.join(struct.pack('!I',a) for a in asns)
     attrs=bytes([0x40,2,len(aspath)])+aspath
-    entry=struct.pack('!HI',0,1)+(struct.pack('!I',123) if addpath else b'')+struct.pack('!H',len(attrs))+attrs
+    entry=struct.pack('!HI',peer,1)+(struct.pack('!I',123) if addpath else b'')+struct.pack('!H',len(attrs))+attrs
     payload=struct.pack('!I',1)+bytes([net.prefixlen])+net.network_address.packed[:length]+struct.pack('!H',1)+entry
     subtype=(8 if addpath else 2) if net.version==4 else (10 if addpath else 4)
     return mrt_record(subtype,payload)
@@ -49,33 +49,48 @@ class RoutingTests(unittest.TestCase):
                             RoutingRecord.network('::/0',[1299],'ris6'),
                             RoutingRecord.network('1.0.0.0/24',[13335],'ris')])
         self.assertEqual(result['groups'],{13335:['1.0.0.0/24']})
-        self.assertEqual(result['report']['coverage']['ipv4_default_routes_ignored'],1)
-        self.assertEqual(result['report']['coverage']['ipv6_default_routes_ignored'],1)
+        self.assertEqual(result['report']['coverage']['ipv4_default_forwarding_observations'],1)
+        self.assertEqual(result['report']['coverage']['ipv6_default_forwarding_observations'],1)
 
-    def test_real_ris_superaggregates_quarantined_but_broad_allocations_retained(self):
+    def test_observed_wide_prefixes_are_retained_without_ownership_claim(self):
         records=[RoutingRecord.network('2000::/3',[24785],'ris','ris6',peer_count=1),
                  RoutingRecord.network('2000::/6',[29632],'ris','ris6',peer_count=3),
                  RoutingRecord.network('2410::/17',[10],'ris','ris6'),
-                 RoutingRecord.network('2003::/19',[20],'ris','ris6'),
-                 RoutingRecord.network('2002::/16',[6939],'ris','ris6')]
+                 RoutingRecord.network('8.0.0.0/7',[20],'other')]
         result=fuse_routes(records)
-        self.assertEqual(set(result['groups']),{10,20,6939})
-        policy=result['report']['ownership_admission']
-        self.assertEqual(policy['quarantined_claim_rows'],2)
-        self.assertEqual([(r['prefix'],r['asns'],r['peer_count']) for r in policy['claim_details']],
-                         [('2000::/3',[24785],1),('2000::/6',[29632],3)])
-        self.assertFalse(policy['claim_details_truncated'])
-        self.assertNotIn('3000::/5',result['routed_prefixes'])
+        self.assertEqual(set(result['groups']),{10,20,24785,29632})
+        self.assertTrue(any(ipaddress.ip_address('3000::') in ipaddress.ip_network(n) for n in result['groups'][24785]))
+        self.assertTrue(any(ipaddress.ip_address('2100::') in ipaddress.ip_network(n) for n in result['groups'][29632]))
+        self.assertEqual(result['groups'][20],['8.0.0.0/7'])
+        self.assertEqual(result['report']['input_families'],[4,6])
+        self.assertEqual(result['report']['original_prefix_lengths']['ipv6/3'],1)
+        self.assertIn('not proof of ownership',result['report']['wide_prefix_policy'])
+        self.assertNotIn('ownership_admission',result['report'])
 
-    def test_asn_admission_floor_configurable_v4_and_interval_guard(self):
-        broad=RoutingRecord.network('8.0.0.0/7',[10],'ris')
-        narrow=RoutingRecord.network('8.0.0.0/8',[20],'other')
-        result=fuse_routes([broad,narrow])
-        self.assertEqual(set(result['groups']),{20})
-        self.assertEqual(result['report']['ownership_admission']['minimum_prefix_lengths'],{'ipv4':8,'ipv6':12})
-        result=fuse_routes([broad],minimum_prefix_lengths={4:7})
-        self.assertEqual(result['groups'],{10:['8.0.0.0/7']})
-        with self.assertRaises(ValueError):fuse_routes([],minimum_prefix_lengths={6:129})
+    def test_ris_aggregate_rows_never_invent_a_shared_peer(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'ris.txt'
+            p.write_text('10 1.0.0.0/24 2\n20 1.0.0.128/25 1\n')
+            rows=list(parse_source('ris-whois',p,{'id':'ris'}))
+        result=fuse_routes(rows)
+        self.assertEqual(result['groups'],{10:['1.0.0.0/24'],20:['1.0.0.128/25']})
+        self.assertNotEqual(rows[0].views,rows[1].views)
+        self.assertEqual(result['report']['collector_views'],[])
+        self.assertEqual(result['report']['aggregate_claim_rows'],{'ris':2})
+
+    def test_iana_nonpublic_asns_remain_observations_not_global_membership(self):
+        class Trace:
+            def __init__(self):self.rows=[]
+            def route_input(self,*args):self.rows.append(args)
+        trace=Trace()
+        result=fuse_routes([RoutingRecord.network('1.0.0.0/24',[0,112,23456,64496,64512,4200000000,4294967295,13335],'sample'),
+                            RoutingRecord.network('2400::/32',[64512],'sample')],trace=trace)
+        self.assertEqual(set(result['groups']),{112,13335})
+        self.assertEqual(result['report']['input_families'],[4])
+        self.assertEqual(trace.rows[0][0].asns,(0,112,13335,23456,64496,64512,4200000000,4294967295))
+        self.assertEqual(trace.rows[0][0].compiled_asns,(112,13335))
+        self.assertEqual(trace.rows[1][1],'observed-only')
+        self.assertIn('registry',result['report']['special_asns'])
 
     def test_derived_iptoasn_range_not_misread_as_single_bgp_superprefix(self):
         with tempfile.TemporaryDirectory() as d:
@@ -84,7 +99,6 @@ class RoutingTests(unittest.TestCase):
             rows=list(parse_source('iptoasn-tsv',p,{'id':'iptoasn'}))
             self.assertIsNone(rows[0].origin_prefix_length)
             result=fuse_routes(rows)
-            self.assertEqual(result['report']['ownership_admission']['quarantined_claim_rows'],0)
             networks=[ipaddress.ip_network(prefix) for prefix in result['groups'][749]]
             self.assertEqual(sum(net.num_addresses for net in networks),25_624_320)
             self.assertEqual(networks[0].network_address,ipaddress.ip_address('29.121.1.0'))
@@ -96,7 +110,7 @@ class RoutingTests(unittest.TestCase):
             p.write_text('{"prefix":"8.0.0.0/7","asn":10}\n')
             original=list(parse_source('bgp-tools-jsonl',p,{'id':'bgptools'}))
             self.assertEqual(original[0].origin_prefix_length,7)
-            self.assertFalse(fuse_routes(original)['groups'])
+            self.assertEqual(fuse_routes(original)['groups'],{10:['8.0.0.0/7']})
 
     def test_ipv6_dualstack_and_cross_asn_duplicate_retained(self):
         result=fuse_routes([RoutingRecord.network('2400::/32',[10,20],'ris'),
@@ -111,7 +125,37 @@ class RoutingTests(unittest.TestCase):
             rows=list(parse_mrt(p,'routeviews','rv'))
         self.assertEqual(rows[0].asns,(202662,))
         self.assertEqual(rows[1].asns,(3257,212271))
-        self.assertEqual(rows[0].collector,'rv/AS64500@8.8.4.4')
+        self.assertEqual(rows[0].collector,'routeviews/rv/view:0.0.0.0:/AS64500@8.8.4.4#8.8.8.8')
+
+    def test_mrt_keeps_different_peer_bgp_ids_and_sources_separate(self):
+        address=ipaddress.IPv4Address('8.8.4.4').packed
+        peers=b''.join(b'\x00'+ipaddress.IPv4Address(bgp).packed+address+struct.pack('!H',64500)
+                       for bgp in ('8.8.8.8','8.8.8.9'))
+        data=mrt_record(1,b'\0'*4+struct.pack('!HH',0,2)+peers)
+        data+=rib('1.0.0.0/24',[10],peer=0)+rib('1.0.0.128/25',[20],peer=1)
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'rib.mrt';p.write_bytes(data)
+            rows=list(parse_mrt(p,'first-source','same-collector'))
+            other=list(parse_mrt(p,'second-source','same-collector'))
+        result=fuse_routes(rows)
+        self.assertEqual(result['groups'],{10:['1.0.0.0/24'],20:['1.0.0.128/25']})
+        self.assertNotEqual(rows[0].views,rows[1].views)
+        self.assertNotEqual(rows[0].views,other[0].views)
+
+    def test_mrt_peer_index_named_views_do_not_mask_each_other(self):
+        data=peer_index(b'view-a')+rib('1.0.0.0/24',[10])
+        data+=peer_index(b'view-b')+rib('1.0.0.128/25',[20])
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'rib.mrt';p.write_bytes(data)
+            rows=list(parse_mrt(p,'rib','collector'))
+        self.assertNotEqual(rows[0].views,rows[1].views)
+        self.assertEqual(fuse_routes(rows)['groups'],{10:['1.0.0.0/24'],20:['1.0.0.128/25']})
+
+    def test_declared_ipv6_source_cannot_silently_parse_ipv4(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'wrong-family.txt';p.write_text('10 1.0.0.0/24 1\n')
+            with self.assertRaisesRegex(ValueError,'address family'):
+                list(parse_source('ris-whois',p,{'id':'ris-v6','ip_version':6}))
 
     def test_bad_mrt_truncation_update_unknown_peer_fail(self):
         bad=[peer_index()+rib('1.0.0.0/24',[10])[:-1],mrt_record(1,b'',kind=16),rib('1.0.0.0/24',[10])]

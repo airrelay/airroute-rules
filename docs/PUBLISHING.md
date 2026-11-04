@@ -1,81 +1,77 @@
-# 当前跨仓库发布
+# 构建、发布与回退
 
-源码和 Actions 位于 `airrelay/airroute-rules/main`，生成数据发布到 `airrelay/rules/main`；原源码仓库的 release 分支不再更新。当前工作流保留源码 origin，另加 products 目标 remote；源码前移检查与产物分支竞争检查分别作用于两个仓库。
+源码、配置和 Actions 位于 `airrelay/airroute-rules` 的 `main`。最终产物继续发布到现有 `airrelay/rules` 的 `main`：本次已明确确认保留这个实际目标，不改为 `release`，也不恢复源码仓库旧 `release` 分支。下面所有订阅路径均以 `https://raw.githubusercontent.com/airrelay/rules/main/` 为前缀。
 
-发布需要源码仓库 Actions Secret `RULES_PUBLISH_TOKEN`，使用仅选择 `airrelay/rules`、Contents 读写权限的 fine-grained PAT。普通工作流 GITHUB_TOKEN 不能跨仓库写入；不要将 Token 放入 remote URL、产物或日志。
+工作流每天 03:17 UTC 或手动运行。手动参数 `publish=false` 只生成和验证候选、保留构建记录，不执行发布 job。生成或验证失败时，上一已发布提交保持不变。
 
-首次迁移旧目标布局使用精确的 `--replace-legacy-head`，目标已更新时拒绝替换。新 manifest 出现后恢复正常序号、基线与普通非 force push 保护。首次构建的语义基线沿用旧源码仓库的最后成功 release，以后从新目标读取；不会抹除目标 Git 历史。
+## 四类产物与路径迁移
 
-手动调用示意（products remote 指向目标仓库）：
+发布树平铺，不使用版本目录或哈希路径：
+
+```text
+manifest.json
+regions.json
+ATTRIBUTION.md
+region/cn-ip.list
+region/cn-domain.list
+region/<其他既有大区>.list
+category/*.list
+provider/*.list
+special/*.list
+special/asn.ardb
+```
+
+客户端规则只有 `region`、`category`、`provider`、`special` 四个顶层分类。`manifest.json`、`regions.json` 和许可说明是配套元数据。完整构建报告、冲突索引和失败诊断保存在 Actions artifact，不进入订阅目录。
+
+- `region/cn-ip.list` 只有 IPv4 / IPv6；`region/cn-domain.list` 是大陆非 IP 规则。旧 `region/cn.list` 停止生成，不保留语义悄悄变化的兼容文件。
+- 其他地域列表，包括 `region/ru.list`，都只有 IP。俄罗斯服务域名按用途留在 `category/ru-services.list` 等服务集合。
+- 原 `service/*.list` 迁入 `provider` 或相应 `category`，以 manifest 的 `product_catalogue` 和配置中的迁移映射为准；不能将单个服务自动解释为其整个母公司。
+- 原 `dns/realip.list` 和可选扩展合并为 `special/realip.list`。它是 DNS 返回真实地址模式的名单，不表示直连、解析器或出口动作；客户端订阅入口与 RealIP 导入路径需要同步修改，数据发布不会自动修改客户端。
+- 不再生成或发布 `geo.ardb`。地域定位结果直接输出地域 IP 列表；ASN 只保留 `special/asn.ardb`，继续使用 ARDBv001 v1 的 ASN 契约。
+
+发布器重建整个产物树，因此旧 Geo、`service`、`dns` 和旧 CN 路径会从最新提交删除。旧 Git 提交仍可追溯，但旧路径的消费者必须迁移，不能继续把缓存内容当作最新数据。源仓库、产物仓库及客户端中的订阅目录、下载 URL 和 RealIP 导入配置都应按新 manifest 对接。
+
+## 验证与一致版本
+
+构建固定来源快照和配置摘要，保留解析、归类、转换、包含关系、去重、冲突和覆盖变化。主地域来源缺失、解析失败或必需输入损坏必须失败；可选凭据或可选比较基线没有配置时如实报告，不造数。历史数量、增减幅度、最低规则条数和来源投票数只用于说明，不阻止发布。
+
+发布前仍核验格式、类型、长度、SHA-256、封闭文件清单、符号链接和路径安全、ASN 二进制双栈和边界、规则与 manifest 的一致性。不能因为取消历史数量门槛而绕过这些工程检查。发布器的二次验证同样不加载旧数量策略、不以历史覆盖缩水判断内容错误。
+
+所有正式文件在同一个 Git commit 中更新，以普通非 force push 原子切换整棵树。消费者应先固定产物仓库的提交 SHA，再按该 SHA 下载 manifest 和所有需要的文件并核对长度、摘要；连续请求可移动的 `main` URL 仍可能跨更新混版。
+
+数据版本由实际数据及生效配置决定。相同版本对应不同正式内容时失败；相同完整产物树不创建无意义提交。没有 `versions/<hash>/` 或 `current.json` 长期兼容入口，通过 Git 历史保留旧版本。
+
+普通 Git 文件在本项目中限制为 95 MiB，为 GitHub 的单文件 100 MiB 限制留余量。ASN 不整体压缩；报告在候选中分片，完整详细索引另作诊断 artifact。
+
+## 并发、传输失败和恢复
+
+Actions 的并发组禁止两个生成/发布工作流同时推进。发布前检查源码远端 `main` 仍等于本次 `SOURCE_SHA`；产物目标使用观测到的父提交，目标竞争通过普通 Git non-fast-forward 拒绝。绝不 force，不重新 fetch 后把旧候选包装成新提交。
+
+manifest 的 `publication` 记录实际发布的 `(sequence, attempt)`；Actions 使用 `github.run_number`、`github.run_attempt`。同一源码可能有不同来源快照，旧运行不能覆盖新运行。无变化跳过不更新已发布水位。
+
+推送前，`.git/airroute-publish/<目的标识>/pending.json` 保存目标版本、源码 SHA、原目标 SHA 及确切待推送提交 SHA。超时后按这份 SHA 和提交关系对账；无法确认就保留未决状态。其他候选不能覆盖未决记录，也不能重新生成提交盲推。
+
+托管 runner 在作业结束后会消失。失败时只上传不含凭据的 journal；暂存 Git 配置、授权头和原始供应商归档不上传。跨作业恢复要先按保存 SHA 核实远端；找不回尚未上传的 Git 对象时，应重新构建当前源码，不能声称已自动恢复原对象。
+
+首次覆盖产物仓库早期无 manifest 的树仍需显式匹配原目标 SHA，保留原有普通向前提交保护；不会因此切换成另一仓库的旧基线。比较基线不存在时，本轮正常生成并明确报告比较跳过。
+
+## 权限、密钥与命令
+
+构建 job 使用只读权限。跨仓库发布使用源码仓库 Secret `RULES_PUBLISH_TOKEN`，仅授权 `airrelay/rules` 的 Contents 读写权限；当前仓库的 `GITHUB_TOKEN` 不能自动获得跨仓库写权限。凭据不能写入 remote URL、报告或产物。
+
+来源密钥为 `MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY`、`IPINFO_TOKEN`、`IP2LOCATION_TOKEN`，只注入获取步骤。Actions 固定官方 action 提交及 `ubuntu-24.04`，不依赖 `ubuntu-latest` 自动变更系统版本。
 
 ```sh
+python3.12 -m airroute_data snapshot --output .build/snapshot --record-dir .build/record
+python3.12 -m airroute_data build --snapshot .build/snapshot/snapshot.json \
+  --output .build/candidate --record-dir .build/record
+python3.12 -m airroute_data validate .build/candidate
+# 只有明确准备发布时才运行；products 指向 airrelay/rules：
 python3.12 -m airroute_data publish --candidate .build/candidate --repo . \
   --source-sha <源码提交> --sequence <递增序号> --attempt 1 \
   --remote products --branch main --source-remote origin
 ```
 
-下文的 release/default remote 示例为通用单仓库机制，当前部署以工作流中的显式目标参数为准。
+回退也使用普通向前提交，不 reset 或 force。只能回退到符合当前四类产物及 ASN 契约的历史版本；含旧 Geo/旧分类的版本不是当前客户端契约的合法候选。回退或正式发布仍需要相应授权。
 
-# 发布与回退
-
-`main` 保存 Python、配置、测试和文档；**同一仓库**的 `release` 分支仅保存公开产物。不存在常驻控制器、节点、Globalping、数据库或 GitHub Releases 发布服务。工作流每日 03:17 UTC 或手动运行，手动可关闭发布以只生成候选。
-
-## 一致版本
-
-发布分支布局：
-
-```text
-manifest.json
-geo.ardb
-asn.ardb
-regions.json
-ATTRIBUTION.md
-region/*.list
-provider/*.list
-service/*.list
-category/*.list
-special/*.list
-dns/*.list
-```
-
-平铺到分支根目录，不再有 `versions/<hash>/`、`current.json`、生成的 README、运行日志或审计报告。地区、服务商、服务、类别、特殊用途及 DNS 名单目录是产品分类，不是版本层级；`dns/*.list` 不得被客户端误装为路由订阅。发布器以封闭白名单导出，重建整个发布树；已经下线的文件也会删除，不因增量复制残留。manifest 的 `product_catalogue` 标记用途、来源、内容类型、可选性与包含关系，客户端旧内置目录不会因此自动更新。
-
-`manifest.json` 记录数据版本、格式/大区注册表版本、来源版本与公开文件摘要；`regions.json` 解释 Geo 的数值 ID；`ATTRIBUTION.md` 保留上游许可要求的署名。这三份是数据配套文件。完整争议明细、辅助对照和解析诊断留在本地候选及 Actions artifact，不进入 release。来源原始数据库、凭据及缓存不发布。
-
-全部文件在**同一个 Git commit**中更新，并以普通非 force push 提交；多文件在 Git 树上原子生效。下载多个文件时先解析 release 的提交 SHA，再以该 SHA 下载 manifest 和全部数据并核对长度/摘要。分支路径只提供稳定入口：多个请求都使用可移动的 `release` URL 仍可能跨更新混版，消费者必须固定提交或检测摘要后重试。
-
-版本号由数据和配置决定，不由工作流时间或无关源码文档变化决定。同一数据版本对应不同公开内容时失败；相同完整发布树不创建提交。旧版本不在当前目录重复存储，通过 Git 历史保留与回退。首次更新能读取旧 pointer 布局作为覆盖基线，然后用一个普通提交移除旧目录并发布平铺布局，不改写历史。
-
-[GitHub 普通 Git 仓库会拒绝超过100MiB的单文件](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)。候选与公开文件均先按95MiB限额检查。大报告只在构建候选中无损分片；Geo / ASN 不整体压缩。继续使用 release 分支，不引入 LFS 或 GitHub Releases。
-
-## 并发、异常和恢复
-
-Actions 的仓库级并发组禁止两个工作流同时发布。发布前重新核对远端 `main` 等于本次 `SOURCE_SHA`，过期工作流拒绝推送。`release` 以观测到的提交为父提交；竞争更新导致正常 Git non-fast-forward 拒绝，绝不通过 force、重置或重新生成旧提交绕过。
-
-`manifest.json` 的 `publication` 保存实际发布的 `(sequence, attempt)`：Actions 分别使用 `github.run_number` 和 `github.run_attempt`。同一 main 也可能有不同来源快照，不能只靠源码 SHA 排序；不同产物的序号必须严格大于当前已发布序号，晚到的旧运行不能覆盖较新产物。手动发布与回退必须明确提供序号，不能重新从 1 计数。内容相同仍不创建提交，也不更新发布序号；因此这里保存的是**实际发布水位**，不宣称记录所有跳过的无变化运行。
-
-本地 `.git/airroute-publish/<目的标识>/pending.json` 在 push 前可靠保存目标版本、manifest 摘要、来源 SHA、基线和**确切提交 SHA**。推送超时也按这份 SHA 及提交祖先关系向远端对账。不能确认则保留本地 journal 和工作目录，重复运行同一候选只重试同一提交，不把旧产物重新包装成新提交。另一个候选不能绕过未决记录。远端已前进到其他历史时标记 `superseded`，不覆盖较新版本。
-
-工作流失败时仅上传不含凭据的 `pending.json`。原始来源归档、认证 HTTP header 和暂存 Git config **不上传**。托管 runner 在作业结束后不再可用；跨作业恢复应先根据保存的 SHA 通过 `git ls-remote` / 提交关系人工确认远端，无法找回本地尚未上传的 Git 对象时重新构建当前 main，不能声称自动恢复了丢失对象。重新构建仍须通过来源固定、完整验证、当前 main 和 release 的竞争检查。
-
-成功的发布结果分别报告候选版本、生成提交与远端确认提交；构建成功不等于远端发布成功。
-
-## 权限和来源 Secrets
-
-构建 job 只读仓库，发布 job 才有 `contents: write`。使用仓库自带 `GITHUB_TOKEN`，无需创建 OAuth App、仓库 PAT 或新的仓库。Actions 已固定到官方 action 的提交 SHA，并核对 `action.yml` 的实际 Node.js 24 运行时；不能只凭主版本号判断（download-artifact v6 默认仍为 Node.js 20）。下载器使用[官方 v8.0.2](https://github.com/actions/download-artifact/releases/tag/v8.0.2)。两个 job 均固定为 `ubuntu-24.04`，避免 `ubuntu-latest` 自动迁移到下一发行版；发行版内的镜像安全更新仍由 GitHub 提供。升级时核对官方仓库后更换。
-
-可选来源使用 `MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY`、`IPINFO_TOKEN`、`IP2LOCATION_TOKEN`，只通过环境变量提供给获取步骤。缺失来源如实记入快照和质量报告；是否可发布由质量门槛判断，不伪造五源覆盖。不把密钥写入来源 URL、manifest、日志或最终产物。原始供应商文件和缓存只在本地/runner 暂存，发布前依据来源许可与 attribution 规则处理公开衍生物，详见 [SOURCES.md](SOURCES.md)。
-
-## 本地命令
-
-```sh
-python -m airroute_data snapshot --output .build/snapshot
-python -m airroute_data build --snapshot .build/snapshot/snapshot.json --output .build/candidate
-python -m airroute_data validate .build/candidate
-# 此命令会更新 origin/release；只在明确准备发布时运行：
-python -m airroute_data publish --candidate .build/candidate --repo . --source-sha "$(git rev-parse HEAD)" --sequence <递增序号> --attempt 1
-```
-
-回退使用 `python -m airroute_data rollback --version <data_version> --repo . --source-sha "$(git rev-parse HEAD)" --sequence <递增序号> --attempt 1`：从 release 的 Git 历史查找并验证旧数据版本后，以正常向前提交替换全部公开文件；不使用 `git reset`、历史改写或 force push。调用者仍须有发布授权。
-
-验证覆盖真实本地 bare Git 初次发布、无变化、两个完整版本、向前回退、远端 hook 拒绝、分支竞争、push 成功但响应丢失、未决记录防绕过，以及候选路径逃逸、符号链接、未列出文件和数据版本碰撞、旧布局迁移及过期文件清理。这些隔离测试不会推送 GitHub，也不代替实际安装 Actions 后的线上工作流验收。
+诊断 artifact 的目录、查询方式、完整性标记和保留时间见 [BUILD_RECORDS.md](BUILD_RECORDS.md)。候选存在、构建通过和 artifact 上传均不等于正式发布，只有远端确认的提交才是已发布版本。

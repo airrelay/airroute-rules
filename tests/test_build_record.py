@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import test_pipeline as fixture_module
 import test_cross_repo_publish as publication_fixtures
@@ -13,7 +14,7 @@ from airroute_data.cli import main
 from airroute_data.explain import explain
 from airroute_data.geo import CountryRecord, fuse_country, parse_source
 from airroute_data.pipeline import build, build_domain_candidate
-from airroute_data.record import BuildRecord, collect, pack, set_status
+from airroute_data.record import BuildRecord, clean, collect, pack, set_status
 from airroute_data.routing import RoutingRecord, fuse_routes
 
 
@@ -38,9 +39,12 @@ class BuildRecordTests(unittest.TestCase):
             self.assertEqual((baseline/row['path']).read_bytes(), (f.root/'traced'/row['path']).read_bytes())
         domain = explain(f.root/'record', domain='only.mainland.example')
         self.assertTrue(any(row.get('covering_predicate')=='DOMAIN-SUFFIX,mainland.example' for row in domain['events']['records']))
-        self.assertTrue(any(row['product']=='region/cn' for row in domain['final_matching_rules']['records']))
+        self.assertTrue(any(row['product']=='region/cn-domain' for row in domain['final_matching_rules']['records']))
         ip = explain(f.root/'record', ip='1.1.1.200')
-        self.assertEqual(ip['geo_issue']['records'][0]['status'],'conflicting-regions')
+        self.assertEqual(ip['geo_issue']['records'][0]['status'],'primary-selected')
+        self.assertTrue(ip['recorded_geo_decision']['recorded_conflicts'])
+        self.assertFalse(ip['recorded_geo_decision']['unknown_reasons'])
+        self.assertEqual(ip['source_selection']['selected_source'],'country-a')
         self.assertEqual({r['country'] for r in ip['geo_input']['records']},{'AU','SG'})
         self.assertTrue(all(r['original_fields_recorded'] for r in ip['geo_input']['records']))
         self.assertEqual({r['raw_fields']['country_code'] for r in ip['geo_input']['records']},{'AU','SG'})
@@ -57,17 +61,16 @@ class BuildRecordTests(unittest.TestCase):
 
     def test_quality_failure_preserves_original_error_comparison_and_full_index(self):
         f=self.fixture(); baseline,_=f.run_build()
-        quality=f.config/'quality.json'; value=json.loads(quality.read_text());value['minimum_retained_fraction']=1.01;quality.write_text(json.dumps(value))
         output=f.root/'rejected'; directory=f.root/'record'
         errors=io.StringIO()
-        with contextlib.redirect_stderr(errors),contextlib.redirect_stdout(io.StringIO()):
+        with patch('airroute_data.pipeline.validate_candidate',side_effect=ValueError('invalid ASN directory boundary')), contextlib.redirect_stderr(errors),contextlib.redirect_stdout(io.StringIO()):
             code=main(['build','--snapshot',str(f.snapshot/'snapshot.json'),'--output',str(output),
                        '--config-dir',str(f.config),'--baseline',str(baseline),'--record-dir',str(directory),'--report',str(f.root/'build.json')])
         self.assertEqual(code,1)
-        self.assertIn('abnormal coverage collapse',errors.getvalue())
+        self.assertIn('invalid ASN directory boundary',errors.getvalue())
         summary=json.loads((directory/'summary.json').read_text())
         self.assertEqual(summary['status'],'failed');self.assertEqual(summary['publication']['status'],'skipped')
-        self.assertIn('abnormal coverage collapse',summary['error'])
+        self.assertIn('invalid ASN directory boundary',summary['error'])
         self.assertTrue((directory/'comparison.json').is_file())
         self.assertTrue(explain(directory, ip='1.1.1.200')['geo_issue']['records'])
         self.assertEqual(json.loads((f.root/'build.json').read_text())['status'],'failed')
@@ -101,16 +104,17 @@ class BuildRecordTests(unittest.TestCase):
             record=BuildRecord(tmp)
             try:
                 fuse_country([CountryRecord.network('2400::/32','CN','a'),CountryRecord.network('2400::/32','US','b')],
-                             Path(__file__).resolve().parents[1]/'config/regions.json',trace=record)
+                             Path(__file__).resolve().parents[1]/'config/regions.json',source_order=['a','b'],trace=record)
                 fuse_routes([RoutingRecord.network('2400:0:1::/48',[1],'observed'),
                              RoutingRecord.network('2400::/32',[2],'derived',raw_prefix_claim=False),
                              RoutingRecord.network('::/0',[3],'bad-default')],trace=record)
                 record.finish('success');self.assertFalse(record.broken,record.state['diagnostic_errors'])
-                state=record.state['bgp']['issues']['ipv6/conflicting-regions']
+                state=record.state['bgp']['issues']['ipv6/primary-selected']
                 self.assertEqual(state['observed_bgp_addresses'],2**80)
                 self.assertEqual(state['not_observed_bgp_addresses'],2**96-2**80)
                 self.assertEqual(state['interval_cidr_sum'],1)
-                sample=next(r for r in record.state['largest_unknown_ranges_sample'] if r['status']=='conflicting-regions')
+                self.assertEqual(record.state['bgp']['default_forwarding_observations'],{'6':1})
+                sample=next(r for r in record.state['largest_conflict_or_unknown_ranges_sample'] if r['status']=='primary-selected')
                 self.assertEqual(sample['observed_bgp_addresses'],2**80)
             finally:record.close()
 
@@ -138,6 +142,49 @@ class BuildRecordTests(unittest.TestCase):
                          '--config-dir',str(f.config),'--record-dir',str(impossible)])
         self.assertEqual(result,0);self.assertEqual(impossible.read_text(),'keep')
 
+    def test_redaction_reads_credentials_once_for_nested_object(self):
+        payload = {'rows': [{'country': 'CN', 'note': 'example-secret'} for _ in range(100)],
+                   'url': 'https://user:pass@example.org/data?token=secret', 'token': 'never-persist'}
+        with patch('airroute_data.record.os.environ.get', side_effect=lambda key: 'example-secret' if key=='GH_TOKEN' else None) as get:
+            result = clean(payload)
+        self.assertEqual(get.call_count, 6)
+        self.assertEqual(result['rows'][0]['note'], '[redacted]')
+        self.assertEqual(result['url'], 'https://example.org/data')
+        self.assertEqual(result['token'], '[redacted]')
+
+    def test_special_asn_observation_is_not_compiled_as_public_membership(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            record=BuildRecord(tmp)
+            try:
+                routed=fuse_routes([RoutingRecord.network('1.0.0.0/24',[1,64512],'rib')],trace=record)
+                record.route_outputs(routed['groups']);record.finish('success')
+            finally:record.close()
+            result=explain(tmp,ip='1.0.0.1')
+            self.assertEqual(result['route_input']['records'][0]['details']['asns'],[1,64512])
+            self.assertEqual(result['asn_point_selection']['expected_asns_from_recorded_inputs'],[1])
+            self.assertEqual(result['asn_point_selection']['stored_asns'],[1])
+
+    def test_upstream_resolution_modifier_removal_is_audited(self):
+        from airroute_data.domains import build_domains
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);source=root/'source.list'
+            source.write_text('IP-CIDR,1.0.0.0/24,no-resolve\nIP-ASN,132203,no-resolve\n')
+            record=BuildRecord(root/'record')
+            try:
+                groups,_=build_domains([{'id':'upstream','path':str(source),'format':'surge','status':'available'}],
+                    {'schema':1,'groups':[{'id':'region/cn-domain','selectors':[]},
+                    {'id':'provider/test','selectors':[{'source':'upstream'}]}]},trace=record)
+                self.assertEqual(set(groups['provider/test']),{'IP-CIDR,1.0.0.0/24','IP-ASN,132203'})
+                record.product_outputs(groups,{})
+                record.finish('success');self.assertFalse(record.broken,record.state['diagnostic_errors'])
+            finally:record.close()
+            result=explain(root/'record',ip='1.0.0.1')
+            conversion=[r for r in result['rule_events']['records'] if r.get('reason')=='upstream-resolution-modifier-removed']
+            self.assertEqual(conversion[0]['removed_modifiers'],['no-resolve'])
+            asn=explain(root/'record',asn=132203)
+            self.assertEqual(asn['rule_references']['records'][0]['value'],'132203')
+            self.assertNotIn('no-resolve',','.join(asn['rule_references']['records'][0].values()))
+
     def test_index_lookup_is_bounded_and_ipv6_exact(self):
         with tempfile.TemporaryDirectory() as tmp:
             record=BuildRecord(tmp)
@@ -157,12 +204,12 @@ class BuildRecordTests(unittest.TestCase):
             record=BuildRecord(tmp)
             try:
                 record.route_outputs({123:['2400::/32']})
-                record.product_outputs({'region/cn':['IP-CIDR6,2400::/32']},{})
+                record.product_outputs({'region/cn-ip':['IP-CIDR6,2400::/32']},{})
                 record.finish('success')
             finally:record.close()
             result=explain(tmp,ip='2400::1',limit=1)
             self.assertTrue(result['output_ip']['has_more'])
-            self.assertEqual(result['recorded_geo_decision']['regions'],['region/cn'])
+            self.assertEqual(result['recorded_geo_decision']['regions'],['region/cn-ip'])
 
     def test_interrupted_build_never_inherits_acquisition_success(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -209,7 +256,7 @@ class BuildRecordTests(unittest.TestCase):
                                      'stage':'purpose','status':'accept','reason':'RFC1918'})
                 record.domain_event({'group':'special/lan','source':'community','predicate':'IP-CIDR,198.18.0.0/15',
                                      'stage':'scope','status':'excluded','reason':'not a LAN purpose'})
-                record.domain_event({'group':'service/test','source':'community','predicate':'UNSUPPORTED,AND example.org',
+                record.domain_event({'group':'provider/test','source':'community','predicate':'UNSUPPORTED,AND example.org',
                                      'stage':'parse','status':'excluded','reason':'cannot express AND'})
                 record.finish('success')
             finally:record.close()
@@ -225,11 +272,11 @@ class BuildRecordTests(unittest.TestCase):
             try:
                 fuse_country([CountryRecord.network('1.0.0.0/24','CN','registration',semantics='registration'),
                               CountryRecord.network('1.0.0.0/24','CN','location')],
-                             Path(__file__).resolve().parents[1]/'config/regions.json',trace=record)
+                             Path(__file__).resolve().parents[1]/'config/regions.json',source_order=['registration','location'],trace=record)
                 record.finish('success')
             finally:record.close()
             result=explain(tmp,ip='1.0.0.1')
-            self.assertEqual(result['recorded_geo_decision']['unknown_reasons'],['insufficient-lineages'])
+            self.assertEqual(result['recorded_geo_decision']['unknown_reasons'],[])
             self.assertEqual([r['source'] for r in result['selected_source_records']],['location'])
 
     def test_large_summary_stays_readable_in_downloaded_package(self):
@@ -265,6 +312,10 @@ class BuildRecordTests(unittest.TestCase):
         finally:record.close()
         result=explain(f.root/'record',asn=2)
         self.assertEqual(result['generation_context']['mode'],'domains-only')
+        retained=result['generation_context']['retained_ip_base']
+        self.assertIn('region/cn-ip.list',retained['files'])
+        self.assertNotIn('geo.ardb',retained['files'])
+        self.assertIn('source_acquisition',retained)
         self.assertTrue(result['output_prefixes']['records']);self.assertFalse(result['inputs']['records'])
         point=explain(f.root/'record',ip='1.0.1.1')
         self.assertFalse(point['asn_point_selection']['applicable'])

@@ -40,7 +40,7 @@ class DomainTraceTests(unittest.TestCase):
     def test_full_compaction_stream_does_not_change_reports(self):
         source = self.source('DOMAIN-SUFFIX,example.cn\nDOMAIN,www.example.cn\n'
                              'DOMAIN-SUFFIX,sub.example.cn\nAND,((DOMAIN,bad.example))\n')
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "community"}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": [{"source": "community"}]}]}
         before = build_domains([source], products)
         sink = Sink()
         self.assertEqual(before, build_domains([source], products, trace=sink))
@@ -56,35 +56,39 @@ class DomainTraceTests(unittest.TestCase):
         source = self.dlc({'base': 'full:a.example @keep\nfull:b.example\nunknown-type:bad.example\n',
                            'chosen': 'include:base\n'})
         products = {"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": []},
-            {"id": "service/test", "selectors": [{"source": "dlc", "category": "chosen", "attributes": ['keep']}]},
-            {"id": "category/test", "includes": ["service/test"], "selectors": [{"source": "missing"}]}]}
+            {"id": "region/cn-domain", "selectors": []},
+            {"id": "provider/test", "selectors": [{"source": "dlc", "category": "chosen", "attributes": ['keep']}]},
+            {"id": "category/test", "includes": ["provider/test"], "selectors": [{"source": "missing"}]}]}
         sink = Sink()
         self.assertEqual(build_domains([source], products), build_domains([source], products, trace=sink))
         self.assertTrue(any(x['stage'] == 'include-and-attributes' and x['status'] == 'filtered' for x in sink.domain))
-        self.assertTrue(any(x['stage'] == 'membership' and x['child'] == 'service/test' for x in sink.domain))
+        self.assertTrue(any(x['stage'] == 'membership' and x['child'] == 'provider/test' for x in sink.domain))
         source_parse = next(x for x in sink.source if x['stage'] == 'domain-source-parse')
         self.assertEqual((source_parse['read_lines'], source_parse['parsed_records'], source_parse['include_records'], source_parse['rejected_records']), (4, 2, 1, 1))
         self.assertTrue(any(x['source'] == 'missing' and x['status'] == 'unavailable' for x in sink.source))
 
-    def test_empty_and_failed_required_selector_are_preserved(self):
+    def test_valid_empty_and_failed_required_selector_are_distinct(self):
         source = self.source('# empty source\n')
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "community", "required": True}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": [{"source": "community", "required": True}]}]}
         sink = Sink()
+        build_domains([source], products, trace=sink)
+        self.assertTrue(any(x['status'] == 'empty' for x in sink.source))
+        source['path']=str(self.root/'missing-input.list')
         with self.assertRaisesRegex(RuleError, 'required selector'):
             build_domains([source], products, trace=sink)
-        self.assertTrue(any(x['status'] == 'empty' for x in sink.source))
         self.assertTrue(any(x['status'] == 'failed' for x in sink.source))
 
-    def test_cn_service_scope_rejections_have_terminal_trace(self):
+    def test_cn_service_overlap_is_preserved_and_recorded(self):
         source = self.dlc({'cn': 'domestic.example\nkeyword:china\n', 'service': 'domestic.example\nforeign.example\n'})
         products = {"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn"}]},
-            {"id": "service/test", "selectors": [{"source": "dlc", "category": "service"}]}]}
+            {"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn"}]},
+            {"id": "provider/test", "selectors": [{"source": "dlc", "category": "service"}]}]}
         sink = Sink()
         self.assertEqual(build_domains([source], products), build_domains([source], products, trace=sink))
-        self.assertTrue(any(x['stage'] == 'regional-scope' and x['predicate'] == 'DOMAIN-KEYWORD,china' for x in sink.domain))
-        self.assertTrue(any(x['stage'] == 'cross-market' and x['predicate'] == 'DOMAIN-SUFFIX,domestic.example' and x['status'] == 'pending' for x in sink.domain))
+        self.assertFalse(any(x['stage'] in {'regional-scope','cross-market'} for x in sink.domain))
+        outputs = [x for x in sink.domain if x['stage']=='compaction' and x['status']=='output']
+        self.assertTrue(any(x['group']=='region/cn-domain' and x['predicate']=='DOMAIN-KEYWORD,china' for x in outputs))
+        self.assertTrue(any(x['group']=='provider/test' and x['predicate']=='DOMAIN-SUFFIX,domestic.example' for x in outputs))
 
     def test_witnesses_cover_strict_subdomains_keywords_and_merged_cidrs(self):
         pairs = [('DOMAIN,www.example.cn', ['DOMAIN-SUFFIX,example.cn']),
@@ -108,14 +112,14 @@ class DomainTraceTests(unittest.TestCase):
         rejects = [x for x in sink.domain if x['source_id'] == 'metacubex-private' and x['stage'] == 'reference-scope']
         self.assertEqual(len(rejects), 1005)
         self.assertEqual(len(before[1]['excluded']), 1000)
-        self.assertTrue(any(x['group'] == 'dns/realip' and x['stage'] == 'compaction' for x in sink.domain))
+        self.assertTrue(any(x['group'] == 'special/realip' and x['stage'] == 'compaction' for x in sink.domain))
 
     def test_special_selector_parse_failure_and_exact_endpoint_provenance(self):
         source = self.dlc({'category-ntp': 'full:ntp.clock.example\nclock.example\n', 'private': 'home.arpa\n'})
         sink = Sink()
         self.assertEqual(build_special([source]), build_special([source], trace=sink))
         self.assertTrue(any(x['stage'] == 'scope' and x['predicate'] == 'DOMAIN,ntp.clock.example' and x['status'] == 'accept' and x['snapshot'] for x in sink.domain))
-        self.assertTrue(any(x['stage'] == 'scope' and x['predicate'] == 'DOMAIN-SUFFIX,clock.example' and x['status'] == 'excluded' for x in sink.domain))
+        self.assertTrue(any(x['stage'] == 'scope' and x['predicate'] == 'DOMAIN-SUFFIX,clock.example' and x['status'] == 'accept' for x in sink.domain))
         self.assertTrue(any(x['stage'] == 'special-selector' and x['status'] == 'failed' for x in sink.source))
 
 

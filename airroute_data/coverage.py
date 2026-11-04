@@ -1,37 +1,40 @@
-"""Per-product coverage, predicate containment and release regression gates."""
+"""Per-product semantic coverage and descriptive release comparisons."""
 from __future__ import annotations
 
 from collections import Counter
-import hashlib
-from decimal import Decimal
 import ipaddress
 import json
 from pathlib import Path
 
-from .domains import CoverageIndex, DOMAIN_KINDS, normalize_rule
+from .domains import CoverageIndex, DOMAIN_KINDS, NON_IP_KINDS, normalize_rule
 
 
 def domain_rules(lines):
     return [normalize_rule(*line.split(",", 1)) for line in lines if line.startswith("DOMAIN")]
 
 
+def _merge_ranges(rows):
+    merged=[]
+    for start,end in sorted(rows):
+        if merged and start<=merged[-1][1]+1:
+            merged[-1]=(merged[-1][0],max(end,merged[-1][1]))
+        else:merged.append((start,end))
+    return merged
+
+
 def _analyze(lines: list[str]) -> tuple[dict, dict]:
     kinds = Counter()
     ranges = {4: [], 6: []}
     for line in lines:
-        kind, value = line.split(",", 1)
+        pieces=line.split(",")
+        if len(pieces)!=2:
+            raise ValueError("generated rules must have exactly two fields")
+        kind,value=pieces
         kinds[kind] += 1
         if kind in {"IP-CIDR", "IP-CIDR6"}:
             network = ipaddress.ip_network(value, strict=True)
-            ranges[network.version].append((int(network.network_address), int(network.broadcast_address)))
-    for family in (4, 6):
-        merged = []
-        for start, end in sorted(ranges[family]):
-            if merged and start <= merged[-1][1] + 1:
-                merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
-            else:
-                merged.append((start, end))
-        ranges[family] = merged
+            ranges[network.version].append((int(network.network_address),int(network.broadcast_address)))
+    ranges={family:_merge_ranges(rows) for family,rows in ranges.items()}
     addresses = {f: sum(b-a+1 for a,b in rows) for f,rows in ranges.items()}
     return {"predicate_counts": dict(sorted(kinds.items())),
             "domain_predicates": sum(kinds[k] for k in DOMAIN_KINDS),
@@ -65,12 +68,18 @@ def compare_product(before: list[str], after: list[str]) -> dict:
     old_index, new_index = CoverageIndex(old), CoverageIndex(new)
     removed = [r.text for r in old if not new_index.covers(r)]
     added = [r.text for r in new if not old_index.covers(r)]
+    old_other = {line for line in before if line.partition(",")[0] in NON_IP_KINDS - DOMAIN_KINDS}
+    new_other = {line for line in after if line.partition(",")[0] in NON_IP_KINDS - DOMAIN_KINDS}
+    # Literal process/ASN predicates have no implied relationship to domains.
     # These are predicate languages, not website counts or finite host samples.
     return {"before": old_profile, "after": new_profile, "ip_changes": changes,
             "old_domain_predicates": len(old), "retained_domain_predicates": len(old) - len(removed),
             "new_domain_predicates_not_previously_covered": len(added),
             "old_domain_predicates_not_fully_retained": len(removed),
-            "added_examples": added[:20], "removed_examples": removed[:20]}
+            "added_examples": added[:20], "removed_examples": removed[:20],
+            "other_predicates": len(old_other), "retained_other_predicates": len(old_other & new_other),
+            "removed_other_predicates": len(old_other - new_other), "added_other_predicates": len(new_other - old_other),
+            "removed_other_examples": sorted(old_other - new_other)[:20], "added_other_examples": sorted(new_other - old_other)[:20]}
 
 
 def _guard_catalogue(groups: dict[str, list[str]], catalogue: dict) -> list[str]:
@@ -82,18 +91,24 @@ def _guard_catalogue(groups: dict[str, list[str]], catalogue: dict) -> list[str]
     errors = []
     if not isinstance(catalogue, dict):
         return ["invalid product catalogue"]
-    allowed_types = {"domain": DOMAIN_KINDS, "ipv4": {"IP-CIDR"}, "ipv6": {"IP-CIDR6"},
-                     **{kind: {kind} for kind in DOMAIN_KINDS | {"IP-CIDR", "IP-CIDR6"}}}
+    allowed_types = {"domain": DOMAIN_KINDS, "non-ip": NON_IP_KINDS, "ipv4": {"IP-CIDR"}, "ipv6": {"IP-CIDR6"},
+                     **{kind: {kind} for kind in NON_IP_KINDS | {"IP-CIDR", "IP-CIDR6"}}}
     for name in groups:
         if name not in catalogue:
             errors.append(f"{name}: published product is absent from catalogue")
     for name, metadata in catalogue.items():
+        if not isinstance(name, str) or len(name.split("/")) != 2 or name.split("/", 1)[0] not in {"region", "category", "provider", "special"}:
+            errors.append(f"{name}: unsupported product category")
         if not isinstance(metadata, dict):
             errors.append(f"{name}: invalid catalogue entry")
             continue
         rows = groups.get(name, [])
-        if metadata.get("required_output") and not rows:
-            errors.append(f"{name}: required product is missing or empty")
+        if metadata.get("content_types") == ["asn"]:
+            if name != "special/asn":
+                errors.append(f"{name}: unexpected binary product")
+            continue
+        if metadata.get("required_output") and name not in groups:
+            errors.append(f"{name}: required product is missing")
         declared = metadata.get("content_types")
         if declared is not None:
             if (not isinstance(declared, list) or not declared or
@@ -108,11 +123,15 @@ def _guard_catalogue(groups: dict[str, list[str]], catalogue: dict) -> list[str]
             errors.append(f"{name}: invalid product membership")
             continue
         for child in children:
-            if not isinstance(child, str) or child not in catalogue or child not in groups:
+            if not isinstance(child, str) or child not in catalogue:
                 errors.append(f"{name}: included product is missing: {child}")
                 continue
+            if child not in groups:
+                if catalogue[child].get("required_output"):
+                    errors.append(f"{name}: included product is missing: {child}")
+                continue
             diff = compare_product(groups[child], rows)
-            if diff["old_domain_predicates_not_fully_retained"] or any(
+            if diff["old_domain_predicates_not_fully_retained"] or diff["removed_other_predicates"] or any(
                     diff["ip_changes"][f"ipv{family}"]["removed_addresses"] for family in (4, 6)):
                 errors.append(f"{name}: does not semantically include {child}")
     # The build resolves memberships topologically. Recheck this independently
@@ -138,131 +157,30 @@ def _guard_catalogue(groups: dict[str, list[str]], catalogue: dict) -> list[str]
 
 def guard_products(groups: dict[str, list[str]], manifest: dict, quality: dict,
                    baseline: Path | None = None) -> dict:
-    policy = quality.get("per_product", {})
+    # Policy quantities and historical changes are observations, not publication
+    # oracles. Required inputs are checked when acquired/parsed; this boundary
+    # checks exact output bytes and declared composition only.
     actual = profiles(groups)
     if "product_coverage" in manifest and manifest["product_coverage"] != actual:
         raise ValueError("manifest product coverage disagrees with actual data")
-    errors = []
-    if "product_catalogue" in manifest:
-        errors.extend(_guard_catalogue(groups, manifest["product_catalogue"]))
-    previous = json.loads((Path(baseline) / "manifest.json").read_text()) if baseline is not None else None
-    previous_products = {r["path"][:-5] for r in previous.get("files", []) if r["path"].endswith(".list")} if previous else set()
-    sources = {s["id"]: s for s in manifest.get("source_snapshot", [])}
-    for name, required in policy.get("required_sources", {}).items():
-        # Included service selectors also support the containing category.
-        # Diagnostic special-source rows need not name a product at all.
-        related = {name}
-        pending = [name]
-        catalogue = manifest.get("product_catalogue", {})
-        while pending:
-            for child in catalogue.get(pending.pop(), {}).get("includes", []):
-                if child not in related:
-                    related.add(child)
-                    pending.append(child)
-        for sid in required:
-            source = sources.get(sid, {})
-            if source.get("status") != "available" or source.get("publish_allowed") is False:
-                errors.append(f"{name}: required source unavailable: {sid}")
-            elif "selector_health" in manifest:
-                healthy = any(row.get("group") in related and row.get("source") == sid and
-                              row.get("scope_admitted", row.get("input_rules", row.get("rules", 0))) > 0
-                              for row in manifest["selector_health"])
-                failed = any(row.get("group") in related and row.get("source") == sid for row in manifest.get("selector_failures", []))
-                if not healthy or failed:
-                    errors.append(f"{name}: required selector failed or empty: {sid}")
-    for name, predicates in policy.get("required_domain_coverage", {}).items():
-        index = CoverageIndex(domain_rules(groups.get(name, [])))
-        for predicate in predicates:
-            rule = normalize_rule(*predicate.split(",", 1))
-            if rule.kind not in DOMAIN_KINDS or not index.covers(rule):
-                errors.append(f"{name}: missing required semantic coverage: {predicate}")
-    for name, floor in policy.get("minimum_addresses", {}).items():
-        for family, minimum in floor.items():
-            if actual.get(name, {}).get(f"ipv{family}_addresses", 0) < int(minimum):
-                errors.append(f"{name}: IPv{family} coverage below approved floor")
-    for name, minimum in policy.get("minimum_domains", {}).items():
-        # A baseline containing unrelated products does not waive the initial
-        # floor for a newly introduced collection. Existing collections use
-        # semantic retention, allowing mathematically safe compaction.
-        if actual.get(name, {}).get("domain_predicates", 0) < (1 if name in previous_products else minimum):
-            errors.append(f"{name}: empty or implausibly small domain product")
-    comparisons = {}
-    if baseline is not None and policy:
-        if policy.get("protect_used_country_sources", True):
-            for source in previous.get("source_snapshot", []):
-                if (source.get("role") == "country" and source.get("status") == "available"
-                        and source.get("publish_allowed") is not False
-                        and sources.get(source["id"], {}).get("status") != "available"):
-                    errors.append("previously used country source unavailable: " + source["id"])
-        for record in previous.get("files", []):
-            if not record["path"].endswith(".list"):
-                continue
-            name = record["path"][:-5]
-            path = Path(baseline) / record["path"]
-            if not path.is_file():
-                errors.append(f"{name}: baseline rules unavailable for semantic comparison")
-                continue
-            before = [s.strip() for s in path.read_text().splitlines() if s.strip() and not s.startswith("#")]
-            diff = compare_product(before, groups.get(name, []))
-            comparisons[name] = diff
-            limit = policy.get("overrides", {}).get(name, {})
-            effective_old = diff["old_domain_predicates"]
-            reviewed = policy.get("reviewed_removals", {}).get(name)
-            if reviewed is not None:
-                if (not isinstance(reviewed, dict) or not isinstance(reviewed.get("baseline_version"), str)
-                        or not isinstance(reviewed.get("predicates"), list) or not isinstance(reviewed.get("reason"), str)
-                        or not reviewed["reason"].strip()):
-                    errors.append(f"{name}: malformed reviewed removals policy")
-                else:
-                    allowed = set()
-                    for predicate in reviewed["predicates"]:
-                        try:
-                            if not isinstance(predicate, str):
-                                raise ValueError("predicate must be text")
-                            rule = normalize_rule(*predicate.split(",", 1))
-                            if rule.kind not in DOMAIN_KINDS or rule.text != predicate:
-                                raise ValueError("predicate must be a canonical domain rule")
-                            allowed.add(predicate)
-                        except (ValueError, TypeError):
-                            errors.append(f"{name}: invalid reviewed removal predicate")
-                    matches = previous.get("data_version") == reviewed["baseline_version"]
-                    index = CoverageIndex(domain_rules(groups.get(name, [])))
-                    actual_lost = {r.text for r in domain_rules(before) if not index.covers(r)}
-                    applied = sorted(allowed & actual_lost) if matches else []
-                    effective_old -= len(applied)
-                    diff["reviewed_removals"] = {"baseline_version": reviewed["baseline_version"],
-                        "baseline_matches": matches, "authorized_actual_losses": applied,
-                        "effective_old_domain_predicates": effective_old, "reason": reviewed["reason"]}
-            retention = Decimal(str(limit.get("minimum_domain_retention", policy.get("minimum_domain_retention", 0.90))))
-            if diff["retained_domain_predicates"] < Decimal(effective_old) * retention:
-                errors.append(f"{name}: domain language coverage collapse")
-            growth = Decimal(str(limit.get("maximum_domain_growth", policy.get("maximum_domain_growth", 2.0))))
-            expansion = policy.get("reviewed_expansions", {}).get(name, {})
-            output_digest = hashlib.sha256(("\n".join(sorted(r.text for r in domain_rules(groups.get(name, [])))) + "\n").encode()).hexdigest()
-            reviewed_growth = bool(expansion.get("reason") and expansion.get("baseline_version") == previous.get("data_version")
-                                   and expansion.get("domain_sha256") == output_digest)
-            if expansion:
-                diff["reviewed_expansion"] = {"applied": reviewed_growth, "domain_sha256": output_digest,
-                                               "reason": expansion.get("reason", "")}
-            if (not reviewed_growth and diff["old_domain_predicates"] and
-                    diff["after"]["domain_predicates"] > Decimal(diff["old_domain_predicates"]) * growth and
-                    diff["new_domain_predicates_not_previously_covered"] > Decimal(diff["old_domain_predicates"]) * (growth - 1)):
-                errors.append(f"{name}: abnormal new domain scope growth")
-            for family in (4, 6):
-                key = f"ipv{family}_addresses"
-                old, new = diff["before"][key], diff["after"][key]
-                low = Decimal(str(limit.get("minimum_address_retention", policy.get("minimum_address_retention", 0.85))))
-                high = Decimal(str(limit.get("maximum_address_growth", policy.get("maximum_address_growth", 1.5))))
-                if old and new < Decimal(old) * low:
-                    errors.append(f"{name}: IPv{family} address coverage collapse")
-                elif old and diff["ip_changes"][f"ipv{family}"]["retained_addresses"] < Decimal(old) * low:
-                    errors.append(f"{name}: IPv{family} previously covered address loss")
-                if old and new > Decimal(old) * high:
-                    errors.append(f"{name}: IPv{family} abnormal address coverage growth")
+    errors = _guard_catalogue(groups, manifest["product_catalogue"]) if "product_catalogue" in manifest else []
     if errors:
         raise ValueError("product publication validation failed: " + "; ".join(errors))
+    comparisons = {}
+    if baseline is not None:
+        previous_path = Path(baseline) / "manifest.json"
+        if previous_path.is_file():
+            previous = json.loads(previous_path.read_text())
+            for record in previous.get("files", []):
+                if not record["path"].endswith(".list"):
+                    continue
+                from .validation import parse_list, safe_file
+                path = safe_file(Path(baseline), record["path"])
+                if path.is_file():
+                    name = record["path"][:-5]
+                    comparisons[name] = compare_product(parse_list(path), groups.get(name, []))
     return {"products": actual, "comparison": comparisons,
-            "semantics": "Domain differences prove predicate containment, not exact text equality or website counts. IP sizes are address coverage, not location accuracy."}
+            "semantics": "Historical changes are descriptive. Domain differences prove predicate containment, not website counts; IP sizes are address coverage, not location accuracy."}
 
 
 def compare_directories(before: Path, after: Path) -> dict:
@@ -276,10 +194,13 @@ def compare_directories(before: Path, after: Path) -> dict:
     new, new_groups = load(Path(after))
     names = sorted(old_groups.keys() | new_groups.keys())
     def domain_union(groups, purpose):
+        # Old names are recognized only to describe a previous release, never
+        # generated as aliases or accepted as a current client product.
+        realip_names = {"special/realip", "dns/realip", "dns/realip-optional"}
         return sorted({line for name, rows in groups.items()
                        if (purpose == "routing" and name.startswith(("region/", "category/", "provider/", "service/")))
-                       or (purpose == "dns" and name.startswith("dns/"))
-                       or (purpose == "special" and name.startswith("special/"))
+                       or (purpose == "realip" and name in realip_names)
+                       or (purpose == "special" and name.startswith("special/") and name not in realip_names)
                        for line in rows if line.startswith("DOMAIN")})
     report = {"before_version": old["data_version"], "after_version": new["data_version"],
               "before_summary": old["summary"], "after_summary": new["summary"],
@@ -289,7 +210,7 @@ def compare_directories(before: Path, after: Path) -> dict:
                   sorted({line for rows in new_groups.values() for line in rows if line.startswith("DOMAIN")})),
               "domain_language_by_purpose": {
                   purpose: compare_product(domain_union(old_groups, purpose), domain_union(new_groups, purpose))
-                  for purpose in ("routing", "dns", "special")},
+                  for purpose in ("routing", "realip", "special")},
               "counting_note": "Product memberships intentionally overlap. Summed rule rows are not unique services, websites or address coverage; DNS real-IP and special-purpose changes are reported separately from route identity coverage.",
               "product_catalogue": new.get("product_catalogue", {}),
               "source_status": {s["id"]: {k: s.get(k) for k in ("status", "version", "lineage", "publish_allowed")}

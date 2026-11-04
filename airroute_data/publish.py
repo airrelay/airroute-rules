@@ -87,10 +87,10 @@ def _public_manifest(manifest: dict) -> dict:
     files = []
     for record in manifest["files"]:
         name = record["path"]
-        is_rule = bool(re.fullmatch(r"(region|provider|service|category|special|dns)/[a-z0-9][a-z0-9-]*\.list", name))
-        if name.endswith((".list", ".ardb")) and not (is_rule or name in {"geo.ardb", "asn.ardb"}):
+        is_rule = bool(re.fullmatch(r"(region|category|provider|special)/[a-z0-9][a-z0-9-]*\.list", name))
+        if name.endswith((".list", ".ardb")) and not (is_rule or name == "special/asn.ardb"):
             raise PublicationError("Unexpected rule/database publication path: " + name)
-        if is_rule or name in {"geo.ardb", "asn.ardb", "regions.json", "ATTRIBUTION.md"}:
+        if is_rule or name in {"special/asn.ardb", "regions.json", "ATTRIBUTION.md"}:
             files.append(dict(record))
     return {**{k: v for k, v in manifest.items() if k not in {"publication", "layout"}},
             "files": files, "layout": "flat-v1"}
@@ -197,12 +197,10 @@ def validate_candidate(candidate: Path) -> dict:
     return manifest
 
 
-def _semantic_validation(candidate: Path, repo: Path, baseline: Path | None = None) -> None:
+def _semantic_validation(candidate: Path) -> None:
     from .validation import validate_candidate as validate_data
-    policy_path = repo / "config" / "quality.json"
-    policy = json.loads(policy_path.read_text()) if policy_path.exists() else None
     try:
-        validate_data(candidate, baseline=baseline, quality=policy)
+        validate_data(candidate)
     except (ValueError, KeyError, OSError) as exc:
         raise PublicationError("Candidate failed AirRoute data validation: " + str(exc)) from exc
 
@@ -210,17 +208,31 @@ def _semantic_validation(candidate: Path, repo: Path, baseline: Path | None = No
 def prepare_baseline(repo: Path, output: Path, *, remote: str = "origin", branch: str = "release") -> bool:
     """Read only the previous public manifest for coverage comparison."""
     repo, output = Path(repo).resolve(), Path(output)
-    if _remote_sha(repo, remote, branch) is None:
-        return False
     tracking = "refs/remotes/airroute/baseline"
-    _git(repo, "fetch", "--no-tags", remote, "+refs/heads/" + branch + ":" + tracking)
+    try:
+        if _remote_sha(repo, remote, branch) is None:
+            return False
+        _git(repo, "fetch", "--no-tags", remote, "+refs/heads/" + branch + ":" + tracking)
+    except PublicationUncertain:
+        # The historical comparison is optional. Source acquisition and actual
+        # publication retain their own strict transport/error boundaries.
+        return False
+    except PublicationError as error:
+        if str(error) != "Git operation failed: fetch":
+            raise
+        return False
     flat = _git(repo, "show", tracking + ":manifest.json", allow_failure=True)
     if flat.returncode == 0:
         raw = flat.stdout.encode("utf-8")
         if json.loads(raw).get("layout") != "flat-v1":
             raise PublicationError("Unsupported release layout")
     else:
-        pointer = json.loads(_git(repo, "show", tracking + ":current.json").stdout)
+        pointer_result = _git(repo, "show", tracking + ":current.json", allow_failure=True)
+        if pointer_result.returncode:
+            # An existing target can still predate the producer manifest.
+            # Comparison is optional; do not invent a different-repository base.
+            return False
+        pointer = json.loads(pointer_result.stdout)
         version = _version(pointer.get("data_version"))
         path = "versions/" + version + "/manifest.json"
         if pointer.get("manifest") != path:
@@ -232,8 +244,8 @@ def prepare_baseline(repo: Path, output: Path, *, remote: str = "origin", branch
             raise PublicationError("Previous release version mismatch")
     output.mkdir(parents=True, exist_ok=True)
     (output / "manifest.json").write_bytes(raw)
-    # Semantic per-product regression checks need actual previous predicates,
-    # not their file sizes or CIDR row counts. No vendor archives or reports.
+    # Comparisons explain semantic changes; they never gate on previous counts.
+    # Retain actual previous predicates, not vendor archives or reports.
     previous = json.loads(raw)
     prefix = "" if flat.returncode == 0 else path.rsplit("/", 1)[0] + "/"
     from .validation import safe_file
@@ -411,24 +423,29 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
             _git(worker, "checkout", "--quiet", "--orphan", "candidate")
         public = _public_manifest(manifest)
         public["publication"] = {"sequence": sequence, "attempt": attempt, "source_sha": source_sha}
-        baseline = None
         previous = None
         if base:
             has_layout = any((worker / name).exists() or (worker / name).is_symlink()
                              for name in ("manifest.json", "current.json"))
             if has_layout:
-                previous, baseline = _read_release(worker)
+                previous, _ = _read_release(worker)
             elif replace_legacy_head != base:
                 raise PublicationError("Target has no AirRoute manifest; explicit matching legacy head is required")
             # An explicitly named legacy commit stays in Git history. Only the
             # checked-out payload changes; the normal forward push is retained.
-        # One full validation of the original candidate, including private
-        # diagnostics, against the freshly fetched public coverage baseline.
+        # Revalidate structural/semantic contracts, never historical quantities.
+        # The fetched baseline is retained for publication ordering only.
         if trace is not None: trace.stage('publication-semantic-validation', 'started')
-        _semantic_validation(candidate, repo, baseline)
+        _semantic_validation(candidate)
         if trace is not None: trace.stage('publication-semantic-validation', 'passed', target_base_commit=base)
         if previous is not None:
-            old_public = _public_manifest(previous)
+            # Historical private reports are not published identity. Preserve
+            # all historical client files for collision detection, including
+            # retired paths; only the incoming tree uses today's whitelist.
+            old_public = {**previous, "layout": "flat-v1", "files": [
+                record for record in previous["files"]
+                if record["path"].endswith((".list", ".ardb")) or
+                record["path"] in {"regions.json", "ATTRIBUTION.md"}]}
             if (old_public["data_version"] == version and
                     not _same_data(old_public, public)):
                 raise PublicationError("Immutable data version collision")
@@ -527,7 +544,7 @@ def rollback(repo: Path, version: str, source_sha: str, *, sequence: int, attemp
                 shutil.copyfile(source, path)
             _json_write(staged / "manifest.json", public)
             validate_candidate(staged)
-            _semantic_validation(staged, repo)
+            _semantic_validation(staged)
             _git(worker, "checkout", "--quiet", "--detach", base)
             _replace_release(worker, staged, public)
         _git(worker, "add", "--all")

@@ -337,24 +337,43 @@ def intervals_to_cidrs(intervals: Iterable[tuple[int, int, int]]) -> list[str]:
     return result
 
 
-def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
-                 *, min_lineages: int = 2, details_path: str | Path | None = None,
-                 trace=None) -> dict:
-    """Accept agreement, not majority claims of statistical accuracy.
+def load_geo_policy(value: str | Path | dict) -> dict:
+    """One explicit source order; credentials never change the selected primary."""
+    policy = value if isinstance(value, dict) else json.loads(Path(value).read_text())
+    order = policy.get("source_order")
+    if policy.get("schema") != 1 or not isinstance(order, list) or not order:
+        raise ValueError("Geo policy requires a nonempty source_order")
+    if any(not isinstance(source, str) or not source for source in order) or len(set(order)) != len(order):
+        raise ValueError("Geo source_order must contain unique source IDs")
+    if policy.get("primary_source") != order[0]:
+        raise ValueError("Geo primary_source must be first in source_order")
+    return policy
 
-    A source's more specific interval supersedes its own covering estimate.
-    Multiple files from one lineage form one vote. Internal lineage disagreement,
-    contradictory countries that cross macroregions, or insufficient estimates
-    remain unknown. Country disagreement within a macroregion is still reported.
-    Auxiliary routing, registration and operator geofeeds never vote.
+
+def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
+                 *, source_order: Iterable[str], details_path: str | Path | None = None,
+                 trace=None) -> dict:
+    """Choose the first source with a usable estimate at each exact boundary.
+
+    More-specific intervals supersede covering intervals from that same source.
+    Missing/unknown estimates fall through the fixed configured source order.
+    Disagreement from another source is recorded but never erases a selected
+    result. Incomparable contradictory estimates within one source cannot
+    provide a single macroregion and therefore fall through to the next source.
+    Routing, registration and geofeed records remain auxiliary information.
     """
-    if min_lineages < 1:
-        raise ValueError("min_lineages must be positive")
+    if isinstance(source_order, str):
+        raise ValueError("Geo source_order must be a sequence of source IDs")
+    source_order = tuple(source_order)
+    if not source_order or any(not isinstance(source, str) or not source for source in source_order) or len(set(source_order)) != len(source_order):
+        raise ValueError("Geo source_order must contain unique source IDs")
+    primary_source = source_order[0]
     registry = load_registry(registry)
     mapping = {cc: r["id"] for r in registry["regions"] for cc in r["countries"]}
     keys = {r["id"]: r["key"] for r in registry["regions"]}
     counters: Counter = Counter()
     source_rows: Counter = Counter()
+    source_valid_country_rows = defaultdict(Counter)
     source_support = defaultdict(Counter)
     usable_sources, usable_lineages = set(), set()
     coverage = {"ipv4": Counter(), "ipv6": Counter()}
@@ -383,6 +402,8 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                         stats[family + "_non_country_semantics_ignored_addresses_sum"] += rec.end - rec.start + 1
                     counters["auxiliary_rows_ignored"] += 1
                     continue
+                if rec.source not in source_order:
+                    raise ValueError(f"country source missing from configured order: {rec.source}")
                 if rec.version not in (4, 6) or rec.start > rec.end:
                     raise ValueError("invalid country record")
                 kept = 0
@@ -393,6 +414,8 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                     yield rec.version, start, end, {"source": rec.source, "lineage": rec.lineage,
                         "country": rec.country, "span": str(rec.end - rec.start),
                         "original_start": str(rec.start), "original_end": str(rec.end)}
+                if kept and rec.country in mapping:
+                    source_valid_country_rows[rec.source][f"ipv{rec.version}"] += 1
                 excluded = rec.end - rec.start + 1 - kept
                 excluded_addresses[f"ipv{rec.version}"] += excluded
                 if stats is not None:
@@ -442,15 +465,26 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                     countries = set().union(*informed.values()) if informed else set()
                     mapped = {mapping[c] for c in countries if c in mapping}
                     unknown_codes = countries - mapping.keys()
-                    internal = any(len({mapping.get(cc) for cc in values}) > 1 for values in informed.values())
-                    region = None
-                    if not countries: state = "missing-country"
-                    elif unknown_codes: state = "unmapped-country"
-                    elif internal or len(mapped) > 1: state = "conflicting-regions"
-                    elif len(informed) < min_lineages: state = "insufficient-lineages"
-                    else:
-                        region = next(iter(mapped)); state = "source-agreement"
+                    source_regions = {sid: sorted({mapping[c] for c in values if c in mapping})
+                                      for sid, values in selected_sources.items()}
+                    region = selected_source = selected_country = None
+                    for sid in source_order:
+                        values = selected_sources.get(sid, [])
+                        regions = source_regions.get(sid, [])
+                        if len(regions) == 1 and values and all(country in mapping for country in values):
+                            selected_source = sid
+                            selected_country = values[0] if len(values) == 1 else None
+                            region = regions[0]
+                            break
+                    if region is not None:
+                        state = "primary-selected" if selected_source == primary_source else "fallback-selected"
                         _append_interval(grouped[region], family, previous, point - 1)
+                    elif not countries:
+                        state = "missing-country"
+                    elif unknown_codes:
+                        state = "unmapped-country"
+                    else:
+                        state = "ambiguous-source"
                     _append_interval(covered, family, previous, point - 1)
                     addresses = point - previous
                     fam = f"ipv{family}"
@@ -458,15 +492,27 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                     coverage[fam][state] += addresses
                     if region is not None: coverage[fam]["assigned"] += addresses
                     else: coverage[fam]["unknown"] += addresses
+                    if len(countries) > 1:
+                        coverage[fam]["country-disagreement"] += addresses
+                        counters["country-disagreement_segments"] += 1
+                    if len(mapped) > 1:
+                        coverage[fam]["region-disagreement"] += addresses
+                        counters["region-disagreement_segments"] += 1
                     for sid, values in selected_sources.items():
                         support = source_support[sid]
                         support[f"{fam}_covered_addresses"] += addresses
                         if not values:
                             support[f"{fam}_missing_country_addresses"] += addresses
                         elif region is not None:
-                            support[f"{fam}_supports_output_addresses"] += addresses
+                            if source_regions[sid] == [region] and all(country in mapping for country in values):
+                                support[f"{fam}_supports_output_addresses"] += addresses
+                            else:
+                                support[f"{fam}_dissenting_addresses"] += addresses
                         else:
                             support[f"{fam}_unresolved_addresses"] += addresses
+                        if sid == selected_source:
+                            support[f"{fam}_selected_addresses"] += addresses
+                            support[f"{fam}_selected_intervals"] += 1
                         for cc in ("CN", "RU"):
                             if cc in values:
                                 support[f"{fam}_{cc}_candidate_addresses"] += addresses
@@ -477,12 +523,14 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
                     detail = {"family": family, "start": _ip(family, previous), "end": _ip(family, point - 1),
                               "status": state, "region_id": region, "sources": selected_sources,
                               "lineages": {k: sorted(v) for k, v in informed.items()},
-                              "country_disagreement": len(countries) > 1}
+                              "country_disagreement": len(countries) > 1,
+                              "region_disagreement": len(mapped) > 1,
+                              "selected_source": selected_source, "selected_country": selected_country,
+                              "source_order": list(source_order)}
                     if trace is not None:
                         trace.geo_decision({**detail,
                             "start_int": previous, "end_int": point - 1,
-                            "source_regions": {sid: sorted({mapping[c] for c in values if c in mapping})
-                                               for sid, values in selected_sources.items()}})
+                            "source_regions": source_regions})
                     if region is None or detail["country_disagreement"]:
                         issue_total += 1
                         if output: output.write(json.dumps(detail, sort_keys=True) + "\n")
@@ -533,14 +581,17 @@ def fuse_country(records: Iterable[CountryRecord], registry: str | Path | dict,
         if output: output.close()
     groups = {rid: intervals_to_cidrs(ranges) for rid, ranges in sorted(grouped.items())}
     return {"groups": groups, "report": {
-        "policy": "at-least-N-lineage-agreement-without-cross-macroregion-dissent",
-        "minimum_lineages": min_lineages,
-        "independence": "Lineage grouping prevents known duplicates; distinct publishers do not establish statistical independence or accuracy.",
+        "policy": "fixed-primary-then-ordered-gap-fill",
+        "primary_source": primary_source,
+        "source_order": list(source_order),
+        "independence": "Sources are not votes. Shared lineage is recorded, not counted as corroboration or accuracy.",
         "coverage_scope": "IPv4 minus explicit special-space exclusions; IPv6 2000::/3 minus explicit exclusions. Every gap in this contract is reported unknown; no source information is fabricated.",
         "usable_sources": sorted(usable_sources), "usable_lineages": sorted(usable_lineages),
-        "source_rows": dict(sorted(source_rows.items())), "segments": dict(sorted(counters.items())),
+        "source_rows": dict(sorted(source_rows.items())),
+        "source_valid_country_rows": {sid: dict(values) for sid, values in sorted(source_valid_country_rows.items())},
+        "segments": dict(sorted(counters.items())),
         "source_address_support": {sid: dict(values) for sid, values in sorted(source_support.items())},
-        "support_note": "Source coverage overlaps; support counts are not additive contributions, independent votes, or accuracy.",
+        "support_note": "Selected address contributions are exclusive across sources; supporting and dissenting coverage overlap and are not independent votes or accuracy.",
         "coverage": {k: dict(v) for k, v in coverage.items()},
         "special": {k: dict(v) for k, v in special.items()},
         "filtered_special_addresses_sum_per_source": dict(excluded_addresses),

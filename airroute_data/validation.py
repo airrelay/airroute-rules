@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
-from bisect import bisect_right
 from pathlib import Path, PurePosixPath
 
 from .ardb import read_database
@@ -34,25 +33,19 @@ def safe_file(root: Path, name: str) -> Path:
 
 
 def parse_list(path: Path) -> list[str]:
-    allowed = {"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "DOMAIN-REGEX", "IP-CIDR", "IP-CIDR6"}
-    result = []
+    from .domains import parse_rule_line
+    result=[]
     with path.open(encoding="utf-8") as stream:
-        for number, raw in enumerate(stream, 1):
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            kind, separator, value = line.partition(",")
-            if not separator or kind not in allowed or not value or "\x00" in value:
-                raise ValueError(f"unsupported rule in {path.name}:{number}")
-            # Core's CSV source grammar cannot express a comma within a regex payload.
-            if "," in value or "\n" in value:
-                raise ValueError("ambiguous list payload or forbidden policy/modifier")
-            if kind in {"IP-CIDR", "IP-CIDR6"}:
-                net = ipaddress.ip_network(value, strict=True)
-                if net.version != (4 if kind == "IP-CIDR" else 6):
-                    raise ValueError("rule address-family mismatch")
+        for number,raw in enumerate(stream,1):
+            line=raw.strip()
+            if not line or line.startswith("#"):continue
+            try:rule=parse_rule_line(line)
+            except ValueError as error:
+                raise ValueError(f"unsupported rule in {path.name}:{number}: {error}") from error
+            if rule.text!=line:
+                raise ValueError(f"noncanonical rule in {path.name}:{number}")
             result.append(line)
-    if len(result) != len(set(result)):
+    if len(result)!=len(set(result)):
         raise ValueError("duplicate rules in generated list")
     return result
 
@@ -69,12 +62,12 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
     if not version or manifest.get("version") != version or any(c not in "0123456789abcdef" for c in version):
         raise ValueError("invalid data version")
     registry = json.loads((candidate / "regions.json").read_text())
-    if registry.get("version") != manifest.get("geo_registry_version"):
-        raise ValueError("Geo registry version mismatch")
+    if registry.get("version") != manifest.get("region_registry_version"):
+        raise ValueError("region registry version mismatch")
     regions = registry["regions"]
     ids = [r["id"] for r in regions]
     if len(set(ids)) != len(ids) or any(not isinstance(i, int) or i <= 0 for i in ids):
-        raise ValueError("invalid Geo region registry")
+        raise ValueError("invalid region registry")
     countries = [code for region in regions for code in region["countries"]]
     if len(set(countries)) != len(countries):
         raise ValueError("country mapped into multiple macro-regions")
@@ -116,105 +109,95 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
         physical = {p.relative_to(candidate / "reports").as_posix()
                     for p in (candidate / "reports/geo-issues").glob("*.jsonl")}
         if physical != seen:raise ValueError("unindexed issue shard")
-    geo = read_database(candidate / "geo.ardb", "geo", allowed_geo_ids=ids)
-    asn = read_database(candidate / "asn.ardb", "asn")
-    intervals = []
-    from .geo import SPECIAL
-    excluded = {family: [(int(n.network_address), int(n.broadcast_address)) for n in nets]
-                for family, nets in SPECIAL.items()}
-    excluded_starts = {family: [a for a, _ in rows] for family, rows in excluded.items()}
-    v6_start = int(ipaddress.IPv6Address("2000::"))
-    v6_end = int(ipaddress.IPv6Address("3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"))
-    for group, prefixes in geo.items():
-        for prefix in prefixes:
-            network = ipaddress.ip_network(prefix)
-            family, start, end = network.version, int(network.network_address), int(network.broadcast_address)
-            at = bisect_right(excluded_starts[family], end) - 1
-            if (at >= 0 and excluded[family][at][1] >= start) or (family == 6 and not v6_start <= start <= end <= v6_end):
-                raise ValueError("non-geographic special address in Geo output")
-            intervals.append((family, start, end, group))
-    previous = None
-    for interval in sorted(intervals):
-        family, start, end, group = interval
-        if previous and family == previous[0] and start <= previous[2] and group != previous[3]:
-            raise ValueError("overlapping Geo macro-regions")
-        previous = interval
-    for region in regions:
-        lines = parse_list(candidate / "region" / f"{region['key']}.list")
-        listed = {x.split(",", 1)[1] for x in lines if x.startswith(("IP-CIDR,", "IP-CIDR6,"))}
-        if listed != set(geo.get(region["id"], [])):
-            raise ValueError(f"Geo/list disagreement for {region['key']}")
-        if (region["key"] != "cn" and "region/" + region["key"] not in manifest.get("regional_domain_semantics", {})
-                and any(not x.startswith(("IP-CIDR,", "IP-CIDR6,")) for x in lines)):
-            raise ValueError("geographic IP products must not infer domain geography")
+    # Geographic products are lists; no hidden or published Geo binary exists.
+    if any(name.endswith(".ardb") and name != "special/asn.ardb" for name in names):
+        raise ValueError("only special/asn.ardb is a supported binary product")
+    asn = read_database(candidate / "special/asn.ardb", "asn")
     domain_groups = {p.relative_to(candidate).as_posix().removesuffix(".list"): parse_list(p)
                      for p in candidate.rglob("*.list")}
+    for name in domain_groups:
+        pieces = name.split("/")
+        if len(pieces) != 2 or pieces[0] not in {"region", "category", "provider", "special"}:
+            raise ValueError("unsupported client product category: " + name)
     from .domains import validate_domain_groups
-    validate_domain_groups(domain_groups, market_overlaps={name: metadata["cn_market_overlaps"]
-        for name, metadata in manifest.get("product_catalogue", {}).items() if metadata.get("cn_market_overlaps")},
-        unresolved_pattern_groups={name for name, metadata in manifest.get("product_catalogue", {}).items()
-                                   if metadata.get("unresolved_cn_pattern_intersections")})
+    validate_domain_groups(domain_groups)
+    expected_regions = {"region/" + ("cn-ip" if r["key"] == "cn" else r["key"]) for r in regions}
+    expected_regions.add("region/cn-domain")
+    if {name for name in domain_groups if name.startswith("region/")} != expected_regions:
+        raise ValueError("regional product inventory disagrees with region registry")
+    from .geo import public_intervals
+    intervals = []
+    actual_addresses = {4: 0, 6: 0}
+    actual_geo_count = 0
+    for name in sorted(expected_regions - {"region/cn-domain"}):
+        for line in domain_groups[name]:
+            kind, text = line.split(",", 1)
+            if kind not in {"IP-CIDR", "IP-CIDR6"}:
+                raise ValueError("regional IP products must contain only IP rules")
+            network = ipaddress.ip_network(text, strict=True)
+            family, start, end = network.version, int(network.network_address), int(network.broadcast_address)
+            if list(public_intervals(family, start, end)) != [(start, end)]:
+                raise ValueError("non-geographic special address in regional output")
+            intervals.append((family, start, end, name))
+            actual_geo_count += 1
+    # Regions form a disjoint partition. Track the furthest enclosing interval,
+    # so a nested same-region prefix cannot hide a cross-region collision.
+    previous = None
+    for family, start, end, name in sorted(intervals):
+        if previous and family == previous[0] and start <= previous[2]:
+            if name != previous[3]:
+                raise ValueError("overlapping regional IP products")
+            previous = (family, previous[1], max(previous[2], end), name)
+        else:
+            previous = (family, start, end, name)
+    from .coverage import profiles, guard_products
+    actual_profiles = profiles(domain_groups)
+    for name in expected_regions - {"region/cn-domain"}:
+        for family in (4, 6):
+            actual_addresses[family] += actual_profiles[name][f"ipv{family}_addresses"]
     context = manifest.get("generation_context", {})
     if context:
         if context.get("mode") != "domains-only":
             raise ValueError("unsupported generation context")
-        base = context.get("binary_base", {})
+        base = context.get("retained_ip_base", {})
         if not base.get("data_version") or len(base.get("manifest_sha256", "")) != 64:
-            raise ValueError("domain-only build needs a fixed binary base")
-        if set(base.get("files", {})) != {"geo.ardb", "asn.ardb", "regions.json"}:
-            raise ValueError("incomplete binary base inventory")
+            raise ValueError("domain-only build needs a fixed retained IP base")
+        expected_files = {name + ".list" for name in expected_regions - {"region/cn-domain"}}
+        expected_files |= {"special/asn.ardb", "regions.json"}
+        if set(base.get("files", {})) != expected_files:
+            raise ValueError("incomplete retained IP base inventory")
         for name, record in base["files"].items():
-            path = candidate / name
+            path = safe_file(candidate, name)
             if path.stat().st_size != record.get("bytes") or file_digest(path) != record.get("sha256"):
-                raise ValueError("domain-only build changed binary base: " + name)
+                raise ValueError("domain-only build changed retained IP base: " + name)
         sources = {s["id"]: s for s in manifest.get("source_snapshot", [])}
         for source in context.get("ip_source_snapshot", []):
             if sources.get(source["id"]) != source:
                 raise ValueError("domain-only build misrepresents retained IP sources")
-    if any(name.startswith(("special/", "dns/")) for name in domain_groups):
+    if any(name.startswith("special/") for name in domain_groups):
         from .special import validate_special_groups
         validate_special_groups(domain_groups)
     summary = manifest["summary"]
-    actual_geo_count = sum(map(len, geo.values()))
     actual_asn_count = sum(map(len, asn.values()))
     actual_domain_count = sum(sum(x.startswith("DOMAIN") for x in lines) for lines in domain_groups.values())
-    if (summary.get("geo_prefixes") != actual_geo_count or
-            summary.get("asn_prefixes") != actual_asn_count or
+    if (summary.get("products") != len(domain_groups) + 1 or summary.get("geo_prefixes") != actual_geo_count or
+            summary.get("asn_prefixes") != actual_asn_count or summary.get("asn_groups") != len(asn) or
             summary.get("domain_rules") != actual_domain_count):
         raise ValueError("manifest summary disagrees with actual data")
-    actual_addresses = {4: 0, 6: 0}
-    for prefixes in geo.values():
-        for prefix in prefixes:
-            network = ipaddress.ip_network(prefix)
-            actual_addresses[network.version] += network.num_addresses
     for family in (4, 6):
         if summary.get(f"geo_v{family}_addresses") != actual_addresses[family]:
-            raise ValueError("manifest address coverage disagrees with actual Geo data")
-    policy = quality or {}
-    errors = []
-    if summary.get("country_lineages", 0) < policy.get("minimum_country_lineages", 2):
-        errors.append("fewer than required usable country lineages")
-    if summary.get("geo_prefixes", 0) == 0:
-        errors.append("no resolved Geo data")
-    if summary.get("asn_prefixes", 0) == 0:
-        errors.append("no routed ASN data")
-    if summary.get("domain_rules", 0) == 0:
-        errors.append("no accepted domain rules")
-    if baseline is not None:
-        previous = json.loads((Path(baseline) / "manifest.json").read_text())["summary"]
-        # Compare resolved address coverage, not CIDR count: merging can change counts legitimately.
-        # Domain copies across intentionally overlapping product categories are
-        # not new matching scope. Per-product language comparison below guards
-        # domains; a global sum would reject legitimate catalogue memberships.
-        for key in ("geo_v4_addresses", "geo_v6_addresses", "asn_prefixes"):
-            old = int(previous.get(key, 0)); new = int(summary.get(key, 0))
-            if old and new < old * policy.get("minimum_retained_fraction", 0.70):
-                errors.append(f"abnormal coverage collapse: {key}")
-            if old and new > old * policy.get("maximum_growth_factor", 2.0):
-                errors.append(f"abnormal coverage growth: {key}")
-    if errors:
-        raise ValueError("publication validation failed: " + "; ".join(errors))
-    from .coverage import guard_products
-    guard_products(domain_groups, manifest, policy, baseline)
+            raise ValueError("manifest address coverage disagrees with regional lists")
+    actual_asn_families = {ipaddress.ip_network(prefix).version for rows in asn.values() for prefix in rows}
+    input_families = summary.get("asn_input_families")
+    if not isinstance(input_families, list) or any(type(f) is not int for f in input_families):
+        raise ValueError("manifest needs explicit ASN input families")
+    expected_asn_families = set(input_families)
+    if len(expected_asn_families) != len(input_families) or not expected_asn_families <= {4, 6}:
+        raise ValueError("invalid ASN input families")
+    if not expected_asn_families <= actual_asn_families:
+        raise ValueError("ASN output lost an address family present in admitted input")
+    # Detailed historical comparisons belong to the build record, not a second
+    # expensive validation pass at every publication boundary.
+    guard_products(domain_groups, manifest, quality or {})
     return {"valid": True, "data_version": version, "files": len(names),
-            "geo_groups": len(geo), "asn_groups": len(asn)}
+            "region_groups": len(expected_regions) - 1, "asn_groups": len(asn)}

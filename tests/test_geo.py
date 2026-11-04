@@ -4,14 +4,16 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from airroute_data.geo import CountryRecord, bounds, fuse_country, load_registry, parse_source
+from airroute_data.geo import CountryRecord, bounds, fuse_country, load_registry, load_geo_policy, parse_source
 
 REGISTRY = Path(__file__).resolve().parents[1] / 'config/regions.json'
 
 
 class GeoTests(unittest.TestCase):
     def fusion(self, rows, **kw):
-        return fuse_country(rows, REGISTRY, **kw)
+        rows = list(rows)
+        order = kw.pop('source_order', tuple(sorted({r.source for r in rows if r.semantics == 'country-estimate'})) or ('a',))
+        return fuse_country(rows, REGISTRY, source_order=order, **kw)
 
     def test_registry_is_exclusive_russia_is_own_group(self):
         registry=load_registry(REGISTRY)
@@ -20,24 +22,25 @@ class GeoTests(unittest.TestCase):
         broken=json.loads(REGISTRY.read_text()); broken['regions'][0]['countries'].append('RU')
         with self.assertRaises(ValueError):load_registry(broken)
 
-    def test_crossed_boundaries_consensus_conflict_and_missing(self):
+    def test_crossed_boundaries_keep_primary_and_report_dissent(self):
         rows=[CountryRecord.network('1.0.0.0/24','CN','a'),
               CountryRecord.network('1.0.0.0/25','CN','b'),
               CountryRecord.network('1.0.0.128/26','US','b'),
               CountryRecord.network('1.0.0.192/26',None,'b')]
         result=self.fusion(rows)
-        self.assertEqual(result['groups'], {1:['1.0.0.0/25']})
-        self.assertEqual(result['report']['coverage']['ipv4']['conflicting-regions'],64)
-        self.assertEqual(result['report']['coverage']['ipv4']['insufficient-lineages'],64)
-        self.assertEqual(result['report']['special']['cn']['ipv4_unresolved_addresses'],128)
+        self.assertEqual(result['groups'], {1:['1.0.0.0/24']})
+        self.assertEqual(result['report']['coverage']['ipv4']['region-disagreement'],64)
+        self.assertNotIn('insufficient-lineages', result['report']['coverage']['ipv4'])
+        self.assertEqual(result['report']['special']['cn']['ipv4_assigned_addresses'],256)
         self.assertGreater(result['report']['coverage']['ipv4']['missing-all-sources'],0)
 
-    def test_mirror_cannot_supply_second_vote(self):
+    def test_mirror_lineage_is_recorded_without_votes(self):
         rows=[CountryRecord.network('1.0.0.0/24','CN','upstream','family'),
               CountryRecord.network('1.0.0.0/24','CN','mirror','family')]
         result=self.fusion(rows)
-        self.assertEqual(result['groups'],{})
+        self.assertEqual(result['groups'],{1:['1.0.0.0/24']})
         self.assertEqual(result['report']['usable_lineages'],['family'])
+        self.assertNotIn('minimum_lineages',result['report'])
 
     def test_same_macroregion_country_disagreement_not_lost(self):
         result=self.fusion([CountryRecord.network('1.0.0.0/24','DE','a'),
@@ -45,23 +48,24 @@ class GeoTests(unittest.TestCase):
         self.assertEqual(result['groups'],{10:['1.0.0.0/24']})
         self.assertTrue(result['issues'][0]['country_disagreement'])
 
-    def test_more_specific_same_source_and_lineage_internal_conflict(self):
+    def test_more_specific_primary_and_fixed_order_ignore_lineage_voting(self):
         result=self.fusion([CountryRecord.network('1.0.0.0/24','US','a'),
                             CountryRecord.network('1.0.0.0/25','CN','a'),
                             CountryRecord.network('1.0.0.0/24','CN','b')])
-        self.assertEqual(result['groups'],{1:['1.0.0.0/25']})
+        self.assertEqual(result['groups'],{1:['1.0.0.0/25'],11:['1.0.0.128/25']})
         result=self.fusion([CountryRecord.network('1.0.0.0/24','US','a','same'),
                             CountryRecord.network('1.0.0.0/24','CN','b','same'),
                             CountryRecord.network('1.0.0.0/24','CN','c','other')])
-        self.assertFalse(result['groups'])
+        self.assertEqual(result['groups'],{11:['1.0.0.0/24']})
 
     def test_crossing_intervals_are_not_false_more_specific(self):
         base=int(ipaddress.IPv4Address('1.0.0.0'))
         result=self.fusion([CountryRecord(4,base,base+199,'CN','a','a'),
                             CountryRecord(4,base+100,base+249,'US','a','a'),
                             CountryRecord(4,base,base+255,'CN','b','b')])
-        self.assertEqual(result['report']['coverage']['ipv4']['assigned'],100)
-        self.assertEqual(result['report']['coverage']['ipv4']['conflicting-regions'],150)
+        self.assertEqual(result['report']['coverage']['ipv4']['assigned'],256)
+        self.assertEqual(result['report']['coverage']['ipv4']['region-disagreement'],150)
+        self.assertEqual(result['report']['source_address_support']['b']['ipv4_selected_addresses'],106)
 
     def test_ipv6_end_sentinel_and_special_space(self):
         rows=[CountryRecord.network('2400::/32','RU','a'),CountryRecord.network('2400::/32','RU','b'),
@@ -74,7 +78,7 @@ class GeoTests(unittest.TestCase):
     def test_auxiliary_registration_never_votes(self):
         result=self.fusion([CountryRecord.network('1.0.0.0/24','CN','a'),
                             CountryRecord.network('1.0.0.0/24','CN','rir',semantics='registration')])
-        self.assertFalse(result['groups'])
+        self.assertEqual(result['groups'],{1:['1.0.0.0/24']})
         self.assertEqual(result['report']['segments']['auxiliary_rows_ignored'],1)
 
     def test_iana_documentation_and_benchmark_never_acquire_geography(self):
@@ -96,6 +100,52 @@ class GeoTests(unittest.TestCase):
     def test_deterministic_reordered_records_and_full_details(self):
         rows=[CountryRecord.network('1.0.0.0/24','CN','a'),CountryRecord.network('1.0.0.0/24','US','b')]
         self.assertEqual(self.fusion(rows),self.fusion(list(reversed(rows))))
+
+    def test_configured_source_order_is_required_and_validated(self):
+        policy=load_geo_policy(REGISTRY.parent/'geo-policy.json')
+        self.assertEqual(policy['primary_source'],'iplocate')
+        self.assertEqual(policy['source_order'][0],'iplocate')
+        for broken in ({'schema':1,'primary_source':'a','source_order':[]},
+                       {'schema':1,'primary_source':'b','source_order':['a','b']},
+                       {'schema':1,'primary_source':'a','source_order':['a','a']}):
+            with self.assertRaises(ValueError):load_geo_policy(broken)
+        with self.assertRaisesRegex(ValueError,'configured order'):
+            self.fusion([CountryRecord.network('1.0.0.0/24','CN','extra')],source_order=['primary'])
+
+    def test_missing_primary_estimate_fills_in_configured_order_even_ipv6_only(self):
+        rows=[CountryRecord.network('2400::/32',None,'primary'),
+              CountryRecord.network('2400::/33','RU','second'),
+              CountryRecord.network('2400::/32','CN','third')]
+        result=self.fusion(rows,source_order=['primary','second','third'])
+        self.assertEqual(result['groups'],{1:['2400:0:8000::/33'],9:['2400::/33']})
+        support=result['report']['source_address_support']
+        self.assertEqual(support['second']['ipv6_selected_addresses'],2**95)
+        self.assertEqual(support['third']['ipv6_selected_addresses'],2**95)
+        self.assertEqual(result['report']['source_valid_country_rows']['second'],{'ipv6':1})
+        self.assertTrue(all(x['selected_source'] in ('second','third') for x in result['issues'] if x['region_id']))
+
+    def test_ipv6_wide_primary_dissent_and_nested_hole_have_exact_boundaries(self):
+        rows=[CountryRecord.network('2808::/13','CH','primary'),
+              CountryRecord.network('2808::/64','UY','primary'),
+              CountryRecord.network('2808::/13','US','backup')]
+        result=self.fusion(rows,source_order=['primary','backup'])
+        total=sum(ipaddress.ip_network(n).num_addresses for group in result['groups'].values() for n in group)
+        self.assertEqual(total,2**115)
+        self.assertIn('2808::/64',result['groups'][13])
+        self.assertEqual(result['report']['source_address_support']['primary']['ipv6_selected_addresses'],2**115)
+        self.assertEqual(result['report']['coverage']['ipv6']['region-disagreement'],2**115)
+        self.assertTrue(all(x['selected_source']=='primary' for x in result['issues'] if x['region_id']))
+        # A narrower unknown estimate masks its own broader value, allowing the
+        # configured backup to fill only that hole rather than recoloring /13.
+        rows[1]=CountryRecord.network('2808::/64',None,'primary')
+        hole=self.fusion(rows,source_order=['primary','backup'])
+        self.assertEqual(hole['groups'][11],['2808::/64'])
+        self.assertEqual(hole['report']['source_address_support']['backup']['ipv6_selected_addresses'],2**64)
+
+    def test_missing_primary_address_does_not_require_two_sources(self):
+        result=self.fusion([CountryRecord.network('1.0.0.0/24','CN','backup')],source_order=['primary','backup'])
+        self.assertEqual(result['groups'],{1:['1.0.0.0/24']})
+        self.assertEqual(result['report']['coverage']['ipv4']['fallback-selected'],256)
 
     def test_official_country_formats_and_registration_not_fallback(self):
         with tempfile.TemporaryDirectory() as directory:

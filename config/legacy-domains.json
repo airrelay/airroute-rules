@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "group": "region/cn",
+  "group": "region/cn-domain",
   "source": {
     "id": "legacy-cn",
     "repository": "https://github.com/airrelay/rules",
@@ -14,50 +14,5 @@
     "per_rule_upstream": "unknown; immutable old output is a migration baseline, not an independent publisher or per-rule lineage assertion"
   },
   "sample_limit_per_reason": 8,
-  "reviewed_dispositions": [
-    {
-      "predicate": "DOMAIN-SUFFIX,cn",
-      "disposition": "inapplicable",
-      "reason": "A whole-country TLD shortcut cannot substitute for categorized mainland-market/service rules.",
-      "evidence": ["Project product contract excludes a whole .cn shortcut; this does not claim every .cn service is foreign."]
-    }
-  ],
-  "shared_infrastructure": [
-    {
-      "root": "cloudfront.net",
-      "evidence": ["https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/CNAMEs.html"]
-    },
-    {
-      "root": "akamaized.net",
-      "evidence": ["https://techdocs.akamai.com/terraform/docs/pm-rc-edge-hostname"]
-    },
-    {
-      "root": "akamaihd.net",
-      "evidence": ["https://techdocs.akamai.com/property-mgr/reference/validation-errors"]
-    },
-    {
-      "root": "akamaiedge.net",
-      "evidence": ["https://techdocs.akamai.com/property-mgr/reference/validation-errors"]
-    },
-    {
-      "root": "edgesuite.net",
-      "evidence": ["https://techdocs.akamai.com/edge-hostnames/docs/edge-hn-terminology"]
-    },
-    {
-      "root": "edgekey.net",
-      "evidence": ["https://techdocs.akamai.com/edge-hostnames/docs/edge-hn-terminology"]
-    },
-    {
-      "root": "azureedge.net",
-      "evidence": ["https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-domains"]
-    },
-    {
-      "root": "azurewebsites.net",
-      "evidence": ["https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-domains"]
-    },
-    {
-      "root": "fastly.net",
-      "evidence": ["https://www.fastly.com/documentation/guides/concepts/routing-traffic-to-fastly/"]
-    }
-  ]
+  "reviewed_dispositions": []
 }

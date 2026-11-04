@@ -44,17 +44,17 @@ class GeoTraceTests(unittest.TestCase):
         sink = Sink()
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "issues.jsonl"
-            before = fuse_country(rows, REGISTRY, details_path=path)
+            before = fuse_country(rows, REGISTRY, source_order=["a", "b"], details_path=path)
             old_bytes = path.read_bytes()
-            after = fuse_country(rows, REGISTRY, details_path=path, trace=sink)
+            after = fuse_country(rows, REGISTRY, source_order=["a", "b"], details_path=path, trace=sink)
             self.assertEqual(old_bytes, path.read_bytes())
         self.assertEqual(before, after)
         self.assertEqual(rows, sink.geo_inputs)
-        issue = next(r for r in sink.decisions if r["status"] == "conflicting-regions")
+        issue = next(r for r in sink.decisions if r.get("region_disagreement"))
         self.assertEqual(issue["source_regions"], {"a": [1], "b": [11]})
         self.assertEqual(issue["start_int"], int(ipaddress.IPv4Address("1.0.0.128")))
         self.assertEqual(issue["end_int"], int(ipaddress.IPv4Address("1.0.0.255")))
-        self.assertTrue(any(row["status"] == "source-agreement" for row in sink.decisions))
+        self.assertTrue(any(row["status"] == "primary-selected" for row in sink.decisions))
         self.assertTrue(any(row["status"] == "missing-all-sources" for row in sink.decisions))
         # Existing report samples must not accidentally gain diagnostic-only fields.
         self.assertFalse(any("source_regions" in row for row in after["issues"]))
@@ -64,14 +64,15 @@ class GeoTraceTests(unittest.TestCase):
                 CountryRecord.network("2808::/13", "UY", "new"),
                 CountryRecord.network("2808::/64", "UY", "old")]
         sink = Sink()
-        result = fuse_country(rows, REGISTRY, trace=sink)
+        result = fuse_country(rows, REGISTRY, source_order=["old", "new"], trace=sink)
         self.assertEqual(sink.geo_inputs, rows)
-        accepted = next(row for row in sink.decisions if row["status"] == "source-agreement")
+        accepted = next(row for row in sink.decisions if row.get("sources") == {"old": ["UY"], "new": ["UY"]})
         self.assertEqual(accepted["sources"], {"old": ["UY"], "new": ["UY"]})
-        conflicts = [row for row in sink.decisions if row["status"] == "conflicting-regions"]
+        conflicts = [row for row in sink.decisions if row.get("region_disagreement")]
         self.assertEqual(sum(row["end_int"] - row["start_int"] + 1 for row in conflicts),
                          (1 << 115) - (1 << 64))
-        self.assertEqual(result["groups"], {13: ["2808::/64"]})
+        self.assertEqual(result["groups"][13], ["2808::/64"])
+        self.assertEqual(sum(ipaddress.ip_network(p).num_addresses for p in result["groups"][10]), (1 << 115) - (1 << 64))
 
     def test_country_parser_rows_families_empty_and_failed_are_separate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -125,7 +126,7 @@ class GeoTraceTests(unittest.TestCase):
             self.assertEqual([repr(row) for row in parsed], [repr(row) for row in stripped])
             self.assertEqual([hash(row) for row in parsed], [hash(row) for row in stripped])
             sink = Sink()
-            self.assertEqual(fuse_country(parsed, REGISTRY, trace=sink), fuse_country(stripped, REGISTRY))
+            self.assertEqual(fuse_country(parsed, REGISTRY, source_order=[r.source for r in parsed], trace=sink), fuse_country(stripped, REGISTRY, source_order=[r.source for r in parsed]))
             self.assertEqual(sink.geo_inputs[0].raw_fields["country_code"], "EU")
 
     def test_maxmind_raw_registration_reference_does_not_become_location(self):
@@ -141,7 +142,7 @@ class GeoTraceTests(unittest.TestCase):
             self.assertEqual(rows[1].raw_fields, {"country_code": "EU", "geoname_id": "2", "registered_country_geoname_id": "1"})
             stripped = [replace(row, raw_fields=None) for row in rows]
             sink = Sink()
-            self.assertEqual(fuse_country(rows, REGISTRY, trace=sink), fuse_country(stripped, REGISTRY))
+            self.assertEqual(fuse_country(rows, REGISTRY, source_order=["maxmind"], trace=sink), fuse_country(stripped, REGISTRY, source_order=["maxmind"]))
 
     def test_source_normalization_filter_sums_are_nonadditive_and_not_product_changes(self):
         rows = [CountryRecord.network("10.0.0.0/8", "CN", "a"),
@@ -150,7 +151,7 @@ class GeoTraceTests(unittest.TestCase):
                 replace(CountryRecord.network("2400::/64", None, "a"), raw_fields={"country_code": "EU"}),
                 CountryRecord.network("1.0.1.0/24", "CN", "a", semantics="registration")]
         sink = Sink()
-        self.assertEqual(fuse_country(rows, REGISTRY, trace=sink), fuse_country(rows, REGISTRY))
+        self.assertEqual(fuse_country(rows, REGISTRY, source_order=["a"], trace=sink), fuse_country(rows, REGISTRY, source_order=["a"]))
         events = [row for row in sink.sources if row["stage"] == "geo-normalization"]
         self.assertEqual(len(events), 1)
         event = events[0]
@@ -173,7 +174,7 @@ class GeoTraceTests(unittest.TestCase):
             raise ValueError("broken next source row")
         sink = Sink()
         with self.assertRaisesRegex(ValueError, "broken next source row"):
-            fuse_country(records(), REGISTRY, trace=sink)
+            fuse_country(records(), REGISTRY, source_order=["a"], trace=sink)
         event = next(row for row in sink.sources if row["stage"] == "geo-normalization")
         self.assertEqual(event["status"], "interrupted")
         self.assertEqual(event["ipv4_input_rows"], 1)
@@ -191,9 +192,9 @@ class RoutingTraceTests(unittest.TestCase):
         before = fuse_routes(rows)
         after = fuse_routes(rows, trace=sink)
         self.assertEqual(before, after)
-        self.assertEqual([row for row, _, _ in sink.routes], rows)
+        self.assertEqual([replace(row, compiled_asns=None) if isinstance(row, RoutingRecord) else row for row, _, _ in sink.routes], rows)
         self.assertEqual([status for _, status, _ in sink.routes],
-                         ["filtered", "quarantined", "accepted", "accepted", "ignored"])
+                         ["observed-only", "accepted", "accepted", "accepted", "ignored"])
         self.assertEqual(sink.routes[2][0].asns, (30, 40))
         self.assertEqual(sink.routes[2][0].views, ("peer-a", "peer-b"))
         self.assertIsNone(sink.routes[3][0].origin_prefix_length)

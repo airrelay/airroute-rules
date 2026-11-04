@@ -8,7 +8,7 @@
     "manifest_sha256": "0539a3ca85473e4e7a5a2d164d117a1d2fffb98b5e9ffc0a1e6e27cb2cb15817",
     "entries": 376
   },
-  "catalogue_version": "2026-11-03-services-v1",
+  "catalogue_version": "four-categories-v2",
   "status_meanings": {
     "retain": "Same intended product identity, newly built data.",
     "merge": "Reorganized target(s); semantic comparison scope/partial gaps stated explicitly.",
@@ -16,8 +16,8 @@
     "gap": "Insufficient scoped evidence; no placeholder file."
   },
   "summary": {
-    "retain": 28,
-    "merge": 222,
+    "retain": 27,
+    "merge": 223,
     "deprecate": 11,
     "gap": 115
   },
@@ -25,11 +25,12 @@
     {
       "legacy_id": "region/cn",
       "legacy_name": "中国大陆",
-      "status": "retain",
+      "status": "merge",
       "targets": [
-        "region/cn"
+        "region/cn-ip",
+        "region/cn-domain"
       ],
-      "reason": "Product purpose retained; current passive generation replaces old bytes, not a binary or subscription compatibility promise."
+      "reason": "CN split into explicit IP and non-IP subscriptions; old cn.list is retired without a compatibility artifact."
     },
     {
       "legacy_id": "region/hk-mo",
@@ -171,7 +172,7 @@
       "legacy_name": "全部 AI",
       "status": "merge",
       "targets": [
-        "region/cn",
+        "region/cn-domain",
         "category/ai"
       ],
       "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
@@ -181,7 +182,7 @@
       "legacy_name": "中国大陆 AI",
       "status": "merge",
       "targets": [
-        "region/cn"
+        "region/cn-domain"
       ],
       "reason": "Reorganized by current service use; overlap is allowed and old predicates are not promised byte-equivalent."
     },
@@ -388,7 +389,7 @@
       "legacy_name": "Anthropic / Claude",
       "status": "merge",
       "targets": [
-        "service/claude"
+        "provider/claude"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -533,7 +534,7 @@
       "legacy_name": "Google AI / Gemini / NotebookLM",
       "status": "merge",
       "targets": [
-        "service/gemini"
+        "provider/gemini"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -555,7 +556,7 @@
       "legacy_name": "Hugging Face",
       "status": "merge",
       "targets": [
-        "service/huggingface"
+        "provider/huggingface"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -654,7 +655,7 @@
       "legacy_name": "OpenAI",
       "status": "merge",
       "targets": [
-        "service/openai"
+        "provider/openai"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -691,7 +692,7 @@
       "legacy_name": "Perplexity",
       "status": "merge",
       "targets": [
-        "service/perplexity"
+        "provider/perplexity"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -926,7 +927,7 @@
       "legacy_name": "Dropbox",
       "status": "merge",
       "targets": [
-        "service/dropbox"
+        "provider/dropbox"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -948,7 +949,7 @@
       "legacy_name": "Google Drive",
       "status": "merge",
       "targets": [
-        "service/google-drive"
+        "provider/google-drive"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -977,7 +978,7 @@
       "legacy_name": "Notion",
       "status": "merge",
       "targets": [
-        "service/notion"
+        "provider/notion"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1101,7 +1102,7 @@
       "legacy_name": "Apple Music",
       "status": "merge",
       "targets": [
-        "service/apple-music"
+        "provider/apple-music"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1188,7 +1189,7 @@
       "legacy_name": "iCloud",
       "status": "merge",
       "targets": [
-        "service/icloud"
+        "provider/icloud"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1219,7 +1220,7 @@
       "legacy_name": "Microsoft 365 / Office",
       "status": "merge",
       "targets": [
-        "service/microsoft365"
+        "provider/microsoft365"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1228,7 +1229,7 @@
       "legacy_name": "Microsoft Teams",
       "status": "merge",
       "targets": [
-        "service/teams"
+        "provider/teams"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1250,7 +1251,7 @@
       "legacy_name": "OneDrive / SharePoint",
       "status": "merge",
       "targets": [
-        "service/onedrive"
+        "provider/onedrive"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1386,7 +1387,7 @@
       "legacy_name": "Docker",
       "status": "merge",
       "targets": [
-        "service/docker-hub"
+        "provider/docker-hub"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1454,7 +1455,7 @@
       "legacy_name": "GitHub",
       "status": "merge",
       "targets": [
-        "service/github"
+        "provider/github"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1470,7 +1471,7 @@
       "legacy_name": "GitLab",
       "status": "merge",
       "targets": [
-        "service/gitlab"
+        "provider/gitlab"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -1950,7 +1951,7 @@
       "legacy_name": "Battle.net / Blizzard",
       "status": "merge",
       "targets": [
-        "service/battle-net"
+        "provider/battle-net"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2011,7 +2012,7 @@
       "legacy_name": "Epic Games",
       "status": "merge",
       "targets": [
-        "service/epic-games"
+        "provider/epic-games"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2124,7 +2125,7 @@
       "legacy_name": "HoYoverse 国际",
       "status": "merge",
       "targets": [
-        "region/cn"
+        "region/cn-domain"
       ],
       "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
       "comparison_source": "current frozen DLC category mihoyo (legacy bytes unavailable)",
@@ -2176,7 +2177,7 @@
       "legacy_name": "Nintendo",
       "status": "merge",
       "targets": [
-        "service/nintendo"
+        "provider/nintendo"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2198,7 +2199,7 @@
       "legacy_name": "PlayStation",
       "status": "merge",
       "targets": [
-        "service/playstation"
+        "provider/playstation"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2246,7 +2247,7 @@
       "legacy_name": "Steam",
       "status": "merge",
       "targets": [
-        "service/steam"
+        "provider/steam"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2333,7 +2334,7 @@
       "legacy_name": "Xbox",
       "status": "merge",
       "targets": [
-        "service/xbox"
+        "provider/xbox"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2784,7 +2785,7 @@
       "legacy_name": "Disney+ / Hulu 关联服务",
       "status": "merge",
       "targets": [
-        "service/disney-plus"
+        "provider/disney-plus"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2821,7 +2822,7 @@
       "legacy_name": "HBO / Max",
       "status": "merge",
       "targets": [
-        "service/max"
+        "provider/max"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -2941,7 +2942,7 @@
       "legacy_name": "Netflix",
       "status": "merge",
       "targets": [
-        "service/netflix"
+        "provider/netflix"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3033,7 +3034,7 @@
       "legacy_name": "Prime Video",
       "status": "merge",
       "targets": [
-        "service/prime-video"
+        "provider/prime-video"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3091,7 +3092,7 @@
       "legacy_name": "Spotify",
       "status": "merge",
       "targets": [
-        "service/spotify"
+        "provider/spotify"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3121,7 +3122,7 @@
       "legacy_name": "TikTok",
       "status": "merge",
       "targets": [
-        "region/cn"
+        "region/cn-domain"
       ],
       "reason": "Current domain-language comparison finds coverage in these use collections; partial means uncovered legacy candidates remain a reported gap, not automatically accepted.",
       "comparison_source": "current frozen DLC category tiktok (legacy bytes unavailable)",
@@ -3230,7 +3231,7 @@
       "legacy_name": "YouTube",
       "status": "merge",
       "targets": [
-        "service/youtube"
+        "provider/youtube"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3272,7 +3273,7 @@
       "legacy_name": "Discord",
       "status": "merge",
       "targets": [
-        "service/discord"
+        "provider/discord"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3288,7 +3289,7 @@
       "legacy_name": "Facebook",
       "status": "merge",
       "targets": [
-        "service/facebook"
+        "provider/facebook"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3304,7 +3305,7 @@
       "legacy_name": "Instagram",
       "status": "merge",
       "targets": [
-        "service/instagram"
+        "provider/instagram"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3480,7 +3481,7 @@
       "legacy_name": "Reddit",
       "status": "merge",
       "targets": [
-        "service/reddit"
+        "provider/reddit"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3489,7 +3490,7 @@
       "legacy_name": "Signal",
       "status": "merge",
       "targets": [
-        "service/signal"
+        "provider/signal"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3498,7 +3499,7 @@
       "legacy_name": "Slack",
       "status": "merge",
       "targets": [
-        "service/slack"
+        "provider/slack"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3527,7 +3528,7 @@
       "legacy_name": "Telegram",
       "status": "merge",
       "targets": [
-        "service/telegram"
+        "provider/telegram"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3556,7 +3557,7 @@
       "legacy_name": "X / Twitter",
       "status": "merge",
       "targets": [
-        "service/x"
+        "provider/x"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3601,7 +3602,7 @@
       "legacy_name": "WhatsApp",
       "status": "merge",
       "targets": [
-        "service/whatsapp"
+        "provider/whatsapp"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3610,7 +3611,7 @@
       "legacy_name": "Zoom",
       "status": "merge",
       "targets": [
-        "service/zoom"
+        "provider/zoom"
       ],
       "reason": "A distinct product is now a service rather than a company-provider collection; remains in its corresponding use categories."
     },
@@ -3743,7 +3744,7 @@
       "legacy_name": "Steam 大陆下载",
       "status": "merge",
       "targets": [
-        "region/cn"
+        "region/cn-domain"
       ],
       "reason": "Special-purpose descriptive data is generated separately; this mapping does not impose DIRECT/PROXY."
     },

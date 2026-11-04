@@ -46,23 +46,22 @@ class PublicationTests(unittest.TestCase):
         path = self.root / ("candidate-" + version)
         path.mkdir(exist_ok=True)
         from airroute_data.ardb import write_database
-        # Synthetic geography uses public scope; documentation ranges are
-        # valid ARDB wire examples but cannot be published as location data.
-        write_database(path / "geo.ardb", "geo", {1: ["1.0.1.0/24"]}, allowed_geo_ids=[1])
-        write_database(path / "asn.ardb", "asn", {64500: ["1.0.1.0/24"]})
+        (path / "special").mkdir(exist_ok=True)
+        write_database(path / "special/asn.ardb", "asn", {13335: ["1.0.1.0/24", "240e::/32"]})
         (path / "regions.json").write_text(json.dumps({"version": "fixture", "regions": [
             {"id": 1, "key": "cn", "countries": ["CN"]}]}))
         (path / "region").mkdir(exist_ok=True)
         domain = hashlib.sha256(value).hexdigest()[:16] + ".example"
-        (path / "region" / "cn.list").write_text("DOMAIN-SUFFIX," + domain + "\nIP-CIDR,1.0.1.0/24\n")
+        (path / "region/cn-domain.list").write_text("DOMAIN-SUFFIX," + domain + "\n")
+        (path / "region/cn-ip.list").write_text("IP-CIDR,1.0.1.0/24\nIP-CIDR6,240e::/32\n")
         files = []
-        for name in ["geo.ardb", "asn.ardb", "regions.json", "region/cn.list"]:
+        for name in ["special/asn.ardb", "regions.json", "region/cn-domain.list", "region/cn-ip.list"]:
             data = (path / name).read_bytes()
             files.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
         manifest = {"schema": 1, "format_version": 1, "data_version": version, "version": version,
-                    "geo_registry_version": "fixture", "files": files,
-                    "summary": {"country_lineages": 2, "geo_prefixes": 1, "asn_prefixes": 1,
-                                "domain_rules": 1, "geo_v4_addresses": 256, "geo_v6_addresses": 0}}
+                    "region_registry_version": "fixture", "files": files,
+                    "summary": {"products": 3, "asn_groups": 1, "country_lineages": 2, "geo_prefixes": 2, "asn_prefixes": 2,
+                                "asn_input_families": [4, 6], "domain_rules": 1, "geo_v4_addresses": 256, "geo_v6_addresses": 2 ** 96}}
         (path / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
         return path
 
@@ -76,6 +75,9 @@ class PublicationTests(unittest.TestCase):
         manifest = json.loads((candidate / "manifest.json").read_text())
         manifest["files"].append({"path": name, "bytes": len(content),
                                   "sha256": hashlib.sha256(content).hexdigest()})
+        if name.endswith(".list"):
+            manifest["summary"]["products"] += 1
+            manifest["summary"]["domain_rules"] += sum(line.startswith(b"DOMAIN") for line in content.splitlines())
         (candidate / "manifest.json").write_text(json.dumps(manifest))
 
     def legacy_release(self, candidate):
@@ -109,8 +111,8 @@ class PublicationTests(unittest.TestCase):
         self.add_file(candidate, "ATTRIBUTION.md", b"upstream license\n")
         self.publish(candidate, self.source, self.sha)
         paths = set(git(self.remote, "ls-tree", "-r", "--name-only", "release").splitlines())
-        self.assertEqual(paths, {"geo.ardb", "asn.ardb", "regions.json", "manifest.json",
-                                 "ATTRIBUTION.md", "region/cn.list"})
+        self.assertEqual(paths, {"special/asn.ardb", "regions.json", "manifest.json",
+                                 "ATTRIBUTION.md", "region/cn-ip.list", "region/cn-domain.list"})
         self.assertEqual(self.current()["layout"], "flat-v1")
         self.assertEqual({f["path"] for f in self.current()["files"]}, paths - {"manifest.json"})
 
@@ -137,7 +139,7 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn("category/obsolete.list", git(self.remote, "ls-tree", "-r", "--name-only", "release"))
 
     def test_unexpected_rule_or_database_directory_is_rejected(self):
-        for index, name in enumerate(("scratch/rogue.list", "test.ardb", "region/NONCANONICAL.list")):
+        for index, name in enumerate(("scratch/rogue.list", "test.ardb", "region/NONCANONICAL.list", "service/retired.list", "dns/retired.list", "geo.ardb", "asn.ardb")):
             candidate = self.candidate("bad" + str(index))
             self.add_file(candidate, name, b"# fixture\n")
             with self.assertRaisesRegex(module.PublicationError, "Unexpected rule/database"):
@@ -187,7 +189,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_modified_and_unlisted_candidate_never_publish(self):
         candidate = self.candidate()
-        (candidate / "geo.ardb").write_bytes(b"changed")
+        (candidate / "special/asn.ardb").write_bytes(b"changed")
         with self.assertRaises(module.PublicationError):
             self.publish(candidate, self.source, self.sha)
         candidate = self.candidate(value=b"fixture-data")
@@ -202,10 +204,10 @@ class PublicationTests(unittest.TestCase):
         (candidate / "manifest.json").write_text(json.dumps(manifest))
         with self.assertRaises(module.PublicationError): module.validate_candidate(candidate)
         candidate = self.candidate()
-        (candidate / "geo.ardb").unlink()
-        (candidate / "geo.ardb").symlink_to(self.source / "README.md")
+        (candidate / "special/asn.ardb").unlink()
+        (candidate / "special/asn.ardb").symlink_to(self.source / "README.md")
         with self.assertRaises(module.PublicationError): module.validate_candidate(candidate)
-        (candidate / "geo.ardb").unlink()
+        (candidate / "special/asn.ardb").unlink()
         candidate = self.candidate()
         self.publish(candidate, self.source, self.sha)
         self.candidate(value=b"different")
@@ -288,8 +290,23 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(output.exists())
         self.publish(self.candidate(), self.source, self.sha)
         self.assertTrue(module.prepare_baseline(self.source, output))
-        self.assertEqual({p.relative_to(output).as_posix() for p in output.rglob("*") if p.is_file()}, {"manifest.json", "region/cn.list"})
+        self.assertEqual({p.relative_to(output).as_posix() for p in output.rglob("*") if p.is_file()}, {"manifest.json", "region/cn-ip.list", "region/cn-domain.list"})
         self.assertEqual(json.loads((output / "manifest.json").read_text())["data_version"], "a1")
+
+    def test_missing_optional_comparison_manifest_does_not_block_build(self):
+        output = self.root / "previous-without-manifest"
+        self.assertFalse(module.prepare_baseline(self.source, output, branch="main"))
+        self.assertFalse(output.exists())
+
+    def test_unavailable_optional_baseline_transport_does_not_block_build(self):
+        with patch.object(module, "_remote_sha", side_effect=module.PublicationUncertain("unavailable")):
+            self.assertFalse(module.prepare_baseline(self.source, self.root / "unavailable"))
+
+    def test_revalidation_does_not_reload_historical_quantity_policy(self):
+        candidate = self.candidate()
+        with patch("airroute_data.validation.validate_candidate") as validate:
+            module._semantic_validation(candidate)
+        validate.assert_called_once_with(candidate)
 
     def test_scoped_checkout_credentials_copy_without_log_or_artifact(self):
         # checkout v6 uses a conditional include pointing outside .git/config.
@@ -303,11 +320,11 @@ class PublicationTests(unittest.TestCase):
 
     def test_direct_publish_validates_semantics_even_when_hashes_are_consistent(self):
         candidate = self.candidate()
-        path = candidate / "region" / "cn.list"
+        path = candidate / "region" / "cn-domain.list"
         path.write_text("USER-AGENT,unsupported\nIP-CIDR,1.0.1.0/24\n")
         manifest = json.loads((candidate / "manifest.json").read_text())
         for record in manifest["files"]:
-            if record["path"] == "region/cn.list":
+            if record["path"] == "region/cn-domain.list":
                 record.update(bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         (candidate / "manifest.json").write_text(json.dumps(manifest))
         with self.assertRaisesRegex(module.PublicationError, "validation"):
@@ -338,16 +355,16 @@ class PublicationTests(unittest.TestCase):
             with self.assertRaisesRegex(module.PublicationError, "positive integers"):
                 self.publish(self.candidate(), self.source, self.sha, sequence=sequence, attempt=attempt)
 
-    def test_new_publication_validates_semantics_once_against_fresh_baseline(self):
+    def test_new_publication_revalidates_current_contract_once(self):
         original = module._semantic_validation
         with patch.object(module, "_semantic_validation", wraps=original) as validate:
             self.publish(self.candidate("a1"), self.source, self.sha)
         self.assertEqual(validate.call_count, 1)
-        self.assertIsNone(validate.call_args.args[2])
+        self.assertEqual(len(validate.call_args.args), 1)
         with patch.object(module, "_semantic_validation", wraps=original) as validate:
             self.publish(self.candidate("a2"), self.source, self.sha)
         self.assertEqual(validate.call_count, 1)
-        self.assertEqual(validate.call_args.args[2].name, "work")
+        self.assertEqual(len(validate.call_args.args), 1)
 
     def test_fenced_pending_retry_reuses_prior_semantic_validation(self):
         self.publish(self.candidate("a1"), self.source, self.sha)

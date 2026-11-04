@@ -1,7 +1,7 @@
 """Diagnostic differences between a published baseline and a build candidate.
 
 This module does not validate, approve or publish either input. In particular a
-candidate rejected by the normal quality gates can still be compared here.
+candidate rejected by format or input-integrity validation can still be compared here.
 Existing semantic product comparison remains authoritative for containment;
 regional IP changes add a disjoint interval overlay, never per-address rows.
 """
@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 
 from .coverage import compare_directories, domain_rules
-from .domains import CompactionWitness, CoverageIndex
+from .domains import CompactionWitness, CoverageIndex, parse_rule_line
 from .validation import parse_list, safe_file
 
 
@@ -50,11 +50,12 @@ def _regional_intervals(paths):
         if not name.startswith("region/"):
             continue
         for line in parse_list(path):
-            kind, _, value = line.partition(",")
+            rule = parse_rule_line(line)
+            kind, value = rule.kind, rule.value
             if kind in {"IP-CIDR", "IP-CIDR6"}:
                 network = ipaddress.ip_network(value, strict=True)
                 rows.append((network.version, int(network.network_address),
-                             int(network.broadcast_address), name))
+                             int(network.broadcast_address), 'region/cn' if name == 'region/cn-ip' else name))
     rows.sort()
     merged = []
     for family, start, end, region in rows:
@@ -144,7 +145,7 @@ def _geo(before_paths, after_paths, trace):
                         for key, counts in sorted(transitions.items(), key=lambda item: tuple(str(v) for v in item[0]))],
         "changed_intervals": changed_intervals, "samples": samples,
         "samples_complete": changed_intervals <= SAMPLE_LIMIT,
-        "counting_note": "Addresses are interval cardinality, not active hosts. canonical_cidrs is the minimal CIDR cover of semantic transition intervals, not input/final file line counts. Both-unknown space is not expanded. Removed means no longer assigned by regional products, not proof of no information or global withdrawal."}
+        "counting_note": "Addresses are interval cardinality, not active hosts. canonical_cidrs is the minimal CIDR cover of semantic transition intervals, not input/final file line counts. Both-unknown space is not expanded. CN IP path migration is normalized to the stable cn region identity. Removed means no longer assigned by regional products, not proof of no information or global withdrawal."}
 
 
 def _domain_changes(before_paths, after_paths, trace):
@@ -180,7 +181,7 @@ def _domain_changes(before_paths, after_paths, trace):
                 record(rule, "covered-by-baseline", old_witness.covering(rule))
     return {"products": {product: dict(value) for product, value in sorted(counts.items())},
             "events": events, "samples": samples, "samples_complete": events <= SAMPLE_LIMIT,
-            "counting_note": "Added/removed are predicate-language containment changes using the existing CoverageIndex. Covered-by-current/baseline describes proven containment across textual replacement, not whole-product equivalence or a loss. Arbitrary regex language equivalence remains conservative, not guessed from sample hosts."}
+            "counting_note": "Added/removed are predicate-language containment changes using the existing CoverageIndex. Covered-by-current/baseline describes proven containment across textual replacement, not whole-product equivalence or a loss. Product path changes are reported separately; added/removed under renamed paths is not proof of lost matching coverage. Arbitrary regex language equivalence remains conservative, not guessed from sample hosts."}
 
 
 def compare_build(candidate: Path, baseline: Path, trace=None) -> dict:

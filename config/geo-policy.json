@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "primary_source": "iplocate",
+  "source_order": ["iplocate", "maxmind", "dbip", "ipinfo", "ip2location"],
+  "required_primary": true,
+  "description": "IPLocate is the fixed currently available dual-stack primary. Other country-estimate sources fill only gaps in this order; dissent is recorded without deleting the primary result. This is an explicit production choice, not a claim of absolute accuracy."
+}

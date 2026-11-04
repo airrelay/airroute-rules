@@ -38,13 +38,7 @@ jobs:
         id: baseline
         run: |
           git remote add products https://github.com/airrelay/rules.git
-          git fetch --no-tags products main
-          if git cat-file -e FETCH_HEAD:manifest.json 2>/dev/null; then
-            python -c "from pathlib import Path; from airroute_data.publish import prepare_baseline; prepare_baseline(Path('.'), Path('.build/previous'), remote='products', branch='main')"
-          else
-            test "$(git rev-parse FETCH_HEAD)" = 8381d4c0fe473943dbbed52868b88ef87df3d454
-            python -c "from pathlib import Path; from airroute_data.publish import prepare_baseline; prepare_baseline(Path('.'), Path('.build/previous'))"
-          fi
+          python -c "from pathlib import Path; from airroute_data.publish import prepare_baseline; available=prepare_baseline(Path('.'), Path('.build/previous'), remote='products', branch='main'); print('Previous product baseline: ' + ('available' if available else 'unavailable; comparison skipped'))"
       - name: Freeze available source inputs
         id: acquire
         env:

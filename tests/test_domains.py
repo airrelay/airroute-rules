@@ -149,35 +149,34 @@ class DomainTests(unittest.TestCase):
             return {int(ip) for r in rows for ip in ipaddress.ip_network(r.value)}
         self.assertEqual(addresses(before), addresses(after))
 
-    def test_cn_exclusion_including_overseas_parent_suffix(self):
+    def test_cn_and_global_collections_preserve_overlap(self):
         root = self.temporary_dlc({
             "cn-test": "domain:mainland.example\nfull:cn.mixed.example\ncn\nkeyword:china\n",
             "foreign": "mainland.example\nx.mainland.example\nmixed.example\nvalid.example\nkeyword:unbounded\n",
         })
         products = {"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-test"}]},
+            {"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn-test"}]},
             {"id": "category/test", "selectors": [{"source": "dlc", "category": "foreign"}]},
         ]}
         groups, report = build_domains([{"id": "dlc", "format": "dlc", "path": str(root)}], products)
-        self.assertEqual(groups["region/cn"], ["DOMAIN,cn.mixed.example", "DOMAIN-SUFFIX,mainland.example"])
-        self.assertEqual(groups["category/test"], ["DOMAIN-SUFFIX,valid.example"])
-        self.assertEqual(len(report["cn_overlap_removed"]), 4)
-        self.assertEqual(len(report["quarantined"]), 2)
+        self.assertEqual(set(groups["region/cn-domain"]), {"DOMAIN,cn.mixed.example", "DOMAIN-SUFFIX,mainland.example", "DOMAIN-SUFFIX,cn", "DOMAIN-KEYWORD,china"})
+        self.assertEqual(set(groups["category/test"]), {"DOMAIN-SUFFIX,mainland.example", "DOMAIN-SUFFIX,mixed.example", "DOMAIN-SUFFIX,valid.example", "DOMAIN-KEYWORD,unbounded"})
+        self.assertFalse(report["quarantined"])
 
     def test_cn_boundary_not_similar_spelling(self):
         root = self.temporary_dlc({"cn-test": "a.example\n", "foreign": "bada.example\nexample.net\n"})
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-test"}]}, {"id": "category/test", "selectors": [{"source": "dlc", "category": "foreign"}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn-test"}]}, {"id": "category/test", "selectors": [{"source": "dlc", "category": "foreign"}]}]}
         groups, _ = build_domains([{"id": "dlc", "format": "dlc", "path": str(root)}], products)
         self.assertEqual(len(groups["category/test"]), 2)
 
-    def test_mature_source_adds_new_rules_with_explicit_shared_exceptions(self):
+    def test_mature_source_preserves_shared_endpoints_ips_and_asn(self):
         root = self.temporary_dlc({"cn-test": "local.example\n", "foreign": "owned.example\n"})
         reference = root / "reference.list"
         reference.write_text("DOMAIN-SUFFIX,owned.example\nDOMAIN-SUFFIX,shared-ca.example\nIP-ASN,13335\nIP-CIDR,192.0.2.0/24\n")
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-test"}]}, {"id": "category/test", "selectors": [{"source": "dlc", "category": "foreign"}, {"source": "ref", "shared_roots": ["shared-ca.example"]}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn-test"}]}, {"id": "category/test", "selectors": [{"source": "dlc", "category": "foreign"}, {"source": "ref", "shared_roots": ["shared-ca.example"]}]}]}
         groups, report = build_domains([{"id": "dlc", "format": "dlc", "path": str(root)}, {"id": "ref", "format": "surge", "path": str(reference)}], products)
-        self.assertEqual(groups["category/test"], ["DOMAIN-SUFFIX,owned.example"])
-        self.assertEqual(len(report["quarantined"]), 3)
+        self.assertEqual(set(groups["category/test"]), {"DOMAIN-SUFFIX,owned.example", "DOMAIN-SUFFIX,shared-ca.example", "IP-CIDR,192.0.2.0/24", "IP-ASN,13335"})
+        self.assertFalse(report["quarantined"])
 
     def test_official_endpoint_template_failure_does_not_discard_valid_feed_rows(self):
         root = self.temporary_dlc({"cn-test": "local.example\n"})
@@ -187,7 +186,7 @@ class DomainTests(unittest.TestCase):
             {"id": 2, "serviceArea": "Common", "urls": ["second-machine.example", "*cdn.onenote.net"]},
         ]))
         products = {"schema": 1, "groups": [
-            {"id": "region/cn", "selectors": [{"source": "dlc", "category": "cn-test"}]},
+            {"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn-test"}]},
             {"id": "provider/microsoft", "selectors": [{"source": "microsoft365", "format": "official-json", "adapter": "microsoft365"}]},
         ]}
         groups, report = build_domains([
@@ -196,15 +195,24 @@ class DomainTests(unittest.TestCase):
         ], products)
         self.assertEqual(report["unavailable_selectors"], [])
         self.assertEqual(groups["provider/microsoft"], ["DOMAIN,machine.example", "DOMAIN,second-machine.example", r"DOMAIN-REGEX,^.+\.wild\.example$"])
-        self.assertEqual(len(report["cn_overlap_removed"]), 0)
         self.assertEqual({q["predicate"] for q in report["quarantined"]}, {"autodiscover.*.onmicrosoft.com", "*cdn.onenote.net"})
         self.assertEqual(report["quarantined"][0]["source"], "microsoft365")
         self.assertEqual(report["quarantined"][0]["record_id"], 1)
         self.assertEqual(report["quarantined"][0]["endpoint_index"], 3)
 
+    def test_upstream_resolution_modifiers_are_removed_and_recorded(self):
+        rows,bad=parse_third_party("IP-CIDR,1.0.0.0/25,no-resolve\nIP-CIDR,1.0.0.128/25,DIRECT,no-resolve\nIP-CIDR,1.0.0.0/24\nIP-ASN,132203,no-resolve\n","surge")
+        self.assertFalse(bad)
+        compact=[r.text for r in minimize(rows)]
+        self.assertEqual(compact,["IP-ASN,132203","IP-CIDR,1.0.0.0/24"])
+        self.assertEqual([r.removed_modifiers for r in rows],[("no-resolve",),("no-resolve",),(),("no-resolve",)])
+        validate_domain_groups({"provider/test":compact})
+        with self.assertRaises(RuleError):
+            validate_domain_groups({"provider/test":["IP-ASN,132203,no-resolve"]})
+
     def test_required_selector_missing_fails_but_optional_source_reported(self):
         root = self.temporary_dlc({"a": "x.example\n"})
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "dlc", "category": "missing", "required": True}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "missing", "required": True}]}]}
         with self.assertRaisesRegex(RuleError, "required selector"):
             build_domains([{"id": "dlc", "format": "dlc", "path": str(root)}], products)
         with self.assertRaisesRegex(RuleError, "source unavailable"):
@@ -214,36 +222,36 @@ class DomainTests(unittest.TestCase):
         self.assertEqual(len(report["unavailable_selectors"]), 1)
 
     def test_missing_optional_files_do_not_leak_checkout_path(self):
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": []}, {"id": "category/test", "selectors": [{"source": "ref", "path": "missing.list"}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": []}, {"id": "category/test", "selectors": [{"source": "ref", "path": "missing.list"}]}]}
         first = build_domains([{"id": "ref", "format": "surge", "path": "/tmp/build-a/missing"}], products)
         second = build_domains([{"id": "ref", "format": "surge", "path": "/tmp/build-b/missing"}], products)
         self.assertEqual(first, second)
         self.assertNotIn("/tmp/", json.dumps(first))
 
-    def test_output_exclusion_validation_rejects_rehashed_semantic_tamper(self):
-        good = {"region/cn": ["DOMAIN,cn.mixed.example", "IP-CIDR,192.0.2.0/24"], "category/test": ["DOMAIN-SUFFIX,valid.example"]}
-        self.assertEqual(validate_domain_groups(good)["cn_overlap"], 0)
-        for tampered in ("DOMAIN-SUFFIX,mixed.example", "DOMAIN,cn.mixed.example", "DOMAIN-KEYWORD,mixed"):
-            bad = dict(good)
-            bad["category/test"] = [tampered]
-            with self.assertRaisesRegex(RuleError, "overlap"):
-                validate_domain_groups(bad)
-        for bad in ({"region/cn": ["DOMAIN-SUFFIX,cn"]}, {"region/cn": [], "category/test": ["DOMAIN-SUFFIX,example.com,no-resolve"]}):
+    def test_output_validation_checks_format_and_region_types_not_identity(self):
+        valid = {"region/cn-domain": ["DOMAIN-SUFFIX,cn", "DOMAIN,cn.mixed.example"],
+                 "region/cn-ip": ["IP-CIDR,1.0.0.0/24"],
+                 "category/test": ["DOMAIN-SUFFIX,mixed.example", "IP-ASN,13335"]}
+        self.assertEqual(validate_domain_groups(valid)["rules"]["category/test"], 2)
+        for invalid in ({"region/cn-domain": ["IP-CIDR,1.0.0.0/24"]},
+                        {"region/ru": ["DOMAIN,example.ru"]},
+                        {"category/test": ["DOMAIN-SUFFIX,example.com,no-resolve"]},
+                        {"category/test": ["DOMAIN,EXAMPLE.COM"]},
+                        {"category/test": ["DOMAIN,example.com", "DOMAIN,example.com"]}):
             with self.assertRaises(RuleError):
-                validate_domain_groups(bad)
+                validate_domain_groups(invalid)
 
-    def test_strict_subdomain_regex_can_prove_disjointness_but_excludes_apex(self):
+    def test_valid_patterns_and_tlds_are_not_cross_collection_vetoes(self):
         strict = r"DOMAIN-REGEX,^.+\.office\.com$"
-        for local in ("DOMAIN,office.com", "DOMAIN-SUFFIX,unrelated.example", "DOMAIN,parent.example"):
-            groups = {"region/cn": [local], "provider/microsoft": [strict]}
-            self.assertEqual(validate_domain_groups(groups)["cn_overlap"], 0)
-        for local in ("DOMAIN-SUFFIX,office.com", "DOMAIN,cn.office.com", "DOMAIN-SUFFIX,cn.office.com", "DOMAIN-SUFFIX,com"):
-            groups = {"region/cn": [local], "provider/microsoft": [strict]}
-            with self.assertRaises(RuleError):
-                validate_domain_groups(groups)
-        for other in (r"DOMAIN-REGEX,^.*\.office\.com$", r"DOMAIN-REGEX,^.+\.office\.com$|other", r"DOMAIN-REGEX,^.+\.office.com$"):
-            with self.assertRaisesRegex(RuleError, "overlap"):
-                validate_domain_groups({"region/cn": ["DOMAIN,office.com"], "provider/microsoft": [other]})
+        for local in ("DOMAIN,office.com", "DOMAIN-SUFFIX,office.com", "DOMAIN-SUFFIX,com", "DOMAIN-KEYWORD,office"):
+            validate_domain_groups({"region/cn-domain": [local], "provider/microsoft": [strict]})
+
+    def test_supported_non_ip_preserves_upstream_process_and_asn(self):
+        rows, rejected = parse_third_party("PROCESS-NAME,WeChat.exe\nIP-ASN,45102\nUSER-AGENT,WeChat*\n", "surge")
+        self.assertEqual([r.text for r in rows], ["PROCESS-NAME,WeChat.exe", "IP-ASN,45102"])
+        self.assertEqual(len(rejected), 1)
+        for line in ("IP-ASN,-1", "IP-ASN,4294967296", "PROCESS-NAME,"):
+            self.assertTrue(parse_third_party(line,"surge")[1])
 
     def test_strict_subdomain_regex_minimized_only_by_covering_suffix(self):
         strict = normalize_rule("DOMAIN-REGEX", r"^.+\.a\-b\.example$")
@@ -258,20 +266,20 @@ class DomainTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         p = Path(temp.name) / "products.json"
-        p.write_text(json.dumps({"schema": 1, "groups": [{"id": "region/cn"}, {"id": "region/cn"}]}))
+        p.write_text(json.dumps({"schema": 1, "groups": [{"id": "region/cn-domain"}, {"id": "region/cn-domain"}]}))
         with self.assertRaisesRegex(RuleError, "duplicate"):
             load_products(p)
         self.assertEqual(load_products(Path(__file__).parents[1] / "config/products.json")["schema"], 1)
 
     def test_build_deterministic_and_provenance_precedes_compaction(self):
         root = self.temporary_dlc({"a": "example.com\nfull:www.example.com\n"})
-        products = {"schema": 1, "groups": [{"id": "region/cn", "selectors": [{"source": "dlc", "category": "a"}]}]}
+        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "a"}]}]}
         src = [{"id": "dlc", "format": "dlc", "path": str(root)}]
         first = build_domains(src, products)
         second = build_domains(src, products)
         self.assertEqual(first, second)
-        self.assertEqual(first[0]["region/cn"], ["DOMAIN-SUFFIX,example.com"])
-        self.assertEqual(len(first[1]["provenance"]["region/cn"]), 2)
+        self.assertEqual(first[0]["region/cn-domain"], ["DOMAIN-SUFFIX,example.com"])
+        self.assertEqual(len(first[1]["provenance"]["region/cn-domain"]), 2)
 
 
 if __name__ == "__main__":

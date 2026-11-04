@@ -7,10 +7,11 @@ not carried over. Incremental UPDATE files cannot be mistaken for a full RIB.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import bz2
 import csv
 import gzip
+import heapq
 import ipaddress
 import json
 from pathlib import Path
@@ -33,6 +34,7 @@ class RoutingRecord:
     peer_count: int | None = None
     origin_prefix_length: int | None = None
     views: tuple[str, ...] = ()
+    compiled_asns: tuple[int, ...] | None = None
 
     @classmethod
     def network(cls, network: str, asns: Iterable[int], source: str,
@@ -63,9 +65,48 @@ class AuxiliaryRecord:
 
 def valid_asns(values: Iterable[int | str]) -> tuple[int, ...]:
     result = sorted({int(str(v).removeprefix("AS")) for v in values})
-    if any(not 0 < v < 2**32 for v in result):
-        raise ValueError("ASN outside u32 or AS0")
+    if any(not 0 <= v < 2**32 for v in result):
+        raise ValueError("ASN outside u32")
     return tuple(result)
+
+
+
+# IANA Special-Purpose AS Numbers registry (last updated 2015-08-07),
+# https://www.iana.org/assignments/iana-as-numbers-special-registry/
+# These are standards-defined number semantics, not an ASN ownership allowlist.
+IANA_ASN_REGISTRY = {
+    "url": "https://www.iana.org/assignments/iana-as-numbers-special-registry/",
+    "version": "2015-08-07",
+    "number_registry_url": "https://www.iana.org/assignments/as-numbers/",
+    "number_registry_version": "2026-06-01",
+}
+
+
+def asn_number_kind(number: int) -> str:
+    if number == 0: return "reserved-rfc7607"
+    if number == 112: return "as112-project-rfc7534"
+    if number == 23456: return "as-trans-rfc6793"
+    if 64496 <= number <= 64511 or 65536 <= number <= 65551:
+        return "documentation-rfc5398"
+    if 64512 <= number <= 65534 or 4200000000 <= number <= 4294967294:
+        return "private-use-rfc6996"
+    if number in (65535, 4294967295): return "reserved-rfc7300"
+    if 65552 <= number <= 131071: return "reserved-iana-as-numbers"
+    return "public"
+
+
+def public_asns(values: Iterable[int]) -> tuple[int, ...]:
+    # AS112 is a globally routed special-purpose project; do not discard it
+    # merely because its number has a special-purpose registry entry.
+    return tuple(v for v in valid_asns(values)
+                 if asn_number_kind(v) in {"public", "as112-project-rfc7534"})
+
+
+def _aggregate_view(source: str, collector: str, prefix: str, origins: Iterable[int]) -> str:
+    # RISwhois has aggregate prefix/origin/peer-count rows, not peer identities.
+    # Each claim is independent; a more-specific row may have come from an
+    # entirely different peer and must not erase a covering aggregate claim.
+    return f"{source}/{collector}/aggregate:{prefix}:" + ",".join(map(str, origins))
 
 
 def _asn_set(value: str) -> tuple[int, ...]:
@@ -89,6 +130,8 @@ def parse_source(format: str, path: str | Path, source: dict, *, trace=None) -> 
     error_type = None
     try:
         for record in _parse_source(format, path, source, _stats=stats):
+            if source.get("ip_version") is not None and record.version != int(source["ip_version"]):
+                raise ValueError("routing input address family differs from source contract")
             stats["records_parsed"] += 1
             stats[f"ipv{record.version}_records"] += 1
             if isinstance(record, RoutingRecord):
@@ -123,6 +166,10 @@ def _parse_source(format: str, path: str | Path, source: dict, *, _stats: dict) 
     if format in ("ris-whois", "riswhois"):
         # Current RIS dump is a tabular origin-prefix-peercount summary. RPSL
         # blocks are also supported for captured documented whois responses.
+        def aggregate(prefix, origins, peer_count=None):
+            origins = valid_asns(origins)
+            return RoutingRecord.network(prefix, origins, sid, collector,
+                peer_count=peer_count, views=(_aggregate_view(sid, collector, prefix, origins),))
         with open_text(path) as stream:
             network, origins = None, []
             for raw in stream:
@@ -130,7 +177,7 @@ def _parse_source(format: str, path: str | Path, source: dict, *, _stats: dict) 
                 if not line or line.startswith(("%", "#")):
                     if network and origins:
                         _stats["records_read"] += 1
-                        yield RoutingRecord.network(network, origins, sid, collector)
+                        yield aggregate(network, origins)
                     network, origins = None, []
                     continue
                 if line.startswith(("route:", "route6:")):
@@ -149,10 +196,10 @@ def _parse_source(format: str, path: str | Path, source: dict, *, _stats: dict) 
                     else: raise ValueError("RIS dump has no origin")
                     peer_count = int(fields[prefix_index + 1]) if prefix_index > 0 and len(fields) > prefix_index + 1 else (
                         int(fields[2]) if prefix_index == 0 and len(fields) > 2 else None)
-                    yield RoutingRecord.network(prefix, _asn_set(asn), sid, collector, peer_count=peer_count)
+                    yield aggregate(prefix, _asn_set(asn), peer_count)
             if network and origins:
                 _stats["records_read"] += 1
-                yield RoutingRecord.network(network, origins, sid, collector)
+                yield aggregate(network, origins)
         return
     if format in ("iptoasn-tsv", "iptoasn"):
         with open_text(path) as stream:
@@ -306,7 +353,8 @@ def parse_mrt(path: str | Path, source: str, collector: str = "", *,
     """
     path = Path(path)
     opener = gzip.open if path.suffix == ".gz" else bz2.open if path.suffix == ".bz2" else open
-    peers: list[tuple[bool, str, int]] = []
+    peers: list[tuple[bool, str, int, str]] = []
+    table_view = ""
     with opener(path, "rb") as stream:
         while header := stream.read(12):
             if _stats is not None:
@@ -319,6 +367,7 @@ def parse_mrt(path: str | Path, source: str, collector: str = "", *,
             if subtype == 1:
                 if len(payload) < 8: raise ValueError("truncated MRT peer index")
                 view_len = int.from_bytes(payload[4:6], "big"); offset = 6 + view_len
+                table_view = str(ipaddress.IPv4Address(payload[:4])) + ":" + payload[6:offset].hex()
                 if offset + 2 > len(payload): raise ValueError("truncated MRT peer index view")
                 count = int.from_bytes(payload[offset:offset+2], "big"); offset += 2; peers = []
                 for _ in range(count):
@@ -330,7 +379,8 @@ def parse_mrt(path: str | Path, source: str, collector: str = "", *,
                     addr_width = 16 if peer_type & 1 else 4
                     addr = str(ipaddress.ip_address(payload[offset+5:offset+5+addr_width]))
                     peer_asn = int.from_bytes(payload[offset+5+addr_width:offset+size], "big")
-                    peers.append((as4, addr, peer_asn)); offset += size
+                    bgp_id = str(ipaddress.IPv4Address(payload[offset+1:offset+5]))
+                    peers.append((as4, addr, peer_asn, bgp_id)); offset += size
                 if offset != len(payload): raise ValueError("trailing MRT peer bytes")
                 continue
             if subtype not in (2, 4, 6, 8, 10, 12):
@@ -365,8 +415,8 @@ def parse_mrt(path: str | Path, source: str, collector: str = "", *,
                 # four-octet, even when the peer-index ASN itself is two-octet.
                 origins = _attributes(attrs, True)
                 if origins:
-                    _, peer_ip, peer_asn = peers[peer]
-                    view = f"{collector}/AS{peer_asn}@{peer_ip}"
+                    _, peer_ip, peer_asn, bgp_id = peers[peer]
+                    view = f"{source}/{collector}/view:{table_view}/AS{peer_asn}@{peer_ip}#{bgp_id}"
                     equivalent[origins].add(view)
                 elif _stats is not None:
                     _stats["mrt_originless_entries"] += 1
@@ -378,75 +428,67 @@ def parse_mrt(path: str | Path, source: str, collector: str = "", *,
                 yield RoutingRecord.network(prefix, origins, source, ordered[0], views=ordered)
 
 
-def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
-                minimum_prefix_lengths: dict[int, int] | None = None, trace=None) -> dict:
-    """Longest matching prefix per collector, union all current origin views.
+def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=None) -> dict:
+    """Per-real-peer longest match, then union independent current claims.
 
-    A /25 from one collector does not erase a covering /24 observed by another.
-    Overlapping source records at equal specificity retain every origin.
+    Aggregate RIS/provider rows have no real peer identity: the parser gives
+    each independent aggregate claim its own view rather than inventing a
+    common peer. Compiled ranges describe nonexclusive origin membership,
+    never address ownership, physical location or actual use by all hosts.
     """
     active = {}; previous = previous_family = None
-    floors = {4: 8, 6: 12}
-    if minimum_prefix_lengths is not None:
-        for family, floor in minimum_prefix_lengths.items():
-            family = int(family)
-            if family not in (4, 6) or isinstance(floor, bool) or not isinstance(floor, int) or not 1 <= floor <= (32 if family == 4 else 128):
-                raise ValueError("invalid ASN ownership minimum prefix length")
-            floors[family] = floor
-    groups = defaultdict(list); routed_union = []; counts = Counter(); collectors = set(); source_rows = Counter(); event_records = Counter()
-    quarantined, quarantine_rows, quarantine_by_source = [], 0, Counter()
+    groups = defaultdict(list); routed_union = []; counts = Counter(); collectors = set()
+    source_rows = Counter(); event_records = Counter(); special = Counter(); lengths = Counter()
+    widest = {4: [], 6: []}; ordinal = 0
+    raw_claim_rows = Counter(); aggregate_claim_rows = Counter(); input_families = set()
     def normalized():
-        nonlocal quarantine_rows
+        nonlocal ordinal
         for rec in records:
             weight = len(rec.views) if isinstance(rec, RoutingRecord) and rec.views else 1
             source_rows[rec.source] += weight
             event_records[rec.source] += 1
             if not isinstance(rec, RoutingRecord) or rec.semantics != "routing-origin":
-                if trace is not None:
-                    trace.route_input(rec, "ignored", "auxiliary-not-origin-membership")
+                if trace is not None: trace.route_input(rec, "ignored", "auxiliary-not-origin-membership")
                 counts["auxiliary_rows_not_asn_membership"] += 1; continue
-            valid_asns(rec.asns)
-            if not rec.asns:
-                if trace is not None:
-                    trace.route_input(rec, "filtered", "no-origin-asn")
-                continue
+            origins = public_asns(rec.asns)
+            marked = replace(rec, compiled_asns=origins)
+            for number in rec.asns:
+                kind = asn_number_kind(number)
+                if kind != "public": special[f"{rec.source}/{kind}"] += weight
+            if rec.origin_prefix_length is not None:
+                lengths[f"ipv{rec.version}/{rec.origin_prefix_length}"] += weight
+                raw_claim_rows[rec.version] += 1
+                if any("/aggregate:" in view for view in rec.views): aggregate_claim_rows[rec.source] += 1
+                ordinal += 1
+                detail = {"source":rec.source,"collector":rec.collector,"family":rec.version,
+                    "start":str((ipaddress.IPv4Address if rec.version==4 else ipaddress.IPv6Address)(rec.start)),
+                    "end":str((ipaddress.IPv4Address if rec.version==4 else ipaddress.IPv6Address)(rec.end)),
+                    "prefix_length":rec.origin_prefix_length,"asns":list(rec.asns),
+                    "compiled_asns":list(origins),"peer_count":rec.peer_count,
+                    "compiled":bool(origins) and rec.origin_prefix_length!=0}
+                item=(rec.end-rec.start+1,ordinal,detail)
+                if len(widest[rec.version])<12:heapq.heappush(widest[rec.version],item)
+                elif item>widest[rec.version][0]:heapq.heapreplace(widest[rec.version],item)
             if rec.origin_prefix_length == 0:
-                # A default route offered by a peer is forwarding reachability,
-                # not ownership of every otherwise unannounced address.
-                if trace is not None:
-                    trace.route_input(rec, "filtered", "default-route-not-ownership")
-                counts[f"ipv{rec.version}_default_routes_ignored"] += weight
+                # Default forwarding reachability is retained as an observation,
+                # not compiled into universal ASN membership. No other prefix
+                # is rejected based on its length.
+                if trace is not None: trace.route_input(marked, "observed-only", "default-forwarding-not-asn-membership")
+                counts[f"ipv{rec.version}_default_forwarding_observations"] += weight
                 continue
-            width = 32 if rec.version == 4 else 128
-            size = rec.end - rec.start + 1
-            if rec.origin_prefix_length is not None and rec.origin_prefix_length < floors[rec.version]:
-                # Public ASN data describe admitted address membership, not
-                # every observed catch-all announcement. This conservative
-                # guard is explicit product policy, not a geographic claim.
-                if trace is not None:
-                    trace.route_input(rec, "quarantined", "observed-superaggregate-not-admitted-as-AS-owned-range")
-                quarantine_rows += weight
-                quarantine_by_source[rec.source] += weight
-                counts[f"ipv{rec.version}_superaggregate_claims_quarantined"] += weight
-                counts[f"ipv{rec.version}_quarantined_address_sum_per_claim"] += size * weight
-                if len(quarantined) < 100:
-                    address = ipaddress.IPv4Address if rec.version == 4 else ipaddress.IPv6Address
-                    detail = {"source": rec.source, "collector": rec.collector or rec.source,
-                              "family": rec.version, "start": str(address(rec.start)), "end": str(address(rec.end)),
-                              "asns": list(rec.asns), "peer_count": rec.peer_count,
-                              "reason": "observed-superaggregate-not-admitted-as-AS-owned-range",
-                              "minimum_prefix_length": floors[rec.version]}
-                    if size & (size - 1) == 0 and rec.start % size == 0:
-                        detail["prefix"] = f"{address(rec.start)}/{width - size.bit_length() + 1}"
-                    quarantined.append(detail)
+            if not origins:
+                if trace is not None: trace.route_input(marked, "observed-only", "iana-nonpublic-asn-not-global-membership")
+                counts[f"ipv{rec.version}_nonpublic_asn_observations"] += weight
                 continue
             pieces = tuple(public_intervals(rec.version, rec.start, rec.end))
+            if pieces: input_families.add(rec.version)
             if trace is not None:
-                trace.route_input(rec, "accepted" if pieces else "filtered",
-                                  "public-address-portion" if pieces else "outside-public-contract")
+                trace.route_input(marked, "accepted" if pieces else "observed-only",
+                    "public-address-origin-membership" if pieces else "outside-public-address-space")
             for start, end in pieces:
-                yield rec.version, start, end, {"asns": rec.asns, "views": rec.views or (rec.collector or rec.source,),
-                                             "span": str(rec.end-rec.start), "source": rec.source}
+                yield rec.version, start, end, {"asns": origins,
+                    "views": rec.views or (f"{rec.source}/{rec.collector or rec.source}",),
+                    "span": str(rec.end-rec.start), "source": rec.source}
     with event_stream(normalized()) as points:
         for family, point, changes in points:
             if family != previous_family: active.clear(); previous = None
@@ -456,13 +498,11 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
                     span = int(value["span"])
                     for view in value["views"]:
                         prior = views.get(view)
-                        if prior is None or span < prior[0]:
-                            views[view] = (span, set(value["asns"]))
-                        elif span == prior[0]:
-                            prior[1].update(value["asns"])
+                        if prior is None or span < prior[0]: views[view] = (span, set(value["asns"]))
+                        elif span == prior[0]: prior[1].update(value["asns"])
                 origins = set()
                 for view, (_, values) in views.items():
-                    collectors.add(view)
+                    if "/aggregate:" not in view: collectors.add(view)
                     origins.update(values)
                 _append_interval(routed_union, family, previous, point - 1)
                 counts[f"ipv{family}_routed_addresses"] += point - previous
@@ -475,22 +515,28 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *,
                 else: active[rid] = payload
             previous, previous_family = point, family
     result = {asn: intervals_to_cidrs(ranges) for asn, ranges in sorted(groups.items())}
+    family_prefixes = Counter()
+    for prefixes in result.values():
+        for prefix in prefixes: family_prefixes[f"ipv{6 if ':' in prefix else 4}"] += 1
     return {"groups": result, "routed_prefixes": intervals_to_cidrs(routed_union),
-            "report": {"policy": "current-snapshot-longest-match-per-view-origin-union",
+        "report": {"policy": "current-snapshot-real-peer-lpm-independent-aggregate-origin-union",
         "source_rows": dict(sorted(source_rows.items())), "coverage": dict(counts),
         "sort_record_rows": dict(sorted(event_records.items())),
-        "source_rows_note": "Distinct prefix/origin/peer claims after within-RIB dedup; sort_record_rows counts shared payloads. Neither is a SQL statement count.",
-        "ownership_admission": {"minimum_prefix_lengths": {f"ipv{k}": v for k, v in floors.items()},
-                                "policy": "Original observed BGP prefix claims broader than the configured floor are quarantined, not treated as AS-owned address space. Derived provider intervals may losslessly coalesce many distinct prefixes and are not reinterpreted as a single BGP announcement. This guard does not claim that an observation is false or establish location.",
-                                "quarantined_claim_rows": quarantine_rows,
-                                "quarantined_by_source": dict(sorted(quarantine_by_source.items())),
-                                "claim_details": quarantined,
-                                "claim_details_truncated": quarantine_rows > len(quarantined)},
+        "source_rows_note": "Distinct prefix/origin/peer claims after within-RIB dedup; aggregate peer counts do not invent peer identities. sort_record_rows counts shared payloads.",
+        "original_prefix_lengths": dict(sorted(lengths.items())),
+        "widest_observations_sample": [item[2] for family in (4,6) for item in sorted(widest[family], reverse=True)],
+        "widest_observations_sample_complete": all(raw_claim_rows[f] <= 12 for f in (4,6)),
+        "input_families": sorted(input_families),
+        "input_families_meaning": "Address families with eligible non-default public-address input and at least one global ASN, before per-real-peer LPM. Output must preserve each present family.",
+        "aggregate_claim_rows":dict(sorted(aggregate_claim_rows.items())),
+        "wide_prefix_policy": "No prefix-length ownership floor. Every non-default valid observation contributes only its original public address portion. Wide claims remain nonexclusive routing evidence, not proof of ownership or actual use. /0 forwarding observations remain in trace but do not compile universal ASN membership.",
+        "special_asns": {"registry": IANA_ASN_REGISTRY,"observations_by_source_kind":dict(sorted(special.items())),
+            "policy":"Retain raw observations. Exclude reserved, AS_TRANS, documentation and private-use numbers from global ASN output; AS112 is globally routed and retained. This is not an assertion of upstream error."},
         "collector_views": sorted(collectors), "asn_groups": len(result),
-        "prefixes": sum(len(v) for v in result.values()),
-        "meaning": "Observed origin membership; not registration country, physical location or RPKI geographic truth.",
-        "withdrawals": "No earlier snapshot routes are carried forward. Missing in the fixed current sources means absent from this output, not proof of global withdrawal.",
-        "summary_limitation": "RISwhois aggregates origin/prefix peer counts and does not retain each peer view; only full MRT RIBs support peer-specific longest matching. Default routes never imply ASN ownership."}}
+        "prefixes": sum(len(v) for v in result.values()), "family_prefixes":dict(family_prefixes),
+        "meaning": "Nonexclusive current origin membership, not registration country, ownership, actual host use, physical location or RPKI geographic truth.",
+        "withdrawals": "No earlier snapshot routes are carried forward. Missing current sources do not prove global withdrawal.",
+        "summary_limitation": "RISwhois aggregates do not identify actual peers: each prefix/origin claim remains independent. Only full MRT RIBs support real-peer LPM. Raw observations, compiled public membership and target location are distinct."}}
 
 
 def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int, list[str]], registry: dict) -> dict:
