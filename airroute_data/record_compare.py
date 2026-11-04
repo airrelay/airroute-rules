@@ -196,7 +196,7 @@ def compare_build(candidate: Path, baseline: Path, trace=None) -> dict:
     publication = old.get("publication") or {}
     before_paths, after_paths = _products(baseline, old), _products(candidate, new)
     return {
-        "schema": 1,
+        "schema": 1, "status": "completed",
         "baseline": {"role": "comparison-baseline", "data_version": old["data_version"],
                      "publication_recorded": bool(publication),
                      "publication": {key: publication.get(key)
@@ -207,3 +207,10 @@ def compare_build(candidate: Path, baseline: Path, trace=None) -> dict:
         "semantic_products": compare_directories(baseline, candidate),
         "geo_changes": _geo(before_paths, after_paths, trace),
         "domain_changes": _domain_changes(before_paths, after_paths, trace)}
+
+
+def skipped_comparison(reason: str, candidate_version=None) -> dict:
+    return {"schema": 1, "status": "skipped", "reason": reason,
+            "candidate": {"role": "unpublished-candidate", "data_version": candidate_version},
+            "baseline": None,
+            "meaning": "No comparison was performed. This does not assert no changes or establish published coverage."}

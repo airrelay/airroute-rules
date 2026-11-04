@@ -8,9 +8,25 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from airroute_data.geo import CountryRecord, fuse_country, parse_source as parse_country
-from airroute_data.routing import (AuxiliaryRecord, RoutingRecord, audit_auxiliary, fuse_routes,
+from airroute_data.geo import CountryRecord, fuse_country as _fuse_country, parse_source as parse_country
+from airroute_data.routing import (AuxiliaryRecord, RoutingRecord, audit_auxiliary, fuse_routes as _fuse_routes,
                                    parse_source as parse_routes)
+from airroute_data.address_space import AddressEligibility
+from test_address_space import sources as iana_sources
+
+
+def fixture_eligibility():
+    with tempfile.TemporaryDirectory() as directory:
+        return AddressEligibility.from_sources(iana_sources(Path(directory)))
+
+
+def fuse_routes(records, **kwargs):
+    return _fuse_routes(records,eligibility=kwargs.pop('eligibility',fixture_eligibility()),**kwargs)
+
+
+def fuse_country(records,registry,**kwargs):
+    return _fuse_country(records,registry,eligibility=kwargs.pop('eligibility',fixture_eligibility()),**kwargs)
+
 
 
 REGISTRY = Path(__file__).resolve().parents[1] / "config/regions.json"
@@ -158,14 +174,14 @@ class GeoTraceTests(unittest.TestCase):
         self.assertEqual(event["status"], "completed")
         self.assertEqual(event["ipv4_input_rows"], 4)
         self.assertEqual(event["ipv4_input_addresses_sum"], (1 << 24) + 256 + 128 + 256)
-        self.assertEqual(event["ipv4_public_kept_addresses_sum"], 256 + 128)
+        self.assertEqual(event["ipv4_geo_eligible_addresses_sum"], 256 + 128)
         self.assertEqual(event["ipv4_excluded_addresses_sum"], 1 << 24)
         self.assertEqual(event["ipv4_non_country_semantics_ignored_rows"], 1)
         self.assertEqual(event["ipv4_non_country_semantics_ignored_addresses_sum"], 256)
         self.assertEqual(event["ipv6_input_rows"], 1)
         self.assertEqual(event["ipv6_country_missing_rows"], 1)
         self.assertEqual(event["ipv6_country_present_rows"], 0)
-        self.assertEqual(event["ipv6_public_kept_addresses_sum"], 1 << 64)
+        self.assertEqual(event["ipv6_geo_eligible_addresses_sum"], 1 << 64)
         self.assertIn("overlap not deduplicated", event["count_scope"])
 
     def test_normalization_partial_input_failure_is_labeled_interrupted(self):
@@ -178,7 +194,7 @@ class GeoTraceTests(unittest.TestCase):
         event = next(row for row in sink.sources if row["stage"] == "geo-normalization")
         self.assertEqual(event["status"], "interrupted")
         self.assertEqual(event["ipv4_input_rows"], 1)
-        self.assertEqual(event["ipv4_public_kept_addresses_sum"], 256)
+        self.assertEqual(event["ipv4_geo_eligible_addresses_sum"], 256)
 
 
 class RoutingTraceTests(unittest.TestCase):
@@ -205,11 +221,11 @@ class RoutingTraceTests(unittest.TestCase):
             path.write_text("1.0.0.0\t1.0.0.255\t0\n1.0.1.0\t1.0.1.255\t10\n")
             sink = Sink()
             rows = list(parse_routes("iptoasn-tsv", path, {"id": "provider"}, trace=sink))
-            self.assertEqual(len(rows), 1)
+            self.assertEqual(len(rows), 2)
             event = sink.sources[-1]
-            self.assertEqual((event["records_read"], event["records_parsed"], event["excluded_as0_records"]), (2, 1, 1))
+            self.assertEqual((event["records_read"], event["records_parsed"], event["unknown_as0_records"]), (2, 2, 1))
             self.assertEqual(event["raw_prefix_claim_records"], 0)
-            self.assertEqual(event["derived_records"], 1)
+            self.assertEqual(event["derived_records"], 2)
 
     def test_grouped_mrt_payload_count_separate_from_peer_claim_count(self):
         row = RoutingRecord.network("2400::/32", [30, 40], "rib", views=["a", "b"])

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "verified_at": "2026-11-03",
-  "independence_policy": "Publisher identity is not statistical independence. Votes group by configured lineage; mirrors and known derivatives reuse their upstream lineage. Hidden cross-vendor overlap remains unknown.",
+  "independence_policy": "Source lineage records mirrors and known derivatives. Geo uses fixed primary and ordered fallback, not voting; MaxMind ASN is sole formal origin source, routing datasets are comparisons.",
   "sources": [
     {
       "id": "maxmind",
@@ -34,6 +34,39 @@
       "publish_allowed": true,
       "publication_reason": "Enabled for derived Geo generation by operator. Attribution, share-alike and GeoLite EULA update/deletion/downstream duties remain applicable; this switch does not certify retention compliance.",
       "documentation": "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/",
+      "terms": "https://www.maxmind.com/en/geolite/eula"
+    },
+    {
+      "id": "maxmind-asn",
+      "role": "asn",
+      "format": "maxmind-asn-csv",
+      "lineage": "maxmind-geolite",
+      "publisher": "MaxMind",
+      "field_semantics": "Official GeoLite2 ASN Blocks network and autonomous_system_number; organization is nullable ancillary text. Sole formal ASN source; longest-prefix attribution, not country or exclusive ownership.",
+      "transport": "http",
+      "url": "https://download.maxmind.com/geoip/databases/GeoLite2-ASN-CSV/download?suffix=zip",
+      "filename": "GeoLite2-ASN-CSV.zip",
+      "compression": "zip",
+      "auth": {
+        "basic": [
+          "MAXMIND_ACCOUNT_ID",
+          "MAXMIND_LICENSE_KEY"
+        ]
+      },
+      "requires_env": [
+        "MAXMIND_ACCOUNT_ID",
+        "MAXMIND_LICENSE_KEY"
+      ],
+      "access": "Free account and license key; at most30 database downloads/day; keep updated and apply EULA to derived redistribution, including old-data deletion obligations",
+      "update_frequency": "Tuesday and Friday, plus exceptional updates",
+      "address_families": [
+        4,
+        6
+      ],
+      "license": "GeoLite EULA + CC-BY-SA-4.0 elements",
+      "publish_allowed": true,
+      "publication_reason": "Operator-enabled derived ASN generation; MaxMind license and attribution obligations apply.",
+      "documentation": "https://dev.maxmind.com/geoip/docs/databases/asn/",
       "terms": "https://www.maxmind.com/en/geolite/eula"
     },
     {
@@ -724,6 +757,44 @@
       "publish_allowed": true,
       "documentation": "https://github.com/airrelay/rules/blob/20a3b237005292e60b62603e934b3972348366b4/region/cn.list",
       "independence": "Known project aggregation; original row-level lineage unknown. Never counted as an independent source or silently promoted into output."
+    },
+    {
+      "id": "iana-alloc-v4",
+      "role": "address-space-reference",
+      "format": "iana-ipv4-allocation-csv",
+      "lineage": "iana-ipv4-allocation",
+      "publisher": "IANA",
+      "field_semantics": "Allocation/reservation status only; never country attribution. More-specific assignments override parents.",
+      "transport": "http",
+      "url": "https://www.iana.org/assignments/ipv4-address-space/ipv4-address-space.csv",
+      "filename": "iana-alloc-v4.csv",
+      "access": "Free public IANA CSV, no credentials",
+      "update_frequency": "Registry updates",
+      "address_families": [
+        4
+      ],
+      "license": "IANA public registry terms",
+      "publish_allowed": true,
+      "documentation": "https://www.iana.org/assignments/ipv4-address-space/"
+    },
+    {
+      "id": "iana-alloc-v6",
+      "role": "address-space-reference",
+      "format": "iana-ipv6-allocation-csv",
+      "lineage": "iana-ipv6-allocation",
+      "publisher": "IANA",
+      "field_semantics": "Allocation/reservation status only; never country attribution. More-specific assignments override parents.",
+      "transport": "http",
+      "url": "https://www.iana.org/assignments/ipv6-unicast-address-assignments/ipv6-unicast-address-assignments.csv",
+      "filename": "iana-alloc-v6.csv",
+      "access": "Free public IANA CSV, no credentials",
+      "update_frequency": "Registry updates",
+      "address_families": [
+        6
+      ],
+      "license": "IANA public registry terms",
+      "publish_allowed": true,
+      "documentation": "https://www.iana.org/assignments/ipv6-unicast-address-assignments/"
     }
   ]
 }

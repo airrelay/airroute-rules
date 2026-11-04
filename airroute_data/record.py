@@ -239,7 +239,7 @@ class BuildRecord:
         dissent = detail.get('region_disagreement', False) or detail.get('country_disagreement', False)
         if assigned and not dissent: return
         decision = {key: detail.get(key) for key in ('selected_source', 'selected_country', 'region_id', 'source_order',
-                    'country_disagreement', 'region_disagreement')}
+                    'country_disagreement', 'region_disagreement', 'comparison_only_sources')}
         decision['assigned'] = assigned
         self._add('geo_issue', (family, span(a, b), _blob(a), _blob(b), state,
                                json.dumps(clean(decision,secrets=self.secrets),sort_keys=True)))
@@ -314,6 +314,8 @@ class BuildRecord:
     @best_effort
     def manifest(self, manifest, baseline=None):
         self.state['candidate'] = {k: manifest.get(k) for k in ('data_version', 'summary', 'product_coverage', 'product_catalogue', 'generation_context')}
+        if manifest.get('address_eligibility') is not None:
+            self.metadata('address-eligibility',manifest['address_eligibility'])
         if baseline and (Path(baseline) / 'manifest.json').exists():
             old = json.loads((Path(baseline) / 'manifest.json').read_text())
             self.state['comparison_baseline'] = {k: old.get(k) for k in ('data_version', 'publication', 'summary')}
@@ -328,6 +330,13 @@ class BuildRecord:
             self.state['implementation_changed_during_run'] = final != self.state['implementation']
             if self.state['implementation_changed_during_run']: self.state['implementation_at_finish'] = final
         self._finish_index()
+        if 'comparison' not in self.state and not (self.directory/'comparison.json').exists():
+            from .record_compare import skipped_comparison
+            comparison=skipped_comparison('candidate-not-generated-or-comparison-not-reached')
+            self.state['comparison']={key:comparison[key] for key in ('status','reason')}
+            try: json_write(self.directory/'comparison.json',comparison)
+            except Exception as error:
+                self.state['diagnostic_errors'].append({'operation':'save-comparison-status','type':type(error).__name__})
         if self.state['diagnostic_errors']: self.state['evidence_complete'] = False
         self.save()
 
@@ -455,10 +464,13 @@ class BuildRecord:
         comparison = self.directory / 'comparison.json'
         if comparison.exists():
             value = json.loads(comparison.read_text())
-            label = '含发布元数据的基线' if value.get('baseline', {}).get('publication_recorded') else '未核实发布状态的比较基线'
-            lines += ['', '## 与基线比较', '',
-                      f"{label}：{value.get('baseline', {}).get('data_version')}；本次候选：{value.get('candidate', {}).get('data_version')}。",
-                      '详见 comparison.json；规则行减少不等于语义覆盖减少。']
+            if value.get('status') in {'skipped','failed'}:
+                lines += ['', '## 与基线比较', '', f"未完成比较：{value.get('status')} / {value.get('reason')}。不能据此认为没有变化。"]
+            label = '含发布元数据的基线' if (value.get('baseline') or {}).get('publication_recorded') else '未核实发布状态的比较基线'
+            if value.get('status') not in {'skipped','failed'}:
+                lines += ['', '## 与基线比较', '',
+                          f"{label}：{(value.get('baseline') or {}).get('data_version')}；本次候选：{value.get('candidate', {}).get('data_version')}。",
+                          '详见 comparison.json；规则行减少不等于语义覆盖减少。']
             for name, diff in value.get('semantic_products', {}).get('products', {}).items():
                 removed = diff.get('old_domain_predicates_not_fully_retained', 0)
                 changes = diff.get('ip_changes', {})
@@ -468,7 +480,7 @@ class BuildRecord:
         lines += ['', '完整冲突/未知区间及规则处理记录见 trace.sqlite3；样本不代表全部证据。',
                   'comparison.json 区分候选与此前已发布产物。地域 .list 与 special/asn.ardb 的最终结果不受诊断影响。',
                   '原始下载归档不保留；位置、路由和服务归属是不同事实。']
-        lines += ['旧 auxiliary 报告中的 bgp-visible 是混合 ASN 并集；summary.bgp 才是本次原始 BGP 宣告关联，且不能证明物理地域。']
+        lines += ['special/asn.ardb 仅来自正式 ASN 提供者；BGP/IPtoASN 是独立对照。summary.bgp 使用原始非默认观测，auxiliary 的 bgp-visible 使用 ASN 地址资格内的非默认观测，两者口径不同且均不能证明物理地域。']
         if self.state['diagnostic_errors']: lines += ['', '诊断不完整：' + json.dumps(self.state['diagnostic_errors'])]
         (self.directory / 'overview.md').write_text('\n'.join(lines) + '\n')
 
@@ -564,21 +576,44 @@ def open_record(directory, command=None):
 
 
 def collect(record, candidate, baseline=None):
-    """Collect already-produced reports and compare even a rejected candidate."""
+    """Collect produced evidence even when the main operation was rejected."""
     if record is None: return
+    from .record_compare import compare_build, skipped_comparison
     candidate = Path(candidate)
-    try:
-        for path in (candidate / 'reports').glob('*.json'):
-            # Only preexisting summary reports. Full conflict JSONL is indexed
-            # losslessly in trace.sqlite3, not duplicated in this artifact.
+    for path in (candidate / 'reports').glob('*.json'):
+        try:
             value = json.loads(path.read_text())
+            if path.name == 'geo.json':
+                # JSONL shards are intentionally not duplicated into diagnostics.
+                # The record index is the actual downloadable detailed evidence.
+                value.pop('issue_files', None)
+                value['issue_storage'] = {
+                    'kind':'build-record-sqlite', 'path':'trace.sqlite3',
+                    'tables':['geo_input','geo_issue','output_ip'],
+                    'query':'python -m airroute_data explain --record-dir <downloaded-record> --ip <IP-or-prefix>',
+                    'completeness':'See summary.json:evidence_complete and artifact-index.json:complete; stores processed inputs and conflict/unknown intervals, not a promise that a failed source fully parsed.'}
             json_write(record.directory / 'reports' / path.name, value)
-        manifest = candidate / 'manifest.json'
+        except Exception as error:
+            record.state['diagnostic_errors'].append({'operation':'collect-report','file':path.name,'type':type(error).__name__})
+    manifest = candidate / 'manifest.json'
+    version = None
+    try:
         if manifest.exists():
-            value = json.loads(manifest.read_text()); record.manifest(value, baseline)
+            value = json.loads(manifest.read_text()); version=value.get('data_version')
+            record.manifest(value, baseline)
             json_write(record.directory / 'candidate-manifest.json', value)
-        if baseline and manifest.exists() and (Path(baseline) / 'manifest.json').exists():
-            from .record_compare import compare_build
-            json_write(record.directory / 'comparison.json', compare_build(candidate, Path(baseline), trace=record))
+        if not manifest.exists():
+            comparison = skipped_comparison('candidate-manifest-not-generated')
+        elif baseline is None:
+            comparison = skipped_comparison('no-baseline-supplied', version)
+        elif not (Path(baseline) / 'manifest.json').exists():
+            comparison = skipped_comparison('baseline-manifest-unavailable', version)
+        else:
+            comparison = compare_build(candidate, Path(baseline), trace=record)
     except Exception as error:
-        record.state['diagnostic_errors'].append({'operation': 'collect-or-compare', 'type': type(error).__name__})
+        record.state['diagnostic_errors'].append({'operation':'collect-or-compare','type':type(error).__name__})
+        comparison = {'schema':1,'status':'failed','reason':'comparison-could-not-complete','error_type':type(error).__name__}
+    try: json_write(record.directory / 'comparison.json', comparison)
+    except Exception as error:
+        record.state['diagnostic_errors'].append({'operation':'save-comparison','type':type(error).__name__})
+    record.state['comparison'] = {key:comparison[key] for key in ('status','reason','error_type') if key in comparison}

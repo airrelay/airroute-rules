@@ -58,10 +58,21 @@ class PublicationTests(unittest.TestCase):
         for name in ["special/asn.ardb", "regions.json", "region/cn-domain.list", "region/cn-ip.list"]:
             data = (path / name).read_bytes()
             files.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        from input_fixtures import write_iana_fixture
+        from airroute_data.address_space import AddressEligibility
+        iana = self.root / "iana-fixture"
+        iana.mkdir(exist_ok=True)
+        sources = [{**source, "path": str(iana / source["id"]), "status": "available", "version": "fixture-v1"}
+                   for source in write_iana_fixture(iana)]
+        eligibility = AddressEligibility.from_sources(sources)
         manifest = {"schema": 1, "format_version": 1, "data_version": version, "version": version,
                     "region_registry_version": "fixture", "files": files,
+                    "address_eligibility": eligibility.report,
+                    "source_snapshot": [{"id": "maxmind-asn", "role": "asn", "format": "maxmind-asn-csv",
+                        "status": "available", "address_families": [4, 6], "publish_allowed": True,
+                        "version": "fixture-v1", "sha256": "a" * 64}],
                     "summary": {"products": 3, "asn_groups": 1, "country_lineages": 2, "geo_prefixes": 2, "asn_prefixes": 2,
-                                "asn_input_families": [4, 6], "domain_rules": 1, "geo_v4_addresses": 256, "geo_v6_addresses": 2 ** 96}}
+                                "asn_expected_families": [4, 6], "asn_input_families": [4, 6], "domain_rules": 1, "geo_v4_addresses": 256, "geo_v6_addresses": 2 ** 96}}
         (path / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
         return path
 
@@ -175,6 +186,32 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(self.current()["publication"], first["publication"])
         self.assertEqual(git(self.source, "rev-parse", "HEAD"), self.sha)
         self.assertEqual(git(self.source, "status", "--porcelain"), "")
+
+    def test_same_content_refetch_preserves_release_and_original_acquisition_time(self):
+        candidate = self.candidate()
+        path = candidate / "manifest.json"
+        manifest = json.loads(path.read_text())
+        original_time = "2026-11-01T00:00:00Z"
+        manifest.update(input_snapshot_time=original_time,
+            source_acquisition=[{"id": "maxmind-asn", "fetched_at": original_time, "version": "fixture-v1"}])
+        path.write_text(json.dumps(manifest))
+        first = self.publish(candidate, self.source, self.sha)
+        fresh_time = "2026-11-02T00:00:00Z"
+        manifest["input_snapshot_time"] = fresh_time
+        manifest["source_acquisition"][0]["fetched_at"] = fresh_time
+        path.write_text(json.dumps(manifest))
+        unchanged = self.publish(candidate, self.source, self.sha)
+        self.assertEqual(unchanged["status"], "unchanged")
+        self.assertEqual(unchanged["commit"], first["commit"])
+        self.assertEqual(self.current()["input_snapshot_time"], original_time)
+        self.assertEqual(self.current()["source_acquisition"][0]["fetched_at"], original_time)
+        self.assertEqual(json.loads(path.read_text())["input_snapshot_time"], fresh_time)
+        # Provenance hashes/versions remain immutable, unlike acquisition time.
+        manifest["source_snapshot"][0]["sha256"] = "b" * 64
+        path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(module.PublicationError, "collision"):
+            self.publish(candidate, self.source, self.sha)
+        self.assertEqual(self.current()["publication"], first["publication"])
 
     def test_second_version_and_forward_rollback_preserve_both(self):
         one = self.publish(self.candidate(), self.source, self.sha)

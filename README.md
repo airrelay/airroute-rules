@@ -18,7 +18,7 @@ python3.12 -m airroute_data validate .build/candidate
 python3.12 -m unittest discover -s tests -v
 ```
 
-同一输入、配置及生成器产生确定性输出。`snapshot --source <id>` 可选择材料；未选来源如实标记，不以样本冒充完整库。构建必需的主地域源下载、解析或完整性校验失败时明确失败，不能用备选整库悄悄替代。可选来源缺少凭据不会被伪称成功，也不阻塞与其无关的工作。
+同一输入、配置及生成器产生确定性输出。`snapshot --source <id>` 可选择材料；未选来源如实标记，不以样本冒充完整库。本轮已选择且启用的来源，缺少凭据、下载、解析或完整性检查失败都使构建失败，不沿用旧快照或悄悄跳过。可选来源可在配置中明确禁用或在有界获取中明确不选；这些状态不是参与成功，也不能让必需的地域主源、正式 ASN 或 IANA 输入缺席。
 
 只更新域名和特殊规则时，可复用一个固定提交、完整且通过工程校验的当前格式产物目录：
 
@@ -46,17 +46,17 @@ python3.12 -m airroute_data build-domains \
 
 ## 生成原则
 
-地域来源顺序集中在 `config/geo-policy.json`：**IPLocate → MaxMind → DB-IP → IPinfo → IP2Location**。按真实区间边界切分，同一来源内部处理更具体范围；主源有有效地域就采用，其他源冲突只记录，不把整段改为未知。主源在某段缺信息时按顺序补缺；全部缺信息才报告未知。这是确定的产品策略，不是来源绝对准确或统计独立的证明。
+地域来源优先顺序集中在 `config/geo-policy.json`：**IPLocate → MaxMind → DB-IP → IPinfo → IP2Location**；其中 **DB-IP IPv6 只作比较，不参与选择或补缺**，IPv6 实际按其余来源顺序处理。按真实区间边界切分，同一来源内部处理更具体范围；主源有有效地域就采用，其他源冲突只记录，不把整段改为未知。主源在某段缺信息时按顺序补缺；全部缺信息才报告未知。这是确定的产品策略，不是来源绝对准确或统计独立的证明。
 
 域名以 DLC、blackmatrix7、ACL4SSR、Sukka 及官方机器可读端点为生成输入。正确展开 include、属性和引用，保留精确/后缀/关键词/正则原意，只做格式检查、必要规范化及可证明等价的去重。不要求候选先命中厂商根域、身份目录或多源投票。CN 与全球用途集合可以重叠；不能用差集悄悄删掉中国成员。详见 [规则语义](docs/RULES.md) 和 [CN/俄罗斯归类](docs/REGIONAL-DOMAINS.md)。
 
-BGP、RIR、注册国和 geofeed 是各自语义的辅助信息，不单独作为物理地域真值。ASN 保留可用双栈、多起源及采集视角，宽前缀与特殊 ASN 明确报告；观测成员不等于网络实际所有权。详见 [地域与 ASN](docs/GEO.md)。
+地址资格取自本轮固定的 IANA 分配和特殊用途注册表，Geo 与 ASN 使用不同资格规则；它不证明位置、实际通告或所有权。**正式 ASN 仅使用 MaxMind GeoLite ASN（`maxmind-asn`）**。BGP/IPtoASN 的宽前缀、多起源及采集视角保留为独立比较，不并入正式 ASN；RIR、注册国和 geofeed 也不作为物理地域真值。详见 [地域与 ASN](docs/GEO.md)。
 
 `.list` 不包含 DIRECT/PROXY 动作，输出不携带 `no-resolve`；上游显式标志也按产品约定去除。不能由 Core 等价表达的规则记录来源、类型和原因，不扁平化 AND/NOT。`special/realip.list` 只描述 DNS 返回地址模式：不返回 FakeIP，不等于直连，也不选择解析器；对接边界见 [特殊规则](docs/SPECIAL.md)。
 
 ## 来源、记录与发布
 
-五家地域来源均有解析入口。MaxMind 需要 `MAXMIND_ACCOUNT_ID` / `MAXMIND_LICENSE_KEY`，IPinfo 需要 `IPINFO_TOKEN`，IP2Location 需要 `IP2LOCATION_TOKEN`；DB-IP 与 IPLocate 有无需令牌的公开下载链。凭据只放环境变量或 Actions Secrets。来源事实、许可和血缘见 [SOURCES](docs/SOURCES.md)，当轮可用状态以实际快照与记录为准。
+五家地域来源均有解析入口。MaxMind Country 与正式 ASN 需要 `MAXMIND_ACCOUNT_ID` / `MAXMIND_LICENSE_KEY`，IPinfo 需要 `IPINFO_TOKEN`，IP2Location 需要 `IP2LOCATION_TOKEN`；DB-IP 与 IPLocate 有无需令牌的公开下载链。凭据只放环境变量或 Actions Secrets。来源事实、许可和血缘见 [SOURCES](docs/SOURCES.md)，当轮可用状态以实际快照与记录为准。
 
 Actions 每天 03:17 UTC 或手动运行：基本检查 → 固定输入 → 完整构建 → 工程校验 → 按工作流参数发布。历史数量、地址量、增减幅度与未收录项用于解释变化，不作为自创的内容正确性门槛；损坏、必需输入缺失、格式不兼容、摘要或 manifest 不一致仍失败。发布保持原子 Git 提交、并发防护和普通非 force push，失败保留上一版。
 

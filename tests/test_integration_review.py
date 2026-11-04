@@ -42,5 +42,27 @@ class IntegrationReviewTests(unittest.TestCase):
         self.rebind(target,manifest)
         with self.assertRaisesRegex(ValueError,'lost an address family'):validate_candidate(target)
 
+    def test_formal_asn_non_global_space_is_rejected_after_rehash(self):
+        target,manifest=self.fixture.run_build();path=target/'special/asn.ardb'
+        groups=read_database(path,'asn');groups[13335].append('198.51.100.0/24')
+        write_database(path,'asn',groups)
+        manifest['summary']['asn_prefixes']+=1
+        self.rebind(target,manifest)
+        with self.assertRaisesRegex(ValueError,'ineligible address in formal ASN'):
+            validate_candidate(target)
+
+    def test_claiming_only_parsed_ipv4_cannot_waive_declared_ipv6(self):
+        target,manifest=self.fixture.run_build()
+        manifest['summary']['asn_input_families']=[4]
+        (target/'manifest.json').write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError,'family contract mismatch'):
+            validate_candidate(target)
+
+    def test_missing_or_corrupt_frozen_eligibility_is_not_replaced_with_static_masks(self):
+        target,manifest=self.fixture.run_build()
+        manifest.pop('address_eligibility')
+        (target/'manifest.json').write_text(json.dumps(manifest))
+        with self.assertRaises(ValueError):validate_candidate(target)
+
 
 if __name__=='__main__':unittest.main()

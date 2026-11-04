@@ -26,6 +26,7 @@ class Rule:
     source: str = ""
     line: int = 0
     removed_modifiers: tuple[str, ...] = ()
+    source_details: tuple[tuple[str, object], ...] = ()
 
     @property
     def text(self) -> str:
@@ -59,6 +60,35 @@ def _domain(value: str) -> str:
     raise RuleError("IP address is not a service-domain identity")
 
 
+def _regex_safe_shorthands(value: str) -> str:
+    r"""Spell uppercase negated classes without Core changing their operators.
+
+    Rust regex treats \S and [^\s] identically (also \D/\W). Only
+    rewrite outside classes; nested class algebra is deliberately not guessed.
+    """
+    out = []
+    inside = first = False
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if char == "\\" and index + 1 < len(value):
+            escaped = value[index + 1]
+            out.append("[^\\" + escaped.lower() + "]" if not inside and escaped in "DSW" else value[index:index + 2])
+            if inside: first = False
+            index += 2
+            continue
+        out.append(char)
+        if char == "[" and not inside:
+            inside = first = True
+        elif inside:
+            if char == "]" and not first:
+                inside = False
+            elif not (char == "^" and first):
+                first = False
+        index += 1
+    return "".join(out)
+
+
 def normalize_rule(kind: str, value: str, **kwargs) -> Rule:
     kind = kind.upper()
     if kind in {"DOMAIN", "DOMAIN-SUFFIX"}:
@@ -68,6 +98,11 @@ def normalize_rule(kind: str, value: str, **kwargs) -> Rule:
         if not value or any(c in value for c in ",\r\n\t "):
             raise RuleError("invalid domain keyword")
     elif kind == "DOMAIN-REGEX":
+        original_regex = value
+        value = _regex_safe_shorthands(value)
+        if value != original_regex:
+            kwargs["source_details"] = (*kwargs.get("source_details", ()),
+                ("original_regex", original_regex), ("conversion", "negated-shorthand-to-lowercase-safe-class"))
         # Core lowercases ASCII regex literals. Refuse regex constructs accepted by
         # Python but not Rust regex; do not "repair" by broadening their matches.
         # Lowercasing an operator is not lowercasing a domain: \D becomes \d,
@@ -543,19 +578,43 @@ def validate_domain_groups(groups: dict[str, list[str]]) -> dict:
     return {"rules": counts, "overlap_policy": "Collections may overlap; no routing action or implicit priority."}
 
 
+def _official_endpoint(value: str) -> tuple[str, str]:
+    if not isinstance(value, str):
+        raise RuleError("official endpoint URL must be text")
+    value = value.strip().rstrip(".")
+    if "*" not in value:
+        return "DOMAIN", _domain(value)
+    # Microsoft endpoint wildcards are shell-style host patterns. Escape every
+    # literal character and replace only '*' rather than widening parent roots.
+    # Validate a concrete substitution before compiling the anchored pattern.
+    _domain(value.replace("*", "wildcard"))
+    if not value.startswith("*") or value.count("*") != 1:
+        raise RuleError("interior or multiple wildcard endpoint template has no confirmed expansion grammar")
+    if value.startswith("*.") and "*" not in value[2:]:
+        return "DOMAIN-REGEX", r"^.+\." + re.escape(_domain(value[2:])) + "$"
+    return "DOMAIN-REGEX", "^" + ".*".join(re.escape(part.lower()) for part in value.split("*")) + "$"
+
+
 def official_domains(data: object, source_id: str, selector: dict) -> tuple[list[Rule], list[dict]]:
-    """Preserve explicitly selected official endpoint catalogues, including dependencies."""
+    """Preserve selected endpoint records, including both URL and IP fields.
+
+    Ports, serviceArea/category and required status remain provenance; endpoint
+    sets are connectivity inventories, not exclusive ownership or Geo evidence.
+    """
     endpoints = []
     adapter = selector.get("adapter")
     if adapter == "microsoft365":
         if not isinstance(data, list):
             raise RuleError("Microsoft365 endpoint snapshot must be an array")
+        areas = selector.get("service_areas", ["Common", "Exchange", "SharePoint", "Skype"])
         for number, entry in enumerate(data, 1):
-            if not isinstance(entry, dict) or not isinstance(entry.get("urls", []), list):
+            if not isinstance(entry, dict) or any(not isinstance(entry.get(field, []), list) for field in ("urls", "ips")):
                 raise RuleError("invalid Microsoft365 endpoint record")
-            if entry.get("serviceArea") in selector.get("service_areas", ["Common", "Exchange", "SharePoint", "Skype"]):
-                endpoints.extend((number, entry.get("id"), i, d)
-                                 for i, d in enumerate(entry.get("urls", []), 1))
+            if entry.get("serviceArea") in areas:
+                for field in ("urls", "ips"):
+                    endpoints.extend((number, entry.get("id"), field, i, value,
+                                      {key:entry[key] for key in ("serviceArea", "category", "required", "tcpPorts", "udpPorts") if key in entry})
+                                     for i, value in enumerate(entry.get(field, []), 1))
     elif adapter == "github-meta":
         if not isinstance(data, dict) or not isinstance(data.get("domains"), dict):
             raise RuleError("GitHub meta snapshot needs a domain catalogue")
@@ -563,21 +622,67 @@ def official_domains(data: object, source_id: str, selector: dict) -> tuple[list
             entries = data["domains"].get(category)
             if not isinstance(entries, list):
                 raise RuleError("GitHub meta domain category missing")
-            endpoints.extend((i, category, i, d) for i, d in enumerate(entries, 1))
+            endpoints.extend((i, category, "domains", i, value, {}) for i, value in enumerate(entries, 1))
     else:
         raise RuleError("unconfigured official endpoint schema")
     rows, rejected = [], []
-    for number, record_id, index, value in endpoints:
+    for number, record_id, field, index, value, context in endpoints:
+        provenance = {"record_id":record_id, "endpoint_field":field, "endpoint_index":index,
+                      "upstream_value":value, **context}
         try:
-            if not isinstance(value, str):
-                raise RuleError("official endpoint URL must be text")
-            domain = _domain(value[2:] if value.startswith("*.") else value)
-            kind, payload = ("DOMAIN-REGEX", r"^.+\." + re.escape(domain) + "$") if value.startswith("*.") else ("DOMAIN", domain)
-            rows.append(normalize_rule(kind, payload, source=source_id, line=number))
-        except RuleError as exc:
-            rejected.append({**_quarantine(source_id, number, str(value), str(exc)),
-                             "record_id": record_id, "endpoint_index": index})
+            if field == "ips":
+                if not isinstance(value, str):
+                    raise RuleError("official IP prefix must be text")
+                network = ipaddress.ip_network(value, strict=True)
+                kind, payload = "IP-CIDR", str(network)
+            else:
+                kind, payload = _official_endpoint(value)
+            rows.append(normalize_rule(kind, payload, source=source_id, line=number,
+                                       source_details=tuple(provenance.items())))
+        except (RuleError, ValueError) as exc:
+            rejected.append({**_quarantine(source_id, number, str(value), str(exc)), **provenance})
+    # A raw template may remain unsupported while its possible literal suffix
+    # is already covered by an independently accepted catalogue predicate.
+    # Report that witness, never call the raw grammar supported or re-emit it.
+    index = CoverageIndex(rows)
+    witness = CompactionWitness(r.text for r in rows)
+    for item in rejected:
+        value = item.get("upstream_value")
+        if item.get("endpoint_field") not in {"urls", "domains"} or not isinstance(value, str) or "*" not in value:
+            continue
+        suffix = value.rsplit("*", 1)[1]
+        if not suffix.startswith("."):
+            continue
+        try:
+            broad = normalize_rule("DOMAIN-REGEX", r"^.+\." + re.escape(_domain(suffix[1:])) + "$")
+        except RuleError:
+            continue
+        if index.covers(broad):
+            item["covered_by"] = witness.covering(broad)
+            item["coverage_note"] = "Raw template remains unsupported; accepted rule covers all concrete hosts under its literal suffix. This is not a claim that template syntax is supported."
     return rows, rejected
+
+
+def domain_match(rule: Rule, hostname: str) -> bool:
+    """Match a concrete valid ASCII host, not predicate-language containment.
+
+    Core normalizes host case/dots and uses substring regex matching. This
+    helper covers only our validated common Python/Rust regex subset; it does
+    not infer containment between arbitrary regex or suffix languages.
+    """
+    try:
+        host = _domain(hostname.strip().strip("."))
+    except RuleError:
+        return False
+    if rule.kind == "DOMAIN":
+        return host == rule.value
+    if rule.kind == "DOMAIN-SUFFIX":
+        return host == rule.value or host.endswith("." + rule.value)
+    if rule.kind == "DOMAIN-KEYWORD":
+        return rule.value in host
+    if rule.kind == "DOMAIN-REGEX":
+        return re.search(rule.value, host) is not None
+    return False
 
 
 def build_domains(sources: list[dict], products: dict | str | Path, *, trace=None) -> tuple[dict[str, list[str]], dict]:
@@ -605,7 +710,8 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
         sid = selector.get("source", rule.source.split(":", 1)[0])
         key = selector.get("category", selector.get("path", selector.get("adapter", "membership")))
         item = {"group": group, "source": rule.source, "line": rule.line, "predicate": rule.text,
-                "selector": key, "stage": stage, "status": status, "reason": reason, **extra}
+                "selector": key, "stage": stage, "status": status, "reason": reason,
+                **({"source_details":dict(rule.source_details)} if rule.source_details else {}), **extra}
         bucket = report["decisions"].setdefault(group, {}).setdefault(sid + ":" + str(key), {}).setdefault(stage, {})
         counted = bucket.setdefault(status + ":" + reason, {"count": 0, "samples": []})
         counted["count"] += 1
@@ -644,6 +750,7 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
             try:
                 rejected = []
                 read_lines = None
+                input_records = None
                 format = selector.get("format", source.get("format", "surge"))
                 if format == "dlc":
                     if source_id not in dlc:
@@ -677,15 +784,26 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                     payload = path.read_text(encoding="utf-8")
                     if trace is not None: read_lines = len(payload.splitlines())
                     data = json.loads(payload)
+                    input_records = len(data) if isinstance(data,list) else None
                     rows, rejected = official_domains(data, source_id, selector)
                 elif format == "official-cidr":
                     if source.get("service") != name or not selector.get("official_service_ips"):
                         raise RuleError("official IP catalogue is not scoped to this product")
+                    families = source.get("address_families")
+                    if (not isinstance(families,list) or not families or
+                            any(type(f) is not int or f not in (4,6) for f in families) or
+                            len(set(families)) != len(families)):
+                        raise RuleError("official CIDR source needs a valid address_families contract")
                     payload = Path(source["path"]).read_text()
                     if trace is not None: read_lines = len(payload.splitlines())
                     rows = [normalize_rule("IP-CIDR", line.strip(), source=source_id, line=i)
                             for i, line in enumerate(payload.splitlines(), 1)
-                            if line.strip() and not line.startswith("#")]
+                            if line.strip() and not line.lstrip().startswith("#")]
+                    observed = {ipaddress.ip_network(row.value).version for row in rows}
+                    if observed - set(families):
+                        raise RuleError("official CIDR row is outside declared address families")
+                    if set(families) - observed:
+                        raise RuleError("official CIDR source is missing a declared address family")
                 else:
                     path = Path(source["path"])
                     if selector.get("path"):
@@ -698,9 +816,12 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                     rows, rejected = parse_third_party(payload, format, f"{source_id}:{selector.get('path', path.name)}", behavior=selector.get("behavior", "classical"))
                 for bad in rejected:
                     quarantine(bad)
-                    audit(name, selector, Rule("UNSUPPORTED", bad["predicate"], source=bad["source"], line=bad["line"]),
+                    audit(name, selector, Rule("UNSUPPORTED", bad["predicate"], source=bad["source"], line=bad["line"],
+                        source_details=tuple((key,value) for key,value in bad.items() if key not in {"source","line","predicate","reason"})),
                           "parse-normalize", "reject", bad["reason"])
                 for row in rows:
+                    if dict(row.source_details).get("conversion"):
+                        audit(name, selector, row, "conversion", "normalized", dict(row.source_details)["conversion"])
                     if row.removed_modifiers:
                         audit(name, selector, row, "conversion", "normalized", "upstream-resolution-modifier-removed",
                               removed_modifiers=list(row.removed_modifiers), policy="AirRoute products do not carry no-resolve")
@@ -709,6 +830,8 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                 if trace is not None:
                     trace.source_event(source_id, "domain-selector-parse", "parsed" if rows else "empty",
                         group=name, selector=selector, parsed_records=len(rows), rejected_records=len(rejected),
+                        source_record_count=input_records,
+                        parsed_kind_counts={kind:sum(r.kind==kind for r in rows) for kind in sorted({r.kind for r in rows})},
                         read_lines=read_lines, input_file=selector.get("path", selector.get("category", source.get("path"))),
                         count_scope="expanded selector predicates; repeated reads/memberships are not unique physical records")
                 # Upstream classifications are the input. Only an explicit
@@ -735,7 +858,9 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                 report["selectors"].append({"group": name, "source": source_id,
                     "selector": selector.get("category", selector.get("path", selector.get("adapter", format))),
                     "mode": selector.get("mode", "primary"), "lineage": source.get("lineage", source_id),
-                    "input_rules": len(rows), "scope_admitted": len(scoped),
+                    "input_rules": len(rows), "source_record_count":input_records,
+                    "parsed_kind_counts":{kind:sum(r.kind==kind for r in rows) for kind in sorted({r.kind for r in rows})},
+                    "scope_admitted": len(scoped),
                     "scope_rejected": len(rows) - len(scoped), "already_covered": sum(prior.covers(r) for r in scoped)})
                 rows = scoped
                 accepted.extend(rows)
@@ -743,10 +868,9 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
                 if trace is not None:
                     trace.source_event(source_id, "domain-selector", "failed", group=name,
                                        selector=selector, error_type=type(exc).__name__, error=str(exc))
-                if selector.get("required", False):
-                    raise RuleError(f"required selector {name}/{source_id}: {exc}") from exc
                 reason = f"input unavailable ({type(exc).__name__})" if isinstance(exc, (OSError, UnicodeError)) else str(exc)
-                report["unavailable_selectors"].append({"group": name, "source": source_id, "selector": selector.get("category", selector.get("path")), "reason": reason})
+                requirement = "required" if selector.get("required", False) else "selected"
+                raise RuleError(f"{requirement} selector {name}/{source_id}: {reason}") from exc
         prepared[name] = accepted
     # Resolve memberships after selectors; categories retain all included members.
     definitions = {g["id"]: g for g in products["groups"]}
@@ -770,7 +894,7 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
         rows = prepared[name]
         report["groups"][name] = {"accepted_before_compaction": len(rows), "selector_count": len(group.get("selectors", []))}
         for rule in rows:
-            report["provenance"].setdefault(name, {}).setdefault(rule.text, []).append({"source": rule.source, "line": rule.line, "attributes": sorted(rule.attrs)})
+            report["provenance"].setdefault(name, {}).setdefault(rule.text, []).append({"source": rule.source, "line": rule.line, "attributes": sorted(rule.attrs), **({"source_details":dict(rule.source_details)} if rule.source_details else {})})
         groups[name] = [r.text for r in minimize(rows)]
         output_set = set(groups[name])
         compaction = CompactionWitness(groups[name]) if trace is not None else None
@@ -790,6 +914,10 @@ def _build_domains(sources: list[dict], products: dict | str | Path, *, trace=No
         report["groups"][name]["source_support_rules"] = {sid: len(values) for sid, values in sorted(support.items())}
         report["groups"][name]["support_note"] = "Overlapping support is not additive contribution or independent votes."
 
+    report["not_selected_classifications"] = products.get("not_selected_classifications", [])
+    if trace is not None:
+        for item in report["not_selected_classifications"]:
+            trace.source_event(item["source"], "domain-selection", "not-selected", **{k:v for k,v in item.items() if k != "source"})
     report["raw_accepted_rules"] = sum(v["accepted_before_compaction"] for v in report["groups"].values())
     report["sample_limit_per_source_reason"] = 12
     report["output_rules"] = sum(map(len, groups.values()))

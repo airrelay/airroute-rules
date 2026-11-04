@@ -1,7 +1,18 @@
 {
   "schema": 1,
   "primary_source": "iplocate",
-  "source_order": ["iplocate", "maxmind", "dbip", "ipinfo", "ip2location"],
-  "required_primary": true,
-  "description": "IPLocate is the fixed currently available dual-stack primary. Other country-estimate sources fill only gaps in this order; dissent is recorded without deleting the primary result. This is an explicit production choice, not a claim of absolute accuracy."
+  "source_order": [
+    "iplocate",
+    "maxmind",
+    "dbip",
+    "ipinfo",
+    "ip2location"
+  ],
+  "description": "IPLocate is the fixed currently available dual-stack primary. Other country-estimate sources fill only gaps in this order; dissent is recorded without deleting the primary result. This is an explicit production choice, not a claim of absolute accuracy.",
+  "comparison_only_address_families": {
+    "dbip": [
+      6
+    ]
+  },
+  "address_eligibility": "Frozen IANA allocation and special-purpose registries; Geo and ASN use independent masks. DB-IP IPv6 is retained for comparison, never primary/fallback selection."
 }

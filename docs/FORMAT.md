@@ -43,15 +43,17 @@
 
 `read_database()` 验证头、完整目录、保留字段、目录顺序、正 u32 ID、偏移边界及 u64 溢出、截断、空族偏移、网络地址与前缀、排序和无损合并。每目录最多 1,048,576 组，每组最多 1,048,576 前缀，与 Core 的读取边界一致。这是结构边界，不是内容数量或历史变化的发布门槛。生产校验还会核对实际 ASN 输出的地址族是否保留本轮合格输入已有的 IPv4 / IPv6，不能只检查文件可打开。
 
-## ASN 语义、特殊号码与 BGP
+## ASN 数据含义与比较边界
 
-ASN 数值与范围来自上游，项目不维护一份厂商 ASN 归属白名单。当前快照的真实 MRT peer 分别做最长前缀选择，再合并各观察视角的 origin；peer 的身份包含来源、collector、RIB view、peer ASN、地址和 BGP ID。RISwhois 是没有真实 peer 身份的聚合记录，各前缀/origin 声明独立保留，不能把整份聚合文件伪装成一个 peer 后互相覆盖。
+字节格式不变，但正式数据库只采用 **MaxMind GeoLite ASN**（`maxmind-asn`）的双栈 IP-to-ASN 数据，不再将 BGP/IPtoASN 多源观测并入正式文件。ASN 数值和范围来自该上游，不维护厂商归属白名单；同源先按更具体范围选择，再作 ASN/地址资格过滤和无损规范化；未知或特殊 ASN 子段仍遮蔽父段，不能因过滤而从宽父段重新补满。不据组织名称扩张地址。源的组织描述不证明物理地理位置、独占所有权或实际使用。
 
-不使用 IPv4 `/8`、IPv6 `/12` 等固定长度门槛删除观测。非默认宽前缀仅贡献原始范围中的公开地址部分，报告原始前缀长度分布和最宽观测样本。它们表示**非独占的路由 origin 成员关系**，不证明整个范围被该 ASN 实际使用、独占拥有或位于某地。`/0` 默认转发路由保留为原始观测，不编译成覆盖全部地址的 ASN 成员关系；该项语义判断与宽前缀长度阈值不同。
+正式输入有有效 IPv4/IPv6 时，相应族必须保留到输出；来源解析失败不能被误读为该族真实无数据。正式来源缺失、文件损坏、空族或解析失败不能用 BGP/IPtoASN 顶替。不同 ASN 在 v1 中仍允许跨组重叠，这项线格式能力不等于声明 MaxMind 输入涵盖全部 BGP 多起源。
 
-特殊号码依据 [IANA Special-Purpose AS Numbers](https://www.iana.org/assignments/iana-as-numbers-special-registry/) 与 [IANA AS Numbers](https://www.iana.org/assignments/as-numbers/) 的公开定义处理：AS0、AS_TRANS、文档、私用和保留号码保留其观测及原因，不放入全球公有 ASN 成员库；AS112 是实际全球路由的特殊用途项目，继续保留。观察到特殊号码不意味着上游出错。当前标准分类的引用版本、每来源特殊号码计数及原始/编译 ASN 差异保存在构建记录中。
+地址资格由本轮固定 IANA allocation 与 special-purpose 文件提供，Geo/ASN 分开处理：ASN 先取已分配/legacy，再按更具体 Globally Reachable TRUE/FALSE/N/A 属性处理。TRUE 特例可保留，FALSE/未确定项不作为客户端展开；不得把 Geo 的全部特殊用途排除直接复用为 ASN 规则。资格只限定可生成范围，不证明实际路由或地域。
 
-BGP、RIR 注册地、IP-to-ASN 和物理地域是不同事实；没有观察到路由也不证明全球没有通告。构建不沿用旧快照的路由，不把“本轮缺失”等同于“全球已撤销”。
+特殊号码依据 [IANA Special-Purpose AS Numbers](https://www.iana.org/assignments/iana-as-numbers-special-registry/) 与 [IANA AS Numbers](https://www.iana.org/assignments/as-numbers/) 区分 AS0、AS_TRANS、文档、私用和保留号码。原始资料和原因保留，不把特殊号观测说成上游错误；AS112 是全球可路由的特殊用途，不按私用号删除。
+
+RIPE RIS、Route Views、IPtoASN 等保留为独立比较：原始来源、collector/peer、聚合记录、多起源、更具体和宽前缀均可追溯。不同实际 peer 不能混成一个 peer 后互相覆盖，RIS 缺少逐 peer 身份时如实标记。宽前缀不以 `/8`、`/12` 一刀切隐藏；`/0` 作为默认转发语义单列，不解释为整个地址族的实际使用。它们与正式文件的不同不自动证明哪一方错误，也不偷偷修改正式 ASN。
 
 ## 黄金样例与互操作边界
 

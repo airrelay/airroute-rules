@@ -78,8 +78,18 @@ def _publication_order(sequence: Any, attempt: Any) -> tuple[int, int]:
 
 
 def _same_data(left: dict, right: dict) -> bool:
-    return {k: v for k, v in left.items() if k != "publication"} == {
-        k: v for k, v in right.items() if k != "publication"}
+    def identity(manifest):
+        # Re-fetching identical input bytes creates a new observation time, not
+        # a different immutable data version. Keep the first published times
+        # as its original provenance; this run's times remain in diagnostics.
+        value = {key: item for key, item in manifest.items()
+                 if key not in {"publication", "input_snapshot_time"}}
+        if "source_acquisition" in value:
+            value["source_acquisition"] = [
+                {key: item for key, item in source.items() if key != "fetched_at"}
+                for source in value["source_acquisition"]]
+        return value
+    return identity(left) == identity(right)
 
 
 def _public_manifest(manifest: dict) -> dict:

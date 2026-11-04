@@ -219,7 +219,7 @@ def build_special(sources: Iterable[dict], config=None, *, trace=None) -> tuple[
             source_audit(sid, "special-selector", "failed", group=gid, selector=selector,
                          error_type=type(exc).__name__, error=str(exc))
             report["selector_health"].append({"group": gid, "source": sid, "selector": selector["category"], "status": "failed", "reason": str(exc)})
-            continue
+            raise RuleError(f"participating special source {sid}: {exc}") from exc
         accepted, rejected = 0, len(bad)
         source_audit(sid, "special-selector-parse", "parsed" if rows else "empty", group=gid,
                      selector=selector, parsed_records=len(rows), rejected_records=len(bad),
@@ -260,7 +260,7 @@ def build_special(sources: Iterable[dict], config=None, *, trace=None) -> tuple[
             source_audit(sid, "special-reference-selector", "failed", group=gid, selector=selector,
                          error_type=type(exc).__name__, error=str(exc))
             report["selector_health"].append({"source": sid, "status": "failed", "reason": str(exc)})
-            continue
+            raise RuleError(f"participating special reference {sid}: {exc}") from exc
         reasons = {}
         source_audit(sid, "special-reference-parse", "parsed" if rows else "empty", group=gid,
                      selector=selector, parsed_records=len(rows), rejected_records=len(bad),

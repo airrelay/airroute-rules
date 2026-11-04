@@ -10,10 +10,19 @@ REGISTRY = Path(__file__).resolve().parents[1] / 'config/regions.json'
 
 
 class GeoTests(unittest.TestCase):
+    def setUp(self):
+        from airroute_data.address_space import AddressEligibility
+        from test_address_space import sources
+        self.directory=tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.inputs=sources(Path(self.directory.name))
+        self.eligibility=AddressEligibility.from_sources(self.inputs)
+
     def fusion(self, rows, **kw):
         rows = list(rows)
         order = kw.pop('source_order', tuple(sorted({r.source for r in rows if r.semantics == 'country-estimate'})) or ('a',))
-        return fuse_country(rows, REGISTRY, source_order=order, **kw)
+        eligibility=kw.pop('eligibility', self.eligibility)
+        return fuse_country(rows, REGISTRY, source_order=order, eligibility=eligibility, **kw)
 
     def test_registry_is_exclusive_russia_is_own_group(self):
         registry=load_registry(REGISTRY)
@@ -73,7 +82,7 @@ class GeoTests(unittest.TestCase):
               CountryRecord.network('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128','CN','a')]
         result=self.fusion(rows)
         self.assertEqual(result['groups'],{9:['2400::/32']})
-        self.assertEqual(result['report']['filtered_special_addresses_sum_per_source']['ipv4'],2*2**24)
+        self.assertEqual(result['report']['excluded_by_geo_eligibility_addresses_sum_per_source']['ipv4'],2*2**24)
 
     def test_auxiliary_registration_never_votes(self):
         result=self.fusion([CountryRecord.network('1.0.0.0/24','CN','a'),
@@ -82,10 +91,18 @@ class GeoTests(unittest.TestCase):
         self.assertEqual(result['report']['segments']['auxiliary_rows_ignored'],1)
 
     def test_iana_documentation_and_benchmark_never_acquire_geography(self):
+        from airroute_data.address_space import AddressEligibility
+        source=next(row for row in self.inputs if row['id']=='iana-special-v6')
+        path=Path(source['path'])
+        with path.open('a') as stream:
+            stream.write('3fff::/20,Documentation,False,False,False\n2001:2::/48,Benchmark,False,False,False\n')
+        from airroute_data.acquire import tree_digest
+        source['sha256']=tree_digest(path)[0]
+        eligibility=AddressEligibility.from_sources(self.inputs)
         for prefix in ('3fff::/20', '2001:2::/48'):
             with self.subTest(prefix=prefix):
                 result = self.fusion([CountryRecord.network(prefix, 'CN', 'a'),
-                                      CountryRecord.network(prefix, 'CN', 'b')])
+                                      CountryRecord.network(prefix, 'CN', 'b')], eligibility=eligibility)
                 self.assertFalse(result['groups'])
 
     def test_empty_data_reports_contract_gaps_not_overseas(self):
@@ -170,6 +187,109 @@ class GeoTests(unittest.TestCase):
             with self.assertRaises(ValueError):list(parse_source('country-csv',p,{'id':'bad'}))
         with self.assertRaises(ValueError):bounds('1.0.0.255','1.0.0.0')
         with self.assertRaises(ValueError):bounds('1.0.0.1/24')
+
+    def test_same_source_ambiguity_is_about_macroregion_not_duplicates_or_country_names(self):
+        duplicate=self.fusion([CountryRecord.network('1.0.0.0/24','CN','a'),CountryRecord.network('1.0.0.0/24','CN','a')])
+        self.assertEqual(duplicate['groups'],{1:['1.0.0.0/24']})
+        same_region=self.fusion([CountryRecord.network('1.0.0.0/24','DE','a'),CountryRecord.network('1.0.0.0/24','IT','a')])
+        self.assertEqual(same_region['groups'],{10:['1.0.0.0/24']})
+        detail=next(row for row in same_region['issues'] if row.get('sources'))
+        self.assertIsNone(detail['selected_country'])
+        self.assertTrue(detail['country_disagreement']);self.assertFalse(detail['region_disagreement'])
+        ambiguous=self.fusion([CountryRecord.network('1.0.0.0/24','CN','a'),CountryRecord.network('1.0.0.0/24','US','a'),
+                               CountryRecord.network('1.0.0.0/24','RU','b')],source_order=['a','b'])
+        self.assertEqual(ambiguous['groups'],{9:['1.0.0.0/24']})
+        self.assertEqual(ambiguous['report']['source_address_support']['b']['ipv4_selected_addresses'],256)
+
+    def test_frozen_iana_geo_mask_replaces_legacy_aggregate_and_reports_unknown_holes(self):
+        from airroute_data.address_space import AddressEligibility
+        from test_address_space import sources
+        with tempfile.TemporaryDirectory() as tmp:
+            eligibility = AddressEligibility.from_sources(sources(Path(tmp)))
+            result = self.fusion([CountryRecord.network("4000::/32", "CN", "a"),
+                                  CountryRecord.network("3000::/16", "US", "a"),
+                                  CountryRecord.network("192.0.0.9/32", "US", "a")], eligibility=eligibility)
+        self.assertEqual(result['groups'], {1:['4000::/32']})
+        self.assertEqual(result['report']['address_eligibility']['policy'],'frozen-IANA-allocation-and-special-purpose-boundaries')
+        self.assertEqual(result['report']['coverage']['ipv6']['assigned'],2**96)
+        self.assertEqual(result['report']['coverage']['ipv6']['unknown'],eligibility.report['geo']['6']['addresses']-2**96)
+        self.assertEqual(result['report']['coverage']['ipv4']['unknown'],eligibility.report['geo']['4']['addresses'])
+
+    def test_dbip_ipv6_comparison_does_not_fill_unallocated_or_primary_gaps(self):
+        from airroute_data.address_space import AddressEligibility
+        from test_address_space import sources
+        with tempfile.TemporaryDirectory() as tmp:
+            eligibility = AddressEligibility.from_sources(sources(Path(tmp)))
+            rows=[CountryRecord.network('1.0.0.0/24','CN','primary'),
+                  CountryRecord.network('::/0','US','dbip'),
+                  CountryRecord.network('2400::/32','RU','backup')]
+            result=self.fusion(rows,source_order=['primary','dbip','backup'],eligibility=eligibility,
+                               comparison_only_address_families={'dbip':[6]})
+        self.assertEqual(result['groups'],{1:['1.0.0.0/24'],9:['2400::/32']})
+        support=result['report']['source_address_support']['dbip']
+        self.assertNotIn('ipv6_selected_addresses',support)
+        self.assertGreater(support['ipv6_comparison_only_addresses'],0)
+        self.assertGreater(result['report']['coverage']['ipv6']['comparison-only-evidence'],0)
+        self.assertEqual(result['report']['source_rows']['dbip'],1)
+        self.assertTrue(all(item['comparison_only_sources']==['dbip'] for item in result['issues'] if item.get('sources')))
+        v4=self.fusion([CountryRecord.network('1.0.0.0/24',None,'primary'),CountryRecord.network('1.0.0.0/24','US','dbip')],
+                       source_order=['primary','dbip'],comparison_only_address_families={'dbip':[6]})
+        self.assertEqual(v4['groups'],{11:['1.0.0.0/24']})
+
+    def test_declared_geo_families_are_enforced_for_every_text_parser(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            header='network,country_code\n'
+            for fmt in ('country-csv','iplocate-country-csv','ipinfo-lite-csv','dbip-country-csv'):
+                path=root/'input.csv'
+                path.write_text('1.0.0.0,1.0.0.255,CN\n' if fmt=='dbip-country-csv' else header+'1.0.0.0/24,CN\n')
+                with self.subTest(format=fmt),self.assertRaisesRegex(ValueError,'declared families'):
+                    list(parse_source(fmt,path,{'id':'country','role':'country','address_families':[4,6]}))
+            path=root/'only6.csv';path.write_text(header+'2400::/32,RU\n')
+            self.assertEqual(list(parse_source('country-csv',path,{'id':'v6-backup','role':'country','address_families':[6]}))[0].version,6)
+            with self.assertRaisesRegex(ValueError,'outside address_families'):
+                list(parse_source('country-csv',path,{'id':'v4','role':'country','address_families':[4]}))
+            with self.assertRaisesRegex(ValueError,'contract missing'):
+                list(parse_source('country-csv',path,{'id':'missing','role':'country'}))
+            path.write_text(header+'2400::/32,ZZ\n')
+            with self.assertRaisesRegex(ValueError,'no valid country'):
+                list(parse_source('country-csv',path,{'id':'empty-country','role':'country','address_families':[6]}))
+
+    def test_maxmind_requires_both_declared_blocks_and_matching_row_family(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);source={'id':'maxmind','role':'country','address_families':[4,6]}
+            (root/'GeoLite2-Country-Locations-en.csv').write_text('geoname_id,country_iso_code\n1,CN\n')
+            (root/'GeoLite2-Country-Blocks-IPv4.csv').write_text('network,geoname_id\n1.0.0.0/24,1\n')
+            v6=root/'GeoLite2-Country-Blocks-IPv6.csv'
+            with self.assertRaisesRegex(ValueError,'Blocks file'):
+                list(parse_source('maxmind',root,source))
+            v6.write_text('network,geoname_id\n')
+            with self.assertRaisesRegex(ValueError,'declared families'):
+                list(parse_source('maxmind',root,source))
+            v6.write_text('network,geoname_id\n1.0.1.0/24,1\n')
+            with self.assertRaisesRegex(ValueError,'differs from file family'):
+                list(parse_source('maxmind',root,source))
+            v6.write_text('network,geoname_id\n2400::/32,1\n')
+            self.assertEqual([row.version for row in parse_source('maxmind',root,source)],[4,6])
+
+    def test_numeric_country_ranges_use_declared_family_not_integer_magnitude(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);path=root/'range.csv';path.write_text('start_ip,end_ip,country_code\n1,255,CN\n')
+            row=list(parse_source('country-csv',path,{'id':'small-v6','address_families':[6]}))[0]
+            self.assertEqual((row.version,row.start,row.end),(6,1,255))
+            with self.assertRaisesRegex(ValueError,'unambiguous'):
+                list(parse_source('country-csv',path,{'id':'ambiguous','address_families':[4,6]}))
+            path.write_text('"1","255","CN","China"\n')
+            row=list(parse_source('ip2location',path,{'id':'v6-only','address_families':[6]}))[0]
+            self.assertEqual(row.version,6)
+            with self.assertRaisesRegex(ValueError,'family-specific'):
+                list(parse_source('ip2location',path,{'id':'both','address_families':[4,6]}))
+            directory=root/'bundle';directory.mkdir()
+            (directory/'IP2LOCATION-LITE-DB1.CSV').write_text('"16777216","16777471","CN","China"\n')
+            (directory/'IP2LOCATION-LITE-DB1.IPV6.CSV').write_text('"1","255","CN","China"\n')
+            # A common IPv4 file has no IPV4 token: explicitly named DB1.CSV
+            # remains supported when paired with its named IPv6 sibling.
+            self.assertEqual({row.version for row in parse_source('ip2location',directory,{'id':'both','address_families':[4,6]})},{4,6})
 
 
 if __name__=='__main__':unittest.main()

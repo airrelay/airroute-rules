@@ -1,6 +1,6 @@
 # 特殊用途与 RealIP
 
-所有客户端规则都位于 `special/`，维护入口为 `config/special.json`，生成器为 `airroute_data/special.py`。这里的列表描述匹配范围，不内置 DIRECT / PROXY、不指定解析器，也不执行网络探测。ASN 数据库单独为 `special/asn.ardb`，遵循 [ARDBv001 格式](FORMAT.md)，不是域名规则列表。
+所有客户端规则都位于 `special/`，维护入口为 `config/special.json`，生成器为 `airroute_data/special.py`。这里的列表描述匹配范围，不内置 DIRECT / PROXY、不指定解析器，也不执行网络探测；输出不携带 `no-resolve`，上游标志转换有记录。ASN 数据库单独为 `special/asn.ardb`，遵循 [ARDBv001 格式](FORMAT.md)，不是域名规则列表。
 
 ## 文件和用途
 
@@ -22,7 +22,7 @@
 | `special/realip.list` | 单一 RealIP 名单，合并原基础与扩展规则及选定成熟兼容来源 |
 | `special/asn.ardb` | 上游 ASN 的双栈前缀索引，供客户端编译规则时按需展开 |
 
-LAN 的地址定义来自 IANA 特殊用途注册表及对应 RFC。共享地址、组播、文档地址、NAT64、基准测试分配各有用途，不能因为都被某上游称为 private 就合入 LAN。已下载的 IANA CSV 必须可解析且与所引用分配一致；未配置的可选来源只记缺失，不删除已有标准记录。
+LAN 的地址定义来自 IANA 特殊用途注册表及对应 RFC。共享地址、组播、文档地址、NAT64、基准测试分配各有用途，不能因为都被某上游称为 private 就合入 LAN。IANA 分配与特殊用途资料使用本轮冻结版本；必需资格输入缺失、损坏或解析失败终止构建。Geo 与正式 ASN 分别应用自身资格含义，不把所有特殊范围都同样排除；LAN 等列表仍按各自用途核对。
 
 ## 单一 RealIP 名单
 
@@ -44,7 +44,7 @@ DLC 的 `category-ntp`、`category-stun` 用于相应普通 special 列表。原
 
 ## 客户端接入
 
-本次只读核对当前 Aegir 的 `crates/profile-config/src/model.rs` 和 `crates/core/src/dns/model.rs`，没有修改客户端或 Core。`RealIpRule` / `DnsMatchExpr` 支持 exact、suffix、keyword、wildcard 和复合表达式；本文件采用其可直接等价表达的前三种正向规则：
+既有客户端接口说明参考 Aegir 的 `crates/profile-config/src/model.rs` 和 `crates/core/src/dns/model.rs`；本次没有修改或重新验证客户端/Core。`RealIpRule` / `DnsMatchExpr` 支持 exact、suffix、keyword、wildcard 和复合表达式；本文件采用其可直接等价表达的前三种正向规则：
 
 | 列表类型 | `match.type` |
 | --- | --- |

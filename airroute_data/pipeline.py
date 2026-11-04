@@ -68,15 +68,17 @@ def source_path(snapshot_path: Path, source: dict) -> Path:
 
 
 def stable_source(source: dict) -> dict:
-    fields = ("id", "status", "version", "sha256", "lineage", "shared_upstream_risk", "independence", "role", "domain_role", "format", "field_semantics", "license", "publish_allowed", "publisher", "documentation", "terms")
+    fields = ("id", "status", "version", "sha256", "lineage", "shared_upstream_risk", "independence", "role", "domain_role", "format", "field_semantics", "license", "publish_allowed", "publisher", "documentation", "terms", "address_families", "enabled")
     return {key: source[key] for key in fields if key in source}
 
 
 def usable_sources(snapshot_path: Path, snapshot: dict) -> tuple[list[dict], list[dict]]:
     usable, skipped = [], []
     for entry in snapshot["sources"]:
-        if entry.get("status") not in {"available", "ok", "downloaded"}:
+        if entry.get("status") in {"disabled", "not-selected"}:
             skipped.append(stable_source(entry)); continue
+        if entry.get("status") not in {"available", "ok", "downloaded"}:
+            raise ValueError(f"{entry['id']}: participating source unavailable ({entry.get('status')})")
         if entry.get("publish_allowed") is False:
             skipped.append({**stable_source(entry), "reason": "publication permission not established"}); continue
         usable.append({**entry, "path": str(source_path(snapshot_path, entry))})
@@ -201,7 +203,8 @@ def build_domain_candidate(snapshot_path: Path, output: Path, config_dir: Path, 
         "ip_source_snapshot": retained,
         "meaning": "Regional IP lists and ASN database are reused unchanged from this verified base; source versions and acquisition times are retained, not newly acquired."}
     manifest = finalize_candidate(output, merged, registry, products, quality, summary, baseline=baseline,
-        special_config=special, legacy_configs=_legacy_configs(config_dir), generation_context=context, trace=trace)
+        special_config=special, legacy_configs=_legacy_configs(config_dir), generation_context=context,
+        address_eligibility=base.get("address_eligibility"), trace=trace)
     if metrics is not None:
         metrics["domains-only-total"] = round(time.monotonic() - started, 3)
     return manifest
@@ -211,7 +214,8 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
           metrics: dict | None = None, trace=None) -> dict:
     from .domains import load_products
     from .geo import fuse_country, parse_source as parse_country, load_geo_policy
-    from .routing import fuse_routes, parse_source as parse_routes, audit_auxiliary
+    from .routing import fuse_asn, fuse_routes, parse_source as parse_routes, audit_auxiliary
+    from .address_space import AddressEligibility
 
     stage_started = time.monotonic()
     def mark(name: str) -> None:
@@ -246,8 +250,12 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     country_sources = [s for s in usable if s.get("role") in {"country", "geo"}]
     routing_sources = [s for s in usable if s.get("role") in {"routing", "asn"}]
     mark("inputs")
-    if not routing_sources:
-        raise ValueError("required ASN routing input unavailable")
+    formal_asn = next((source for source in routing_sources if source["id"] == "maxmind-asn" and source["format"] == "maxmind-asn-csv"), None)
+    if formal_asn is None:
+        raise ValueError("required formal ASN source unavailable: maxmind-asn")
+    comparison_sources = [source for source in routing_sources if source["id"] != "maxmind-asn"]
+    eligibility = AddressEligibility.from_sources(usable, trace=trace)
+    write_json(reports / "address-eligibility.json", eligibility.report)
     geo_policy = load_geo_policy(config_dir / "geo-policy.json")
     primary = next((source for source in country_sources if source["id"] == geo_policy["primary_source"]), None)
     write_json(reports / "sources.json", {"used": [stable_source(source) for source in usable], "unavailable_or_withheld": skipped})
@@ -256,17 +264,28 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     if trace is not None: trace.stage('geo', 'started', policy=geo_policy)
     country = fuse_country(itertools.chain.from_iterable(parse_country(source["format"], Path(source["path"]), source, trace=trace)
                            for source in country_sources), registry, source_order=geo_policy["source_order"],
-                           details_path=reports / "geo-issues.jsonl", trace=trace)
-    country["report"]["issue_files"] = shard_issue_report(reports / "geo-issues.jsonl")
+                           details_path=None if trace is not None else reports / "geo-issues.jsonl", trace=trace,
+                           eligibility=eligibility, comparison_only_address_families=geo_policy.get("comparison_only_address_families", {}))
+    if trace is not None:
+        country["report"]["issue_storage"] = {"kind": "build-record-sqlite", "path": "trace.sqlite3",
+            "tables": ["geo_input", "geo_issue", "output_ip"],
+            "query": "python -m airroute_data explain --record-dir <downloaded-record> --ip <IP-or-prefix>",
+            "completeness": "See summary.json:evidence_complete and artifact-index.json:complete; failed parses may be partial."}
+    else:
+        country["report"]["issue_files"] = shard_issue_report(reports / "geo-issues.jsonl")
     write_json(reports / "geo.json", country["report"])
     primary_rows = country["report"]["source_valid_country_rows"].get(primary["id"], {})
     required_families = primary.get("address_families", [4, 6])
     if any(not primary_rows.get(f"ipv{family}") for family in required_families):
         raise ValueError("primary country source has no valid mapped input for a declared address family: " + primary["id"])
     mark("geo")
-    if trace is not None: trace.stage('asn', 'started', policy='observed-origin-union-per-real-view-not-ownership')
-    routes = fuse_routes(itertools.chain.from_iterable(parse_routes(source["format"], Path(source["path"]), source, trace=trace)
-                         for source in routing_sources), trace=trace)
+    if trace is not None: trace.stage('asn', 'started', policy='maxmind-asn-only-longest-prefix; BGP and IPtoASN are comparisons')
+    routes = fuse_asn(parse_routes(formal_asn["format"], Path(formal_asn["path"]), formal_asn, trace=trace),
+                      eligibility=eligibility, trace=trace)
+    comparisons = fuse_routes(itertools.chain.from_iterable(
+        parse_routes(source["format"], Path(source["path"]), source, trace=trace)
+        for source in comparison_sources), eligibility=eligibility, trace=trace)
+    write_json(reports / "asn-comparison.json", comparisons["report"])
     if trace is not None: trace.route_outputs(routes['groups'])
     mark("asn")
     if trace is not None: trace.stage('domains-and-special', 'started')
@@ -294,14 +313,12 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
         if parent is None:continue
         path = safe_file(Path(parent["path"]), view["path"])
         if not path.is_file():
-            if view.get("required", False):
-                raise ValueError("required auxiliary view is absent from fixed input")
-            if trace is not None: trace.source_event(view["id"], "auxiliary-view", "missing-optional", source=view["source"], path=view["path"])
-            continue
-        auxiliary_sources.append({**parent, **view, "path": str(path), "role": "cn-reference"})
+            if trace is not None: trace.source_event(view["id"], "auxiliary-view", "failed", source=view["source"], path=view["path"])
+            raise ValueError("participating auxiliary view is absent from fixed input: " + view["id"])
+        auxiliary_sources.append({**parent, "address_families": [4, 6], **view, "path": str(path), "role": "cn-reference"})
     mark("output-core")
     if trace is not None: trace.stage('auxiliary', 'started')
-    auxiliary = audit_auxiliary(auxiliary_sources, groups, registry, routing_prefixes=routes["routed_prefixes"], trace=trace)
+    auxiliary = audit_auxiliary(auxiliary_sources, groups, registry, routing_prefixes=comparisons["observed_prefixes"], trace=trace)
     write_json(reports / "auxiliary.json", auxiliary)
     mark("auxiliary")
     geo4 = geo6 = 0
@@ -318,6 +335,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
     summary = {"country_lineages": len(country["report"]["usable_lineages"]),
                "geo_prefixes": sum(map(len, groups.values())), "geo_v4_addresses": geo4, "geo_v6_addresses": geo6,
                "asn_input_families": routes["report"]["input_families"],
+               "asn_expected_families": formal_asn["address_families"],
                "asn_groups": len(routes["groups"]), "asn_prefixes": sum(map(len, routes["groups"].values())),
                "domain_rules": domain_count, "products": len(list(output.rglob("*.list"))) + 1,
                "source_count_available": len(usable), "source_count_unavailable_or_withheld": len(skipped)}
@@ -333,7 +351,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
                                      "Pin downloads to one release commit and verify manifest lengths and SHA-256.\n", encoding="utf-8")
     manifest = finalize_candidate(output, snapshot, registry, products, quality, summary,
                                   baseline=baseline, special_config=special_config,
-                                  legacy_configs=_legacy_configs(config_dir), trace=trace)
+                                  legacy_configs=_legacy_configs(config_dir), address_eligibility=eligibility.report, trace=trace)
     mark("manifest-and-validation")
     return manifest
 
@@ -341,7 +359,7 @@ def build(snapshot_path: Path, output: Path, config_dir: Path, *, baseline: Path
 def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: dict,
                        quality: dict, summary: dict, *, baseline: Path | None = None,
                        special_config: dict | None = None, legacy_configs: list | None = None,
-                       generation_context: dict | None = None, trace=None) -> dict:
+                       generation_context: dict | None = None, address_eligibility: dict | None = None, trace=None) -> dict:
     """Bind already computed batch outputs, then validate their exact bytes."""
     output = Path(output)
     stable_inputs = sorted([stable_source(s) for s in snapshot["sources"]], key=lambda s: s["id"])
@@ -351,7 +369,8 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
     public_files = [r for r in files if not r["path"].startswith("reports/") and r["path"] != "README.md"]
     identity = {"generator": __version__, "inputs": stable_inputs, "registry": registry,
                 "products": products, "special": special_config, "quality": quality, "files": public_files,
-                "legacy_configs": legacy_configs or [], "generation_context": generation_context}
+                "legacy_configs": legacy_configs or [], "generation_context": generation_context,
+                "address_eligibility": address_eligibility}
     version = hashlib.sha256(canonical(identity)).hexdigest()[:24]
     from .coverage import profiles
     from .validation import parse_list
@@ -383,13 +402,13 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
                                  | set(catalogue.get(name, {}).get("ip_source_ids", []))),
             "domain_source_ids": sorted(domain_health.get("groups", {}).get(name, {}).get("source_support_rules", {})),
             "declared_source_ids": sorted({s["source"] for s in group.get("selectors", [])}),
-            "domain_gap": None if group.get("selectors") or group.get("includes") else "No justified regional domain source"}
+            "domain_gap": None if group.get("selectors") or group.get("includes") or not set(group.get("content_types", ["domain"])) & {"domain", "non-ip"} else "No configured upstream selector or included domain product"}
     special_path = output / "reports/special.json"
     special_health = json.loads(special_path.read_text()) if special_path.is_file() else {}
     catalogue.update(special_health.get("catalogue", {}))
     catalogue["special/asn"] = {"name": "ASN database", "kind": "special", "content_types": ["asn"],
-        "path": "special/asn.ardb", "required_output": True, "purpose": "Nonexclusive observed origin membership for compile-time expansion, not geography or ownership",
-        "source_ids": sorted(source["id"] for source in snapshot["sources"] if source.get("role") in {"routing", "asn"})}
+        "path": "special/asn.ardb", "required_output": True, "purpose": "MaxMind GeoLite2 ASN longest-prefix attribution for compile-time expansion; BGP/IPtoASN comparison only, not geography or exclusive ownership",
+        "source_ids": ["maxmind-asn"]}
     manifest = {"schema": 1, "format_version": 1, "version": version, "data_version": version,
                 "generator_version": __version__, "region_registry_version": registry["version"],
                 "files": files, "source_snapshot": stable_inputs, "summary": summary,
@@ -401,6 +420,8 @@ def finalize_candidate(output: Path, snapshot: dict, registry: dict, products: d
                 "selector_failures": domain_health.get("unavailable_selectors", []),
                 "regional_domain_semantics": {g["id"]: g["domain_semantics"] for g in products["groups"]
                                               if g["id"].startswith("region/") and g.get("domain_semantics")}}
+    if address_eligibility is not None:
+        manifest["address_eligibility"] = address_eligibility
     from .legacy import legacy_projection
     manifest["legacy_coverage"] = {report["group"]: legacy_projection(report)
         for path in sorted((output / "reports").glob("legacy*domains.json"))

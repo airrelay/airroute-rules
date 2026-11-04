@@ -88,27 +88,34 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
     issue_report = candidate / "reports/geo.json"
     if issue_report.exists():
         issues = json.loads(issue_report.read_text())
-        if "issue_files" not in issues:
-            raise ValueError("complete issue report needs a shard index")
-        seen = set(); total = 0
-        for part in issues["issue_files"]:
-            name = part["path"]
-            import re
-            if not re.fullmatch(r"geo-issues/part-[0-9]{5,}\.jsonl", name):
-                raise ValueError("noncanonical issue shard path")
-            if name in seen:raise ValueError("duplicate issue shard")
-            seen.add(name)
-            path = safe_file(candidate / "reports", name)
-            if path.stat().st_size != part["bytes"]:raise ValueError("issue shard size mismatch")
-            with path.open("rb") as stream:
-                count = sum(block.count(b"\n") for block in iter(lambda: stream.read(1024 * 1024), b""))
-            if count != part["records"]:raise ValueError("issue shard record count mismatch")
-            total += count
-        if total != issues["issue_intervals"]:
-            raise ValueError("incomplete issue report")
-        physical = {p.relative_to(candidate / "reports").as_posix()
-                    for p in (candidate / "reports/geo-issues").glob("*.jsonl")}
-        if physical != seen:raise ValueError("unindexed issue shard")
+        if "issue_files" in issues:
+            seen = set(); total = 0
+            for part in issues["issue_files"]:
+                name = part["path"]
+                import re
+                if not re.fullmatch(r"geo-issues/part-[0-9]{5,}\.jsonl", name):
+                    raise ValueError("noncanonical issue shard path")
+                if name in seen:raise ValueError("duplicate issue shard")
+                seen.add(name)
+                path = safe_file(candidate / "reports", name)
+                if path.stat().st_size != part["bytes"]:raise ValueError("issue shard size mismatch")
+                with path.open("rb") as stream:
+                    count = sum(block.count(b"\n") for block in iter(lambda: stream.read(1024 * 1024), b""))
+                if count != part["records"]:raise ValueError("issue shard record count mismatch")
+                total += count
+            if total != issues["issue_intervals"]:
+                raise ValueError("incomplete issue report")
+            physical = {p.relative_to(candidate / "reports").as_posix()
+                        for p in (candidate / "reports/geo-issues").glob("*.jsonl")}
+            if physical != seen:raise ValueError("unindexed issue shard")
+        elif issues.get("issue_storage", {}).get("kind") == "build-record-sqlite":
+            # The complete diagnostic index is an independent artifact, not a
+            # required client product or a hidden geographic database.
+            storage=issues["issue_storage"]
+            if storage.get("path")!="trace.sqlite3" or storage.get("tables")!=["geo_input","geo_issue","output_ip"]:
+                raise ValueError("invalid external build-record index reference")
+        else:
+            raise ValueError("complete issue report needs a shard or build-record index")
     # Geographic products are lists; no hidden or published Geo binary exists.
     if any(name.endswith(".ardb") and name != "special/asn.ardb" for name in names):
         raise ValueError("only special/asn.ardb is a supported binary product")
@@ -125,7 +132,8 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
     expected_regions.add("region/cn-domain")
     if {name for name in domain_groups if name.startswith("region/")} != expected_regions:
         raise ValueError("regional product inventory disagrees with region registry")
-    from .geo import public_intervals
+    from .address_space import AddressEligibility
+    eligibility=AddressEligibility.from_report(manifest.get("address_eligibility",{}))
     intervals = []
     actual_addresses = {4: 0, 6: 0}
     actual_geo_count = 0
@@ -136,7 +144,7 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
                 raise ValueError("regional IP products must contain only IP rules")
             network = ipaddress.ip_network(text, strict=True)
             family, start, end = network.version, int(network.network_address), int(network.broadcast_address)
-            if list(public_intervals(family, start, end)) != [(start, end)]:
+            if list(eligibility.geo_intervals(family, start, end)) != [(start, end)]:
                 raise ValueError("non-geographic special address in regional output")
             intervals.append((family, start, end, name))
             actual_geo_count += 1
@@ -187,15 +195,32 @@ def validate_candidate(candidate: Path, baseline: Path | None = None,
     for family in (4, 6):
         if summary.get(f"geo_v{family}_addresses") != actual_addresses[family]:
             raise ValueError("manifest address coverage disagrees with regional lists")
-    actual_asn_families = {ipaddress.ip_network(prefix).version for rows in asn.values() for prefix in rows}
-    input_families = summary.get("asn_input_families")
-    if not isinstance(input_families, list) or any(type(f) is not int for f in input_families):
-        raise ValueError("manifest needs explicit ASN input families")
-    expected_asn_families = set(input_families)
-    if len(expected_asn_families) != len(input_families) or not expected_asn_families <= {4, 6}:
-        raise ValueError("invalid ASN input families")
-    if not expected_asn_families <= actual_asn_families:
-        raise ValueError("ASN output lost an address family present in admitted input")
+    formal_sources=[source for source in manifest.get("source_snapshot",[]) if source.get("role")=="asn"]
+    if len(formal_sources)!=1 or formal_sources[0].get("format")!="maxmind-asn-csv":
+        raise ValueError("formal ASN output requires one declared MaxMind ASN source")
+    formal=formal_sources[0]
+    if formal.get("status")!="available" or formal.get("enabled",True) is False or formal.get("publish_allowed") is False:
+        raise ValueError("declared formal ASN source is not available")
+    declared=formal.get("address_families")
+    if (not isinstance(declared,list) or any(type(f) is not int for f in declared)
+            or sorted(declared)!=[4,6]):
+        raise ValueError("MaxMind ASN source must declare IPv4 and IPv6")
+    expected_asn_families=set(declared)
+    for field in ("asn_expected_families","asn_input_families"):
+        families=summary.get(field)
+        if (not isinstance(families,list) or any(type(f) is not int for f in families)
+                or sorted(families)!=sorted(expected_asn_families)):
+            raise ValueError("manifest ASN family contract mismatch: "+field)
+    actual_asn_families=set()
+    for prefixes in asn.values():
+        for text in prefixes:
+            network=ipaddress.ip_network(text,strict=True)
+            family,start,end=network.version,int(network.network_address),int(network.broadcast_address)
+            if list(eligibility.asn_intervals(family,start,end))!=[(start,end)]:
+                raise ValueError("ineligible address in formal ASN output")
+            actual_asn_families.add(family)
+    if not expected_asn_families<=actual_asn_families:
+        raise ValueError("ASN output lost an address family required by the declared formal source")
     # Detailed historical comparisons belong to the build record, not a second
     # expensive validation pass at every publication boundary.
     guard_products(domain_groups, manifest, quality or {})

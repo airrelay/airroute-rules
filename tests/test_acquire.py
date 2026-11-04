@@ -68,16 +68,39 @@ class AcquisitionTests(unittest.TestCase):
         config = self.config([{"id": "private", "requires_env": ["AIRROUTE_TEST_MISSING_KEY"]},
                               {"id": "disabled", "enabled": False}, {"id": "not-chosen"}])
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch("airroute_data.acquire._request") as req:
-            result = acquire_sources(config, self.root / "snapshot", source_ids=["private", "disabled"])
-        self.assertEqual([s["status"] for s in result["sources"]], ["missing-credentials", "disabled", "not-selected"])
+            with self.assertRaisesRegex(AcquisitionError, "private: missing-credentials"):
+                acquire_sources(config, self.root / "snapshot", source_ids=["private", "disabled"])
+            result = json.loads((self.root / "snapshot/snapshot.json").read_text())
+        self.assertEqual([s["status"] for s in result["sources"]], ["missing-credentials"])
+        self.assertEqual(result["status"], "failed")
+        with self.assertRaisesRegex(AcquisitionError, "partial inputs"):
+            verify_snapshot(self.root / "snapshot")
         req.assert_not_called()
 
     def test_errors_do_not_serialize_provider_exception_or_url_query(self):
         config = self.config([{"id": "one", "url": "https://example.com/input?test=private-provider-message"}])
         with mock.patch("airroute_data.acquire._get_source", side_effect=RuntimeError("private-provider-message")):
-            result = acquire_sources(config, self.root / "snapshot")
+            with self.assertRaisesRegex(AcquisitionError, "one: unavailable"):
+                acquire_sources(config, self.root / "snapshot")
+        result = json.loads((self.root / "snapshot/snapshot.json").read_text())
         self.assertEqual(result["sources"][0]["status"], "unavailable")
         self.assertNotIn("private-provider-message", json.dumps(result))
+
+    def test_disabled_and_unselected_inputs_are_not_failures(self):
+        config = self.config([{"id": "disabled", "enabled": False}, {"id": "unused"}])
+        result = acquire_sources(config, self.root / "snapshot", source_ids=["disabled"])
+        self.assertEqual([s["status"] for s in result["sources"]], ["disabled", "not-selected"])
+        self.assertEqual(verify_snapshot(self.root / "snapshot")["status"], "complete")
+
+    def test_first_failed_participating_source_stops_and_preserves_record(self):
+        config = self.config([{"id": "first"}, {"id": "later"}])
+        with mock.patch("airroute_data.acquire._get_source", side_effect=AcquisitionError("HTTP 503")) as get:
+            with self.assertRaisesRegex(AcquisitionError, "first: unavailable: HTTP 503"):
+                acquire_sources(config, self.root / "snapshot")
+        self.assertEqual(get.call_count, 1)
+        record = json.loads((self.root / "snapshot/snapshot.json").read_text())
+        self.assertEqual(record["status"], "failed")
+        self.assertEqual(record["sources"][0]["error"], "HTTP 503")
 
     def test_download_streaming_and_sanitized_origin(self):
         with mock.patch("airroute_data.acquire._request", return_value=Response(b"fixed input")):
@@ -89,6 +112,15 @@ class AcquisitionTests(unittest.TestCase):
                 _download("https://example.com/file", self.root / "large", {}, 3)
         self.assertFalse((self.root / "large.part").exists())
         self.assertFalse((self.root / "large").exists())
+
+    def test_short_transfer_does_not_freeze_partial_content(self):
+        response = Response(b"partial")
+        response.headers = {"Content-Length": "100"}
+        with mock.patch("airroute_data.acquire._request", return_value=response):
+            with self.assertRaisesRegex(AcquisitionError, "transfer length mismatch"):
+                _download("https://vendor.invalid/data", self.root / "truncated", {}, 200)
+        self.assertFalse((self.root / "truncated").exists())
+        self.assertFalse((self.root / "truncated.part").exists())
 
     def test_redirect_drops_credentials_across_origin_and_rejects_downgrade(self):
         req = urllib.request.Request("https://vendor.example/input", headers={"Authorization": "Basic fixture", "Cookie": "fixture", "User-Agent": "test"})
@@ -168,7 +200,7 @@ class AcquisitionTests(unittest.TestCase):
             unpack(archives[1], self.root / "shared", compression="zip")
 
         source = {"id": "ip2location", "format": "ip2location-db1-csv", "role": "country",
-                  "lineage": "ip2location-lite", "transport": "http_files", "files": [
+                  "lineage": "ip2location-lite", "address_families": [4, 6], "transport": "http_files", "files": [
                       {"url": "https://vendor.example/v4", "name": "DB1LITE.zip", "compression": "zip"},
                       {"url": "https://vendor.example/v6", "name": "DB1LITEIPV6.zip", "compression": "zip"}]}
         with mock.patch("airroute_data.acquire._request", side_effect=[Response(data) for data in payloads]):
@@ -214,7 +246,9 @@ class AcquisitionTests(unittest.TestCase):
         fixtures = self.root / "fixtures"; fixtures.mkdir()
         (fixtures / "real").write_text("content")
         (fixtures / "one").symlink_to(fixtures / "real")
-        result = acquire_sources(self.config([{"id": "one"}]), self.root / "snapshot", fixture_dir=fixtures)
+        with self.assertRaisesRegex(AcquisitionError, "one: unavailable"):
+            acquire_sources(self.config([{"id": "one"}]), self.root / "snapshot", fixture_dir=fixtures)
+        result = json.loads((self.root / "snapshot/snapshot.json").read_text())
         self.assertEqual(result["sources"][0]["status"], "unavailable")
 
 

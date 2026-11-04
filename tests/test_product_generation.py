@@ -53,11 +53,29 @@ class ProductGenerationTests(unittest.TestCase):
     def test_official_ip_membership_can_propagate_but_not_tenant_ips(self):
         path = self.root / "official.txt"
         path.write_text("149.154.160.0/20\n")
-        self.sources.append({"id": "official", "format": "official-cidr", "service": "provider/app", "path": str(path)})
+        self.sources.append({"id": "official", "format": "official-cidr", "service": "provider/app", "path": str(path), "address_families":[4]})
         groups, _ = self.build(
             {"id": "category/chat", "includes": ["provider/app"]},
             {"id": "provider/app", "selectors": [{"source": "official", "official_service_ips": True}]})
         self.assertEqual(groups["category/chat"], ["IP-CIDR,149.154.160.0/20"])
+
+    def test_official_cidr_declared_families_are_checked(self):
+        path=self.root/"dual.txt"
+        source={"id":"official","format":"official-cidr","service":"provider/app","path":str(path),"address_families":[4,6]}
+        group={"id":"provider/app","selectors":[{"source":"official","official_service_ips":True}]}
+        self.sources.append(source)
+        path.write_text("149.154.160.0/20\n")
+        with self.assertRaisesRegex(RuleError,"missing a declared address family"):
+            self.build(group)
+        path.write_text("149.154.160.0/20\n2001:db8::/32\n")
+        groups,_=self.build(group)
+        self.assertEqual(groups["provider/app"],["IP-CIDR,149.154.160.0/20","IP-CIDR6,2001:db8::/32"])
+        source['address_families']=[4]
+        with self.assertRaisesRegex(RuleError,"outside declared"):
+            self.build(group)
+        source.pop('address_families')
+        with self.assertRaisesRegex(RuleError,"address_families contract"):
+            self.build(group)
 
     def test_empty_required_product_fails_and_special_is_not_overseas(self):
         groups,report=self.build({"id": "category/empty", "required_output": True})

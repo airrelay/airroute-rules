@@ -1,4 +1,4 @@
-"""Passive routing snapshots, multi-origin ASN groups and auxiliary evidence.
+"""Formal ASN provider mappings and passive routing comparison evidence.
 
 RIBs describe routing visibility, not target physical location. A new build reads
 only its fixed current snapshots; absent/withdrawn routes from older builds are
@@ -19,7 +19,7 @@ import re
 import struct
 from typing import BinaryIO, Iterable, Iterator
 
-from .geo import bounds, country_code, event_stream, intervals_to_cidrs, open_text, public_intervals, _append_interval
+from .geo import bounds, country_code, event_stream, intervals_to_cidrs, open_text, _append_interval
 
 
 @dataclass(frozen=True)
@@ -116,20 +116,39 @@ def _asn_set(value: str) -> tuple[int, ...]:
     return valid_asns(v for v in fields if v)
 
 
+def declared_address_families(source: dict, *, require_dual=False) -> tuple[int, ...] | None:
+    """Reject ambiguous production family contracts; roleless fixtures may omit."""
+    value = source.get("address_families")
+    required = require_dual or bool(source.get("role"))
+    if value is None:
+        if required: raise ValueError("routing source must declare address_families")
+        return None
+    if not isinstance(value, list) or not value or any(type(v) is not int or v not in (4, 6) for v in value) or len(set(value)) != len(value):
+        raise ValueError("address_families must be a nonempty unique list of integer 4/6 values")
+    if require_dual and set(value) != {4, 6}:
+        raise ValueError("MaxMind ASN requires both declared address families")
+    return tuple(sorted(value))
+
+
 def parse_source(format: str, path: str | Path, source: dict, *, trace=None) -> Iterator[RoutingRecord | AuxiliaryRecord]:
-    """Optional parser accounting, without changing ASN/auxiliary semantics.
+    """Account for formal ASN, routing observations and auxiliary inputs.
 
     Candidate rows are logical rows, not physical lines. MRT rows count shared
     prefix/origin payloads after RIB peer grouping; peer claims are separate.
     """
     stats = {"records_read": 0, "records_parsed": 0, "ipv4_records": 0, "ipv6_records": 0,
              "raw_prefix_claim_records": 0, "raw_prefix_peer_claims": 0,
-             "derived_records": 0, "auxiliary_records": 0, "excluded_as0_records": 0,
+             "derived_records": 0, "auxiliary_records": 0, "unknown_as0_records": 0,
              "mrt_records_read": 0, "mrt_rib_entries_read": 0, "mrt_originless_entries": 0}
     status = "interrupted"
     error_type = None
     try:
+        families = declared_address_families(source, require_dual=format == "maxmind-asn-csv")
+        if source.get("ip_version") is not None and (type(source["ip_version"]) is not int or source["ip_version"] not in (4,6) or (families is not None and source["ip_version"] not in families)):
+            raise ValueError("invalid or contradictory routing source ip_version")
         for record in _parse_source(format, path, source, _stats=stats):
+            if families is not None and record.version not in families:
+                raise ValueError("routing input address family differs from declared source contract")
             if source.get("ip_version") is not None and record.version != int(source["ip_version"]):
                 raise ValueError("routing input address family differs from source contract")
             stats["records_parsed"] += 1
@@ -143,6 +162,8 @@ def parse_source(format: str, path: str | Path, source: dict, *, trace=None) -> 
             else:
                 stats["auxiliary_records"] += 1
             yield record
+        if source.get("role") and families is not None and any(not stats[f"ipv{family}_records"] for family in families):
+            raise ValueError("routing/auxiliary source has no records for a declared address family")
         status = "parsed" if stats["records_parsed"] else "empty"
     except Exception as error:
         status = "failed"
@@ -152,12 +173,46 @@ def parse_source(format: str, path: str | Path, source: dict, *, trace=None) -> 
         if trace is not None:
             trace.source_event(str(source["id"]), "parse-routing", status,
                 **stats, error_type=error_type,
+                declared_address_families=source.get("address_families"),
                 count_semantics="Candidate logical input rows; MRT counts payloads after within-RIB grouping, peer claims separately. Derived provider rows are not observed BGP claims.")
 
 
 def _parse_source(format: str, path: str | Path, source: dict, *, _stats: dict) -> Iterator[RoutingRecord | AuxiliaryRecord]:
     path = Path(path); sid = str(source["id"])
     collector = str(source.get("collector", sid))
+    if format == "maxmind-asn-csv":
+        if not path.is_dir():
+            raise ValueError("MaxMind ASN requires the extracted dual-stack CSV bundle")
+        for family in (4, 6):
+            name = f"GeoLite2-ASN-Blocks-IPv{family}.csv"
+            files = sorted(path.rglob(name))
+            if len(files) != 1 or not files[0].is_file() or files[0].is_symlink():
+                raise ValueError("MaxMind ASN requires exactly one " + name)
+            rows = 0
+            with open_text(files[0]) as stream:
+                reader = csv.DictReader(stream, strict=True)
+                fields = reader.fieldnames or []
+                if len(set(fields)) != len(fields) or not {"network", "autonomous_system_number"}.issubset(fields):
+                    raise ValueError("MaxMind ASN Blocks lacks required CSV columns")
+                for row in reader:
+                    _stats["records_read"] += 1
+                    if None in row or not row.get("network"):
+                        raise ValueError("malformed MaxMind ASN CSV row")
+                    actual, start, end = bounds(row["network"].strip())
+                    if actual != family:
+                        raise ValueError("MaxMind ASN Blocks address family mismatch")
+                    # Organization is ancillary, may be null, may contain quoted
+                    # commas; future named columns do not change ASN membership.
+                    value = (row.get("autonomous_system_number") or "").strip()
+                    if value and not value.isdecimal():
+                        raise ValueError("invalid MaxMind ASN number")
+                    origins = valid_asns([int(value)]) if value else ()
+                    rows += 1
+                    yield RoutingRecord(actual, start, end, origins, sid, sid,
+                        semantics="asn-provider-prefix", views=(sid,))
+            if not rows:
+                raise ValueError("MaxMind ASN Blocks has no records: " + name)
+        return
     if format in ("routeviews-mrt", "ris-mrt", "mrt-rib"):
         for record in parse_mrt(path, sid, collector, _stats=_stats):
             _stats["records_read"] += 1
@@ -209,8 +264,9 @@ def _parse_source(format: str, path: str | Path, source: dict, *, _stats: dict) 
                 if len(fields) < 3: raise ValueError("IPtoASN needs first IP, last IP, ASN")
                 family, start, end = bounds(fields[0], fields[1], source.get("ip_version"))
                 if fields[2] == "0":
-                    _stats["excluded_as0_records"] += 1
-                    continue  # Dataset explicitly says not announced.
+                    _stats["unknown_as0_records"] += 1
+                    # Explicitly unannounced/unknown membership remains a raw
+                    # row, including when it shadows a broader provider row.
                 yield RoutingRecord(family, start, end, _asn_set(fields[2]), sid, collector)
         return
     if format in ("iplocate-asn-csv", "bgp-tools-jsonl"):
@@ -304,7 +360,12 @@ def _prefix(payload: bytes, offset: int, family: int) -> tuple[str, int]:
     if bits > width * 8: raise ValueError("MRT prefix exceeds family")
     length = (bits + 7) // 8
     if offset + length > len(payload): raise ValueError("truncated MRT address")
-    packed = payload[offset:offset+length] + b"\0" * (width - length)
+    # RFC 4271 section 4.3: unused bits in the last NLRI octet are
+    # irrelevant padding, not a malformed host address. Keep the prefix bits.
+    significant = bytearray(payload[offset:offset+length])
+    if bits % 8:
+        significant[-1] &= (0xff << (8 - bits % 8)) & 0xff
+    packed = bytes(significant) + b"\0" * (width - length)
     ip = (ipaddress.IPv4Address if family == 4 else ipaddress.IPv6Address)(packed)
     return str(ipaddress.ip_network(f"{ip}/{bits}", strict=True)), offset + length
 
@@ -414,11 +475,10 @@ def parse_mrt(path: str | Path, source: str, collector: str = "", *,
                 # RFC6396 section4.3.4: TABLE_DUMP_V2 AS_PATH is always
                 # four-octet, even when the peer-index ASN itself is two-octet.
                 origins = _attributes(attrs, True)
-                if origins:
-                    _, peer_ip, peer_asn, bgp_id = peers[peer]
-                    view = f"{source}/{collector}/view:{table_view}/AS{peer_asn}@{peer_ip}#{bgp_id}"
-                    equivalent[origins].add(view)
-                elif _stats is not None:
+                _, peer_ip, peer_asn, bgp_id = peers[peer]
+                view = f"{source}/{collector}/view:{table_view}/AS{peer_asn}@{peer_ip}#{bgp_id}"
+                equivalent[origins].add(view)
+                if not origins and _stats is not None:
                     _stats["mrt_originless_entries"] += 1
             if offset != len(payload): raise ValueError("trailing MRT RIB bytes")
             # One RIB entry is bounded. Share identical prefix/origin payloads,
@@ -428,8 +488,8 @@ def parse_mrt(path: str | Path, source: str, collector: str = "", *,
                 yield RoutingRecord.network(prefix, origins, source, ordered[0], views=ordered)
 
 
-def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=None) -> dict:
-    """Per-real-peer longest match, then union independent current claims.
+def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, eligibility, trace=None) -> dict:
+    """Comparison only: per-real-peer LPM then independent current claims union.
 
     Aggregate RIS/provider rows have no real peer identity: the parser gives
     each independent aggregate claim its own view rather than inventing a
@@ -437,7 +497,7 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=Non
     never address ownership, physical location or actual use by all hosts.
     """
     active = {}; previous = previous_family = None
-    groups = defaultdict(list); routed_union = []; counts = Counter(); collectors = set()
+    groups = defaultdict(list); routed_union = []; observed_union = []; counts = Counter(); collectors = set()
     source_rows = Counter(); event_records = Counter(); special = Counter(); lengths = Counter()
     widest = {4: [], 6: []}; ordinal = 0
     raw_claim_rows = Counter(); aggregate_claim_rows = Counter(); input_families = set()
@@ -477,16 +537,18 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=Non
                 counts[f"ipv{rec.version}_default_forwarding_observations"] += weight
                 continue
             if not origins:
-                if trace is not None: trace.route_input(marked, "observed-only", "iana-nonpublic-asn-not-global-membership")
-                counts[f"ipv{rec.version}_nonpublic_asn_observations"] += weight
-                continue
-            pieces = tuple(public_intervals(rec.version, rec.start, rec.end))
-            if pieces: input_families.add(rec.version)
+                counts[f"ipv{rec.version}_nonpublic_or_unknown_asn_observations"] += weight
+            pieces = tuple(eligibility.asn_intervals(rec.version, rec.start, rec.end))
+            if pieces and origins: input_families.add(rec.version)
             if trace is not None:
-                trace.route_input(marked, "accepted" if pieces else "observed-only",
-                    "public-address-origin-membership" if pieces else "outside-public-address-space")
+                trace.route_input(marked, "accepted" if pieces and origins else "observed-only",
+                    "asn-eligible-origin-membership" if pieces and origins else
+                    "iana-nonpublic-or-unknown-asn-shadowing-input" if pieces else "outside-asn-address-eligibility")
             for start, end in pieces:
+                # Even an unknown or special child must shadow this same peer's
+                # broader claim. Filtering before LPM would invent membership.
                 yield rec.version, start, end, {"asns": origins,
+                    "observed": rec.origin_prefix_length is not None,
                     "views": rec.views or (f"{rec.source}/{rec.collector or rec.source}",),
                     "span": str(rec.end-rec.start), "source": rec.source}
     with event_stream(normalized()) as points:
@@ -504,8 +566,11 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=Non
                 for view, (_, values) in views.items():
                     if "/aggregate:" not in view: collectors.add(view)
                     origins.update(values)
-                _append_interval(routed_union, family, previous, point - 1)
-                counts[f"ipv{family}_routed_addresses"] += point - previous
+                if any(row["observed"] for row in active.values()):
+                    _append_interval(observed_union, family, previous, point - 1)
+                if origins:
+                    _append_interval(routed_union, family, previous, point - 1)
+                    counts[f"ipv{family}_routed_addresses"] += point - previous
                 if len(origins) > 1:
                     counts[f"ipv{family}_multi_origin_addresses"] += point - previous
                     counts["multi_origin_segments"] += 1
@@ -519,7 +584,10 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=Non
     for prefixes in result.values():
         for prefix in prefixes: family_prefixes[f"ipv{6 if ':' in prefix else 4}"] += 1
     return {"groups": result, "routed_prefixes": intervals_to_cidrs(routed_union),
+        "observed_prefixes":intervals_to_cidrs(observed_union),
         "report": {"policy": "current-snapshot-real-peer-lpm-independent-aggregate-origin-union",
+        "purpose": "comparison-only; never contributes to formal ASN database",
+        "observed_prefixes_scope": "ASN-eligible portions of actual non-default BGP prefix observations, including special/unknown origins. Derived IP-to-ASN ranges never count as observed BGP.",
         "source_rows": dict(sorted(source_rows.items())), "coverage": dict(counts),
         "sort_record_rows": dict(sorted(event_records.items())),
         "source_rows_note": "Distinct prefix/origin/peer claims after within-RIB dedup; aggregate peer counts do not invent peer identities. sort_record_rows counts shared payloads.",
@@ -529,7 +597,7 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=Non
         "input_families": sorted(input_families),
         "input_families_meaning": "Address families with eligible non-default public-address input and at least one global ASN, before per-real-peer LPM. Output must preserve each present family.",
         "aggregate_claim_rows":dict(sorted(aggregate_claim_rows.items())),
-        "wide_prefix_policy": "No prefix-length ownership floor. Every non-default valid observation contributes only its original public address portion. Wide claims remain nonexclusive routing evidence, not proof of ownership or actual use. /0 forwarding observations remain in trace but do not compile universal ASN membership.",
+        "wide_prefix_policy": "No prefix-length ownership floor. Every non-default valid observation contributes only its original IANA ASN-eligible address portion. Wide claims remain nonexclusive routing evidence, not proof of ownership or actual use. /0 forwarding observations remain in trace but do not compile universal ASN membership.",
         "special_asns": {"registry": IANA_ASN_REGISTRY,"observations_by_source_kind":dict(sorted(special.items())),
             "policy":"Retain raw observations. Exclude reserved, AS_TRANS, documentation and private-use numbers from global ASN output; AS112 is globally routed and retained. This is not an assertion of upstream error."},
         "collector_views": sorted(collectors), "asn_groups": len(result),
@@ -537,6 +605,74 @@ def fuse_routes(records: Iterable[RoutingRecord | AuxiliaryRecord], *, trace=Non
         "meaning": "Nonexclusive current origin membership, not registration country, ownership, actual host use, physical location or RPKI geographic truth.",
         "withdrawals": "No earlier snapshot routes are carried forward. Missing current sources do not prove global withdrawal.",
         "summary_limitation": "RISwhois aggregates do not identify actual peers: each prefix/origin claim remains independent. Only full MRT RIBs support real-peer LPM. Raw observations, compiled public membership and target location are distinct."}}
+
+
+def fuse_asn(records: Iterable[RoutingRecord], *, eligibility, trace=None) -> dict:
+    """Formal single-provider prefix map; shadow parents before filtering ASN.
+
+    Missing/AS0/private/reserved child records still participate in the LPM
+    sweep. Otherwise filtering them first would silently refill their space
+    from an older/broader parent's valid ASN. Equal-specific records retain all
+    supplied origin values; eligible public numbers are selected only afterward.
+    """
+    groups = defaultdict(list); known = []; counts = Counter(); sources = set()
+    parsed_families = set(); admitted_families = set(); source_rows = Counter()
+    active = {}; previous = previous_family = None
+    def normalized():
+        for rec in records:
+            if not isinstance(rec, RoutingRecord) or rec.semantics != "asn-provider-prefix":
+                raise ValueError("formal ASN accepts only the configured ASN provider prefix records")
+            if rec.version not in (4, 6) or not 0 <= rec.start <= rec.end < 1 << (32 if rec.version == 4 else 128):
+                raise ValueError("invalid formal ASN address range")
+            values = valid_asns(rec.asns)
+            sources.add(rec.source)
+            if len(sources) > 1:
+                raise ValueError("formal ASN must use exactly one provider source")
+            source_rows[rec.source] += 1; parsed_families.add(rec.version)
+            counts[f"ipv{rec.version}_input_records"] += 1
+            if trace is not None:
+                trace.route_input(replace(rec, compiled_asns=public_asns(values)),
+                    "formal-input", "formal-provider-prefix-for-lpm-before-asn-filtering")
+            yield rec.version, rec.start, rec.end, {"span":str(rec.end-rec.start),"asns":values}
+    with event_stream(normalized()) as points:
+        for family, point, changes in points:
+            if family != previous_family: active.clear(); previous = None
+            if active and previous is not None and point > previous:
+                smallest = min(int(row["span"]) for row in active.values())
+                selected = {number for row in active.values() if int(row["span"]) == smallest for number in row["asns"]}
+                origins = public_asns(selected)
+                counts[f"ipv{family}_decision_intervals"] += 1
+                for start, end in eligibility.asn_intervals(family, previous, point-1):
+                    size = end-start+1
+                    if not origins:
+                        counts[f"ipv{family}_unknown_or_special_asn_addresses"] += size
+                        counts[f"ipv{family}_unknown_or_special_asn_intervals"] += 1
+                        continue
+                    admitted_families.add(family)
+                    _append_interval(known, family, start, end)
+                    counts[f"ipv{family}_assigned_addresses"] += size
+                    if len(origins)>1: counts[f"ipv{family}_multi_asn_addresses"] += size
+                    for number in origins: _append_interval(groups[number],family,start,end)
+            for rid,delta,payload in changes:
+                if delta<0: active.pop(rid,None)
+                else: active[rid]=payload
+            previous,previous_family=point,family
+    if parsed_families != {4,6}:
+        raise ValueError("formal ASN provider requires nonempty IPv4 and IPv6 input")
+    result={number:intervals_to_cidrs(ranges) for number,ranges in sorted(groups.items())}
+    family_prefixes=Counter()
+    for prefixes in result.values():
+        for prefix in prefixes: family_prefixes[f"ipv{6 if ':' in prefix else 4}"] += 1
+    return {"groups":result,"routed_prefixes":intervals_to_cidrs(known),
+        "report":{"policy":"single-provider-longest-prefix-then-asn-eligibility",
+        "formal_sources":sorted(sources),"source_rows":dict(source_rows),
+        "expected_families":[4,6],"parsed_input_families":sorted(parsed_families),
+        "input_families":sorted(parsed_families),"admitted_input_families":sorted(admitted_families),
+        "coverage":dict(counts),"family_prefixes":dict(family_prefixes),
+        "asn_groups":len(result),"prefixes":sum(len(values) for values in result.values()),
+        "special_asns":{"registry":IANA_ASN_REGISTRY,"policy":"Selected prefix ASN values are filtered only after longest-prefix selection. Empty, reserved, AS_TRANS, documentation and private values remain shadowing inputs, never a fallback to parent membership; AS112 remains public."},
+        "meaning":"Formal provider's address-to-ASN prefix membership, not BGP visibility, ownership or physical location.",
+        "comparison_boundary":"BGP, IPtoASN, RIR and other auxiliary sources are comparison evidence only and do not contribute or fill this database."}}
 
 
 def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int, list[str]], registry: dict) -> dict:
@@ -547,9 +683,10 @@ def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int
     # Two sorted interval streams, using the same external sorter avoids per-IP work.
     def combined():
         for rec in records:
-            for start, end in public_intervals(rec.version, rec.start, rec.end):
-                yield rec.version, start, end, {"source": rec.source, "kind": rec.kind,
-                                              "country": rec.country}
+            # Auxiliary lists are compared in their original ranges. Lack of a
+            # final Geo result is unknown, not a license to silently trim input.
+            yield rec.version, rec.start, rec.end, {"source": rec.source, "kind": rec.kind,
+                                                   "country": rec.country}
         for rid, prefixes in geo_groups.items():
             for prefix in prefixes:
                 f, a, b = bounds(prefix)
@@ -579,7 +716,7 @@ def summarize_auxiliary(records: Iterable[AuxiliaryRecord], geo_groups: dict[int
                 if delta<0:active.pop(rid,None)
                 else:active[rid]=payload
             previous,previous_family=point,family
-    return {"semantics":"Auxiliary list membership is reported only; never unioned into location truth.",
+    return {"semantics":"Original auxiliary input ranges are compared without Geo/ASN eligibility clipping; unknown includes non-geographic and unassigned space. Membership is reported only, never unioned into location truth.",
             "sources":{k:dict(v) for k,v in sorted(by_source.items())},
             "cn_ru_by_declared_country":{sid:{cc:dict(values) for cc,values in sorted(countries.items())}
                                          for sid,countries in sorted(by_country.items())}}

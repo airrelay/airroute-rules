@@ -1,4 +1,5 @@
 import ipaddress
+from dataclasses import replace
 import json
 from pathlib import Path
 import struct
@@ -7,7 +8,16 @@ import unittest
 
 from airroute_data.geo import load_registry
 from airroute_data.routing import (AuxiliaryRecord, RoutingRecord, audit_auxiliary,
-                                  fuse_routes, parse_mrt, parse_source)
+                                  fuse_routes as _fuse_routes, fuse_asn, parse_mrt, parse_source)
+
+
+class FixtureEligibility:
+    def asn_intervals(self, family, start, end):
+        yield start, end
+
+
+def fuse_routes(records, **kwargs):
+    return _fuse_routes(records, eligibility=kwargs.pop("eligibility", FixtureEligibility()), **kwargs)
 
 
 def mrt_record(subtype,payload,kind=13):
@@ -173,7 +183,7 @@ class RoutingTests(unittest.TestCase):
             self.assertEqual(rows[1].asns,(20,30))
             self.assertEqual([row.peer_count for row in rows],[5,7])
             p.write_text('1.0.0.0\t1.0.0.255\t10\tUS\tOrg\n1.0.1.0\t1.0.1.255\t0\tZZ\tNot routed\n')
-            self.assertEqual(len(list(parse_source('iptoasn-tsv',p,{'id':'iptoa'}))),1)
+            self.assertEqual([r.asns for r in parse_source('iptoasn-tsv',p,{'id':'iptoa'})],[(10,),(0,)])
             p.write_text('apnic|CN|ipv4|1.0.0.0|256|20260101|allocated\napnic|RU|ipv6|2400::|32|20260101|allocated\n')
             rows=list(parse_source('rir-delegated',p,{'id':'rir'}))
             self.assertEqual(rows[0].kind,'registration');self.assertEqual(rows[1].version,6)
@@ -261,6 +271,136 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(country['CN']['ipv4_region_cn_addresses'],128)
         self.assertEqual(country['RU']['ipv4_region_ru_addresses'],128)
         self.assertNotIn('ipv4_region_cn_addresses',country['RU'])
+
+
+
+
+class FormalAsnTests(unittest.TestCase):
+    SOURCE = {'id':'maxmind-asn','role':'asn','address_families':[4,6]}
+
+    def bundle(self, root, *, v4=None, v6=None, header=None):
+        import csv
+        header = header or ['network','autonomous_system_number','autonomous_system_organization','future_field']
+        for family, rows in ((4,v4 if v4 is not None else [['1.0.0.0/24','13335','Example, Inc.','new']]),
+                             (6,v6 if v6 is not None else [['2400::/32','3257',None,'extra']])):
+            with (root/f'GeoLite2-ASN-Blocks-IPv{family}.csv').open('w',newline='') as stream:
+                writer=csv.writer(stream);writer.writerow(header);writer.writerows(rows)
+
+    def formal(self, prefix, values):
+        from dataclasses import replace
+        row=RoutingRecord.network(prefix,values,'maxmind-asn',raw_prefix_claim=False)
+        return replace(row,semantics='asn-provider-prefix')
+
+    def test_official_csv_named_fields_allow_org_commas_null_and_extra_columns(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);self.bundle(root)
+            rows=list(parse_source('maxmind-asn-csv',root,self.SOURCE))
+        self.assertEqual([r.asns for r in rows],[(13335,),(3257,)])
+        self.assertTrue(all(r.semantics=='asn-provider-prefix' and r.origin_prefix_length is None for r in rows))
+        result=fuse_asn(rows,eligibility=FixtureEligibility())
+        self.assertEqual(result['groups'],{3257:['2400::/32'],13335:['1.0.0.0/24']})
+        self.assertEqual(result['report']['expected_families'],[4,6])
+
+    def test_required_dual_blocks_missing_empty_or_wrong_family_fails(self):
+        for problem in ('missing-v6','empty-v6','wrong-v6','header-missing-asn'):
+            with self.subTest(problem=problem),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                if problem=='header-missing-asn':
+                    self.bundle(root,header=['network','wrong','org','extra'])
+                else:self.bundle(root,v6=[] if problem=='empty-v6' else [['1.0.0.0/24','3257','','']] if problem=='wrong-v6' else None)
+                if problem=='missing-v6':(root/'GeoLite2-ASN-Blocks-IPv6.csv').unlink()
+                with self.assertRaises(ValueError):list(parse_source('maxmind-asn-csv',root,self.SOURCE))
+
+    def test_formal_family_contract_rejects_missing_empty_duplicate_bool_and_string(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);self.bundle(root)
+            for value in (None,[],[4],[6],[4,4,6],[True,6],['4',6],'4,6'):
+                source=dict(self.SOURCE)
+                if value is None:source.pop('address_families')
+                else:source['address_families']=value
+                with self.subTest(value=value),self.assertRaises(ValueError):
+                    list(parse_source('maxmind-asn-csv',root,source))
+
+    def test_deep_unknown_and_special_children_shadow_before_asn_filter(self):
+        rows=[self.formal('1.0.0.0/24',[10]),self.formal('1.0.0.0/25',[0]),
+              self.formal('1.0.0.0/26',[20]),self.formal('1.0.0.0/27',[64512]),
+              self.formal('1.0.0.128/26',[]),self.formal('2400::/120',[30]),
+              self.formal('2400::/121',[64512]),self.formal('2400::/122',[40]),
+              self.formal('2400::/123',[])]
+        result=fuse_asn(rows,eligibility=FixtureEligibility())
+        self.assertEqual(result['groups'],{10:['1.0.0.192/26'],20:['1.0.0.32/27'],
+                                           30:['2400::80/121'],40:['2400::20/123']})
+        self.assertEqual(result['report']['parsed_input_families'],[4,6])
+        self.assertGreater(result['report']['coverage']['ipv6_unknown_or_special_asn_addresses'],0)
+
+    def test_equal_specific_asn_sets_retained_and_no_bgp_can_fill_formal(self):
+        rows=[self.formal('1.0.0.0/24',[10]),self.formal('1.0.0.0/24',[20]),self.formal('2400::/32',[30])]
+        result=fuse_asn(rows,eligibility=FixtureEligibility())
+        self.assertEqual(result['groups'][10],result['groups'][20])
+        with self.assertRaisesRegex(ValueError,'only the configured ASN provider'):
+            fuse_asn(rows+[RoutingRecord.network('1.0.1.0/24',[99],'bgp')],eligibility=FixtureEligibility())
+        with self.assertRaisesRegex(ValueError,'exactly one provider'):
+            fuse_asn(rows+[replace(self.formal('2.0.0.0/24',[10]),source='other')],eligibility=FixtureEligibility())
+
+    def test_mrt_ignores_unused_nlri_padding_for_v4_and_v6(self):
+        from airroute_data.routing import _prefix
+        v4,offset=_prefix(bytes([25,1,0,0,0xff]),0,4)
+        self.assertEqual((v4,offset),('1.0.0.128/25',5))
+        v6,offset=_prefix(bytes([33])+bytes.fromhex('24000000ff'),0,6)
+        self.assertEqual((v6,offset),('2400:0:8000::/33',6))
+        for bad in (bytes([33,1]),bytes([129])+bytes(17)):
+            with self.assertRaises(ValueError):_prefix(bad,0,4 if bad[0]==33 else 6)
+
+    def test_comparison_unknown_child_masks_only_same_peer_and_raw_bgp_stays_visible(self):
+        rows=[RoutingRecord.network('1.0.0.0/24',[10],'bgp','peer-a'),
+              RoutingRecord.network('1.0.0.0/25',[64512],'bgp','peer-a')]
+        result=fuse_routes(rows)
+        self.assertEqual(result['groups'],{10:['1.0.0.128/25']})
+        self.assertEqual(result['observed_prefixes'],['1.0.0.0/24'])
+        derived=RoutingRecord(4,int(ipaddress.ip_address('2.0.0.0')),int(ipaddress.ip_address('2.0.0.255')),(20,),'iptoasn')
+        result=fuse_routes(rows+[derived])
+        self.assertEqual(result['observed_prefixes'],['1.0.0.0/24'])
+        self.assertIn('2.0.0.0/24',result['routed_prefixes'])
+
+
+    def test_formal_asn_uses_iana_asn_reachable_exceptions_not_geo_filter(self):
+        from airroute_data.address_space import AddressEligibility
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            contents={
+                'iana-alloc-v4':'Prefix,Designation,Status\n192/8,IANA,LEGACY\n',
+                'iana-alloc-v6':'Prefix,Designation,Status\n2000::/3,IANA,ALLOCATED\n',
+                'iana-special-v4':'Address Block,Name,Globally Reachable,Destination,Forwardable\n192.0.0.0/24,Protocol assignments,False,False,False\n192.0.0.9/32,PCP anycast,True,True,True\n192.0.0.10/32,TURN anycast,True,True,True\n',
+                'iana-special-v6':'Address Block,Name,Globally Reachable,Destination,Forwardable\n64:ff9b::/96,Translation,True,True,True\n'}
+            sources=[]
+            for sid,text in contents.items():
+                path=root/(sid+'.csv');path.write_text(text)
+                sources.append({'id':sid,'path':str(path),'status':'available'})
+            eligibility=AddressEligibility.from_sources(sources)
+            self.assertFalse(list(eligibility.geo_intervals(4,int(ipaddress.ip_address('192.0.0.9')),int(ipaddress.ip_address('192.0.0.9')))))
+            result=fuse_asn([self.formal('192.0.0.0/24',[10]),self.formal('64:ff9b::/96',[20])],eligibility=eligibility)
+            self.assertEqual(result['groups'],{10:['192.0.0.9/32','192.0.0.10/32'],20:['64:ff9b::/96']})
+
+
+    def test_production_auxiliary_sources_require_each_declared_family_nonempty(self):
+        cases=[('rir-delegated','rir','apnic|CN|ipv4|1.0.0.0|256|20260101|allocated\n'),
+               ('geofeed-csv','geofeed','1.0.0.0/24,CN,CN-BJ,Beijing,\n'),
+               ('china-route-list','cn-reference','1.0.0.0/24\n')]
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'source'
+            for format,role,contents in cases:
+                path.write_text(contents)
+                source={'id':'aux','role':role,'address_families':[4,6]}
+                with self.subTest(format=format),self.assertRaisesRegex(ValueError,'no records for a declared address family'):
+                    list(parse_source(format,path,source))
+                source['address_families']=[4]
+                self.assertEqual(len(list(parse_source(format,path,source))),1)
+                path.write_text('')
+                with self.subTest(empty=format),self.assertRaisesRegex(ValueError,'no records for a declared address family'):
+                    list(parse_source(format,path,source))
+            path.write_text('not a delegated record\n')
+            with self.assertRaisesRegex(ValueError,'no records for a declared address family'):
+                list(parse_source('rir-delegated',path,{'id':'rir','role':'rir','address_families':[4,6]}))
 
 
 if __name__=='__main__':unittest.main()

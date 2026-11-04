@@ -48,7 +48,8 @@ class DomainRefreshTests(unittest.TestCase):
         snapshot = self.snapshot()
         target = self.f.root / 'refreshed'
         with patch('airroute_data.geo.fuse_country', side_effect=AssertionError('Geo was recomputed')), \
-             patch('airroute_data.routing.fuse_routes', side_effect=AssertionError('ASN was recomputed')):
+             patch('airroute_data.routing.fuse_asn', side_effect=AssertionError('ASN was recomputed')), \
+             patch('airroute_data.routing.fuse_routes', side_effect=AssertionError('BGP comparisons were recomputed')):
             manifest = build_domain_candidate(snapshot, target, self.f.config, baseline=base)
         for name in ('special/asn.ardb', 'regions.json'):
             self.assertEqual((base / name).read_bytes(), (target / name).read_bytes())
@@ -87,7 +88,7 @@ class DomainRefreshTests(unittest.TestCase):
         current = self.f.root / 'all-new-inputs'
         acquire_sources(self.f.source_config, current, fixture_dir=self.f.fixture)
         manifest = build_domain_candidate(current / 'snapshot.json', self.f.root / 'reuse', self.f.config, baseline=base)
-        for name in ('country-a', 'country-b', 'routes'):
+        for name in ('country-a', 'country-b', 'maxmind-asn', 'routes', 'iana-alloc-v4', 'iana-alloc-v6', 'iana-special-v4', 'iana-special-v6'):
             before = next(s for s in old['source_snapshot'] if s['id'] == name)
             after = next(s for s in manifest['source_snapshot'] if s['id'] == name)
             self.assertEqual(before, after)

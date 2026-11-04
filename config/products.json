@@ -138,7 +138,7 @@
           "source": "dlc",
           "category": "adobe",
           "required": true,
-          "scope_evidence": "The adobe-activation include also lists an external certificate/activation dependency; inclusion in that connectivity/blocking list does not establish Adobe ownership. Retain Adobe identities, exclude external CA roots and the unproven versign.net entry."
+          "scope_evidence": "Retain the selected upstream connectivity members and their dependencies; this does not establish exclusive ownership."
         }
       ]
     },
@@ -292,14 +292,14 @@
           "path": "rule/Surge/OpenAI/OpenAI.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         },
         {
           "source": "acl4ssr",
           "path": "Clash/Ruleset/OpenAi.list",
           "format": "clash",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -325,20 +325,20 @@
           "path": "rule/Surge/Claude/Claude.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         },
         {
           "source": "acl4ssr",
           "path": "Clash/Ruleset/Claude.list",
           "format": "clash",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
     {
       "id": "provider/gemini",
-      "name": "Gemini / AI Studio",
+      "name": "Gemini / Google AI",
       "kind": "provider",
       "purpose": "所选成熟上游的服务商或具名服务规则；共享端点/IP不表示独占归属，不附加流量动作。",
       "content_types": [
@@ -358,17 +358,17 @@
           "path": "rule/Surge/Gemini/Gemini.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         },
         {
           "source": "acl4ssr",
           "path": "Clash/Ruleset/Gemini.list",
           "format": "clash",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ],
-      "description": "Gemini and AI Studio endpoints; Google DeepMind/Jules/NotebookLM/other Google AI are kept in category/ai but not silently classified as Gemini."
+      "description": "Selected DLC google-deepmind and Gemini upstream lists, including their NotebookLM, Jules and other Google AI endpoints and dependencies. This is not an exclusive Gemini identity claim."
     },
     {
       "id": "provider/perplexity",
@@ -411,7 +411,7 @@
           "path": "rule/Surge/GitHub/GitHub.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         },
         {
           "source": "github-meta",
@@ -448,7 +448,7 @@
           "path": "rule/Surge/GitLab/GitLab.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -474,7 +474,7 @@
           "path": "rule/Surge/Docker/Docker.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -539,7 +539,7 @@
           "path": "rule/Surge/OneDrive/OneDrive.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -584,7 +584,7 @@
           "path": "rule/Surge/Notion/Notion.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -610,7 +610,7 @@
           "path": "rule/Surge/Telegram/Telegram.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         },
         {
           "source": "telegram-endpoints",
@@ -622,7 +622,7 @@
           "path": "Clash/Ruleset/Telegram.list",
           "format": "clash",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -648,7 +648,7 @@
           "path": "rule/Surge/Discord/Discord.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -674,7 +674,7 @@
           "path": "rule/Surge/Whatsapp/Whatsapp.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -719,7 +719,7 @@
           "path": "rule/Surge/Slack/Slack.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -840,7 +840,7 @@
           "path": "rule/Surge/YouTube/YouTube.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -866,7 +866,7 @@
           "path": "rule/Surge/Netflix/Netflix.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -892,7 +892,7 @@
           "path": "rule/Surge/Disney/Disney.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ],
       "description": "Selected upstream rules are normalized and merged; products may overlap and membership does not establish exclusive ownership."
@@ -941,7 +941,7 @@
           "path": "rule/Surge/AmazonPrimeVideo/AmazonPrimeVideo.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -967,7 +967,7 @@
           "path": "rule/Surge/HBO/HBO.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -993,7 +993,7 @@
           "path": "rule/Surge/Spotify/Spotify.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1019,7 +1019,7 @@
           "path": "rule/Surge/AppleMusic/AppleMusic.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1045,14 +1045,14 @@
           "path": "rule/Surge/Steam/Steam.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         },
         {
           "source": "acl4ssr",
           "path": "Clash/Ruleset/Steam.list",
           "format": "clash",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1078,7 +1078,7 @@
           "path": "rule/Surge/Epic/Epic.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1104,7 +1104,7 @@
           "path": "rule/Surge/Blizzard/Blizzard.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1130,7 +1130,7 @@
           "path": "rule/Surge/Xbox/Xbox.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1156,7 +1156,7 @@
           "path": "rule/Surge/PlayStation/PlayStation.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1182,7 +1182,7 @@
           "path": "rule/Surge/Nintendo/Nintendo.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1203,7 +1203,7 @@
           "path": "rule/Surge/GoogleDrive/GoogleDrive.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1223,6 +1223,12 @@
           "source": "microsoft365",
           "format": "official-json",
           "adapter": "microsoft365"
+        },
+        {
+          "source": "microsoft365-cn",
+          "format": "official-json",
+          "adapter": "microsoft365",
+          "mode": "primary"
         }
       ]
     },
@@ -1243,7 +1249,7 @@
           "path": "rule/Surge/Teams/Teams.list",
           "format": "surge",
           "mode": "primary",
-          "admission": "Named service-specific public list; preserve literal match type; admit only configured service roots, excluding shared platform roots and non-domain predicates."
+          "admission": "Selected mature upstream service rules; preserve supported match types, dependencies and IP ranges without a root-ownership gate."
         }
       ]
     },
@@ -1476,10 +1482,6 @@
           "source": "dlc",
           "category": "zoho",
           "required": true
-        },
-        {
-          "source": "dlc",
-          "category": "category-gov-ir"
         }
       ],
       "includes": [
@@ -2085,7 +2087,11 @@
       "path": "rule/Surge/China/China.list",
       "format": "surge-cidr-reference",
       "country": "CN",
-      "field_semantics": "Rule-list membership only, not physical-country evidence"
+      "field_semantics": "Rule-list membership only, not physical-country evidence",
+      "address_families": [
+        4,
+        6
+      ]
     },
     {
       "source": "blackmatrix",
@@ -2093,8 +2099,20 @@
       "path": "rule/Surge/ChinaMax/ChinaMax.list",
       "format": "surge-cidr-reference",
       "country": "CN",
-      "field_semantics": "Expanded rule-list membership only, not physical-country evidence"
+      "field_semantics": "Expanded rule-list membership only, not physical-country evidence",
+      "address_families": [
+        4,
+        6
+      ]
     }
   ],
-  "catalogue_version": "2026-11-03-services-v1"
+  "catalogue_version": "2026-11-03-services-v1",
+  "not_selected_classifications": [
+    {
+      "source": "dlc",
+      "category": "category-gov-ir",
+      "former_product": "category/productivity",
+      "reason": "Government/public-agency classifications are not office or productivity tools. No matching public-institution product is currently defined; do not mislabel those members as productivity."
+    }
+  ]
 }

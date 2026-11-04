@@ -26,16 +26,30 @@ class PipelineTests(unittest.TestCase):
         (self.fixture / "country-a").write_text(a)
         (self.fixture / "country-b").write_text(b)
         (self.fixture / "routes").write_text("1\t1.0.1.0/24\t5\n2\t1.0.1.0/24\t5\n3\t2.2.2.0/24\t5\n4\t2001:4860:1::/48\t5\n")
+        asn = self.fixture / "maxmind-asn"
+        asn.mkdir()
+        (asn / "GeoLite2-ASN-Blocks-IPv4.csv").write_text(
+            "network,autonomous_system_number,autonomous_system_organization\n"
+            "1.0.1.0/24,13335,Fixture Cloud\n2.2.2.0/24,15169,Fixture Search\n1.1.1.0/24,13335,Fixture Cloud\n")
+        (asn / "GeoLite2-ASN-Blocks-IPv6.csv").write_text(
+            "network,autonomous_system_number,autonomous_system_organization\n2001:4860:1::/48,15169,Fixture Search\n")
         (self.fixture / "cn-reference").write_text("1.0.1.0/24\n1.1.1.0/24\n")
         tree = self.fixture / "dlc" / "data"
         tree.mkdir(parents=True)
+        (tree / "category-ntp").write_text("full:time.fixture.example\n")
+        (tree / "category-stun").write_text("full:stun.fixture.example\n")
+        (tree / "private").write_text("domain:local\ndomain:home.arpa\n")
         (tree / "cn-identity").write_text("domain:mainland.example\nfull:only.mainland.example\n")
         (tree / "service").write_text("domain:overseas.example\ndomain:mainland.example\nregexp:^(?:api|web)\\.foreign\\.example$\n")
-        sources = [{"id": "country-a", "role": "country", "format": "country-csv", "lineage": "publisher-a"},
-                   {"id": "country-b", "role": "country", "format": "country-csv", "lineage": "publisher-b"},
-                   {"id": "routes", "role": "routing", "format": "ris-whois", "lineage": "ris"},
-                   {"id": "cn-reference", "role": "cn-reference", "format": "cidr-list", "lineage": "routing-reference", "country": "CN"},
+        sources = [{"id": "country-a", "role": "country", "format": "country-csv", "lineage": "publisher-a", "address_families":[4,6]},
+                   {"id": "country-b", "role": "country", "format": "country-csv", "lineage": "publisher-b", "address_families":[4,6]},
+                   {"id": "routes", "role": "routing", "format": "ris-whois", "lineage": "ris", "address_families":[4,6]},
+                   {"id": "cn-reference", "role": "cn-reference", "format": "cidr-list", "lineage": "routing-reference", "country": "CN", "address_families":[4]},
                    {"id": "dlc", "role": "domains", "format": "dlc", "lineage": "dlc"}]
+        sources.append({"id":"maxmind-asn","role":"asn","format":"maxmind-asn-csv", "lineage":"maxmind-geolite-asn",
+                        "address_families":[4,6],"required":True})
+        from input_fixtures import write_iana_fixture
+        sources.extend(write_iana_fixture(self.fixture))
         for source in sources:source.update(publish_allowed=True, license="synthetic fixtures")
         self.source_config = self.root / "sources.json"
         self.source_config.write_text(json.dumps({"schema": 1, "sources": sources}))
@@ -51,6 +65,10 @@ class PipelineTests(unittest.TestCase):
             {"id": "category/example", "selectors": [{"source": "dlc", "category": "service"}]}]}))
         self.snapshot = self.root / "snapshot"
         acquire_sources(self.source_config, self.snapshot, fixture_dir=self.fixture)
+
+    def refresh_snapshot(self,name):
+        self.snapshot=self.root/name
+        acquire_sources(self.source_config,self.snapshot,fixture_dir=self.fixture)
 
     def run_build(self, name="candidate", **kwargs):
         target = self.root / name
@@ -70,8 +88,12 @@ class PipelineTests(unittest.TestCase):
         self.assertFalse((target / "region/cn.list").exists())
         from airroute_data.ardb import read_database
         asn = read_database(target / "special/asn.ardb", "asn")
-        self.assertIn("1.0.1.0/24", asn[1])
-        self.assertIn("1.0.1.0/24", asn[2])
+        self.assertIn("1.0.1.0/24", asn[13335])
+        self.assertNotIn(1,asn)
+        self.assertNotIn(2,asn)
+        self.assertIn("2001:4860:1::/48",asn[15169])
+        self.assertEqual(manifest["summary"]["asn_expected_families"],[4,6])
+        self.assertEqual(manifest["summary"]["asn_input_families"],[4,6])
         report = json.loads((target / "reports/geo.json").read_text())
         issues = "".join((target / "reports" / part["path"]).read_text() for part in report["issue_files"])
         self.assertIn('"region_disagreement": true', issues)
@@ -105,17 +127,50 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "summary|coverage"):
             validate_candidate(target)
 
-    def test_missing_fallback_does_not_block_but_missing_primary_fails(self):
-        metadata = self.snapshot / "snapshot.json"
-        snapshot = json.loads(metadata.read_text())
-        snapshot["sources"][1]["status"] = "unavailable"
+    def test_enabled_participating_source_failure_is_not_silently_skipped(self):
+        metadata=self.snapshot/"snapshot.json";snapshot=json.loads(metadata.read_text())
+        snapshot["sources"][1]["status"]="unavailable";metadata.write_text(json.dumps(snapshot))
+        with self.assertRaisesRegex(ValueError,"country-b.*not available"):
+            self.run_build("missing-fallback")
+        snapshot["sources"][1]["status"]="available";snapshot["sources"][0]["status"]="download-failed"
         metadata.write_text(json.dumps(snapshot))
-        target, result = self.run_build()
-        self.assertTrue((target / "special/asn.ardb").is_file())
-        snapshot["sources"][0]["status"] = "download-failed"
-        metadata.write_text(json.dumps(snapshot))
-        with self.assertRaisesRegex(ValueError, "primary country source unavailable"):
+        with self.assertRaisesRegex(ValueError,"country-a.*not available"):
             self.run_build("missing-primary")
+
+
+    def test_formal_asn_requires_ipv6_file_even_when_bgp_has_ipv6(self):
+        (self.fixture/'maxmind-asn/GeoLite2-ASN-Blocks-IPv6.csv').unlink()
+        self.refresh_snapshot('missing-formal-v6')
+        with self.assertRaisesRegex(ValueError,'IPv6|IPv4.*IPv6|both'):
+            self.run_build('missing-formal-candidate')
+
+    def test_frozen_iana_eligibility_distinguishes_geo_and_asn(self):
+        path=self.fixture/'country-a'
+        path.write_text(path.read_text()+'192.0.0.9/32,CN\n4000::/48,US\n')
+        path=self.fixture/'maxmind-asn/GeoLite2-ASN-Blocks-IPv4.csv'
+        path.write_text(path.read_text()+'192.0.0.9/32,13335,Fixture Anycast\n')
+        path=self.fixture/'maxmind-asn/GeoLite2-ASN-Blocks-IPv6.csv'
+        path.write_text(path.read_text()+'4000::/48,15169,Fixture Future Allocation\n')
+        self.refresh_snapshot('eligibility-snapshot')
+        target,manifest=self.run_build('eligibility-candidate')
+        from airroute_data.ardb import read_database
+        asn=read_database(target/'special/asn.ardb','asn')
+        self.assertIn('192.0.0.9/32',asn[13335])
+        self.assertNotIn('192.0.0.9',(target/'region/cn-ip.list').read_text())
+        self.assertIn('IP-CIDR6,4000::/48',(target/'region/us.list').read_text())
+        self.assertIn('4000::/48',asn[15169])
+        self.assertTrue(manifest['address_eligibility']['geo'])
+        self.assertTrue(validate_candidate(target)['valid'])
+
+
+    def test_selected_auxiliary_file_missing_is_fatal_without_required_flag(self):
+        path = self.config / "products.json"
+        config = json.loads(path.read_text())
+        config["auxiliary_views"] = [{"source": "dlc", "id": "missing-view", "path": "missing.list",
+            "format": "surge-cidr-reference", "country": "CN", "address_families": [4]}]
+        path.write_text(json.dumps(config))
+        with self.assertRaisesRegex(ValueError, "participating auxiliary view.*missing-view"):
+            self.run_build()
 
     def test_history_volume_does_not_block_valid_output(self):
         baseline, _ = self.run_build()
@@ -143,7 +198,7 @@ class PipelineTests(unittest.TestCase):
         acquire_sources(self.source_config, self.snapshot, fixture_dir=self.fixture)
         config = self.config / "products.json"
         products = json.loads(config.read_text())
-        products["auxiliary_views"] = [{"source": "bm", "id": "bm-cn-ip", "path": "china.list", "format": "surge-cidr-reference", "country": "CN"}]
+        products["auxiliary_views"] = [{"source": "bm", "id": "bm-cn-ip", "path": "china.list", "format": "surge-cidr-reference", "country": "CN", "address_families":[4]}]
         config.write_text(json.dumps(products))
         target, _ = self.run_build()
         audit = json.loads((target / "reports/auxiliary.json").read_text())

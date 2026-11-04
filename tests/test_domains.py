@@ -5,7 +5,7 @@ import re
 import tempfile
 import unittest
 
-from airroute_data.domains import DLC, RuleError, build_domains, load_products, minimize, normalize_rule, parse_third_party, validate_domain_groups
+from airroute_data.domains import DLC, RuleError, build_domains, load_products, minimize, normalize_rule, parse_third_party, validate_domain_groups, official_domains, domain_match
 
 
 class DomainTests(unittest.TestCase):
@@ -107,16 +107,31 @@ class DomainTests(unittest.TestCase):
             with self.assertRaises(RuleError):
                 normalize_rule("DOMAIN-REGEX", regex)
 
-    def test_core_lowercase_must_not_invert_regex_escape_operators(self):
-        original = r"^api\D+\.example$"
-        self.assertTrue(re.search(original, "apiabc.example"))
-        self.assertFalse(re.search(original, "api123.example"))
-        for operator in ("D", "S", "W", "B", "A", "P"):
-            with self.assertRaisesRegex(RuleError, "uppercase regex escape"):
-                normalize_rule("DOMAIN-REGEX", rf"^api\{operator}+\.example$")
-        rules, bad = parse_third_party("DOMAIN-REGEX," + original, "surge")
-        self.assertEqual(rules, [])
-        self.assertEqual(len(bad), 1)
+    def test_core_lowercase_safe_negated_regex_shorthands_preserve_language(self):
+        for operator in ("D", "S", "W"):
+            original = rf"^api\{operator}+\.example$"
+            rule = normalize_rule("DOMAIN-REGEX", original)
+            self.assertEqual(rule.value, rf"^api[^\{operator.lower()}]+\.example$")
+            self.assertEqual(dict(rule.source_details)["original_regex"],original)
+            for host in ("apiabc.example","api123.example","api-a.example","api.a.example","api_.example"):
+                self.assertEqual(bool(re.search(original,host)),bool(re.search(rule.value,host)))
+        for operator in ("B", "A", "P"):
+            with self.assertRaisesRegex(RuleError,"uppercase regex escape"):
+                normalize_rule("DOMAIN-REGEX",rf"^api\{operator}+\.example$")
+        with self.assertRaises(RuleError):
+            normalize_rule("DOMAIN-REGEX",r"^api[\S]+\.example$")
+
+    def test_openai_webpubsub_regex_matches_concrete_hosts_after_core_normalization(self):
+        original=r"^chatgpt-async-webps-prod-\S+-\d+\.webpubsub\.azure\.com$"
+        rule=normalize_rule("DOMAIN-REGEX",original)
+        for host in ("chatgpt-async-webps-prod-eastus-3.webpubsub.azure.com",
+                     "chatgpt-async-webps-prod-a.b-42.webpubsub.azure.com"):
+            self.assertTrue(domain_match(rule,host))
+            self.assertTrue(domain_match(rule,host.upper()))
+        for host in ("chatgpt-async-webps-prod-eastus-x.webpubsub.azure.com",
+                     "chatgpt-async-webps-prod-eastus-3.webpubsub.azure.com.evil",
+                     "evil.chatgpt-async-webps-prod-eastus-3.webpubsub.azure.com"):
+            self.assertFalse(domain_match(rule,host))
 
     def test_core_lowercase_must_not_broaden_regex_literals_or_classes(self):
         for original, host in ((r"^api[A-Z]+\.example$", "apixy.example"), (r"^API\.example$", "api.example")):
@@ -178,27 +193,40 @@ class DomainTests(unittest.TestCase):
         self.assertEqual(set(groups["category/test"]), {"DOMAIN-SUFFIX,owned.example", "DOMAIN-SUFFIX,shared-ca.example", "IP-CIDR,192.0.2.0/24", "IP-ASN,13335"})
         self.assertFalse(report["quarantined"])
 
-    def test_official_endpoint_template_failure_does_not_discard_valid_feed_rows(self):
-        root = self.temporary_dlc({"cn-test": "local.example\n"})
-        endpoints = root / "microsoft365.json"
-        endpoints.write_text(json.dumps([
-            {"id": 1, "serviceArea": "Common", "urls": ["machine.example", "*.wild.example", "autodiscover.*.onmicrosoft.com"]},
-            {"id": 2, "serviceArea": "Common", "urls": ["second-machine.example", "*cdn.onenote.net"]},
-        ]))
-        products = {"schema": 1, "groups": [
-            {"id": "region/cn-domain", "selectors": [{"source": "dlc", "category": "cn-test"}]},
-            {"id": "provider/microsoft", "selectors": [{"source": "microsoft365", "format": "official-json", "adapter": "microsoft365"}]},
-        ]}
-        groups, report = build_domains([
-            {"id": "dlc", "format": "dlc", "path": str(root)},
-            {"id": "microsoft365", "format": "official-json", "path": str(endpoints)},
-        ], products)
-        self.assertEqual(report["unavailable_selectors"], [])
-        self.assertEqual(groups["provider/microsoft"], ["DOMAIN,machine.example", "DOMAIN,second-machine.example", r"DOMAIN-REGEX,^.+\.wild\.example$"])
-        self.assertEqual({q["predicate"] for q in report["quarantined"]}, {"autodiscover.*.onmicrosoft.com", "*cdn.onenote.net"})
-        self.assertEqual(report["quarantined"][0]["source"], "microsoft365")
-        self.assertEqual(report["quarantined"][0]["record_id"], 1)
-        self.assertEqual(report["quarantined"][0]["endpoint_index"], 3)
+    def test_official_wildcards_convert_without_promoting_parent_and_report_covered_raw_templates(self):
+        data=[{"id":1,"serviceArea":"Common","urls":["machine.example","*.wild.example","autodiscover.*.onmicrosoft.com"]},
+              {"id":2,"serviceArea":"Common","urls":["second-machine.example","*cdn.onenote.net"]},
+              {"id":3,"serviceArea":"Common","urls":["*.onmicrosoft.com"]}]
+        rows,bad=official_domains(data,"microsoft365",{"adapter":"microsoft365"})
+        self.assertEqual(len(bad),1)
+        self.assertEqual(bad[0]["record_id"],1)
+        self.assertEqual(bad[0]["endpoint_index"],3)
+        self.assertEqual(bad[0]["endpoint_field"],"urls")
+        self.assertEqual(bad[0]["covered_by"],r"DOMAIN-REGEX,^.+\.onmicrosoft\.com$")
+        self.assertIn("unsupported",bad[0]["coverage_note"])
+        cdn=next(r for r in rows if dict(r.source_details)["upstream_value"]=="*cdn.onenote.net")
+        for host in ("cdn.onenote.net","abc-cdn.onenote.net","nested.cdn.onenote.net"):
+            self.assertTrue(domain_match(cdn,host))
+        for host in ("onenote.net","cdn.onenote.net.evil","cdn.notonenote.net"):
+            self.assertFalse(domain_match(cdn,host))
+        strict=next(r for r in rows if dict(r.source_details)["upstream_value"]=="*.wild.example")
+        self.assertTrue(domain_match(strict,"a.wild.example"))
+        self.assertFalse(domain_match(strict,"wild.example"))
+
+    def test_microsoft365_url_only_ip_only_and_combined_records_preserve_provenance(self):
+        data=[{"id":10,"serviceArea":"Common","urls":["service.example"]},
+              {"id":20,"serviceArea":"Exchange","ips":["203.0.113.0/24","2001:db8::/32"]},
+              {"id":30,"serviceArea":"SharePoint","urls":["tenant.example"],"ips":["198.51.100.0/24"],"tcpPorts":"443"}]
+        rows,bad=official_domains(data,"microsoft365",{"adapter":"microsoft365"})
+        self.assertFalse(bad)
+        self.assertEqual({r.text for r in rows},{"DOMAIN,service.example","DOMAIN,tenant.example","IP-CIDR,203.0.113.0/24","IP-CIDR6,2001:db8::/32","IP-CIDR,198.51.100.0/24"})
+        self.assertEqual({dict(r.source_details)["record_id"] for r in rows},{10,20,30})
+        for row in rows:
+            details=dict(row.source_details)
+            self.assertEqual(row.source,"microsoft365")
+            self.assertEqual(details["endpoint_field"],"ips" if row.kind.startswith("IP-CIDR") else "urls")
+            self.assertGreater(details["endpoint_index"],0)
+        self.assertEqual(dict(next(r for r in rows if r.value=="198.51.100.0/24").source_details)["tcpPorts"],"443")
 
     def test_upstream_resolution_modifiers_are_removed_and_recorded(self):
         rows,bad=parse_third_party("IP-CIDR,1.0.0.0/25,no-resolve\nIP-CIDR,1.0.0.128/25,DIRECT,no-resolve\nIP-CIDR,1.0.0.0/24\nIP-ASN,132203,no-resolve\n","surge")
@@ -221,12 +249,27 @@ class DomainTests(unittest.TestCase):
         _, report = build_domains([], products)
         self.assertEqual(len(report["unavailable_selectors"]), 1)
 
-    def test_missing_optional_files_do_not_leak_checkout_path(self):
-        products = {"schema": 1, "groups": [{"id": "region/cn-domain", "selectors": []}, {"id": "category/test", "selectors": [{"source": "ref", "path": "missing.list"}]}]}
-        first = build_domains([{"id": "ref", "format": "surge", "path": "/tmp/build-a/missing"}], products)
-        second = build_domains([{"id": "ref", "format": "surge", "path": "/tmp/build-b/missing"}], products)
-        self.assertEqual(first, second)
-        self.assertNotIn("/tmp/", json.dumps(first))
+    def test_available_optional_selected_source_failure_is_fatal_and_path_safe(self):
+        products={"schema":1,"groups":[{"id":"region/cn-domain","selectors":[]},
+                  {"id":"category/test","selectors":[{"source":"ref","path":"missing.list"}]}]}
+        errors=[]
+        for path in ("/tmp/build-a/missing","/tmp/build-b/missing"):
+            with self.assertRaises(RuleError) as error:
+                build_domains([{"id":"ref","format":"surge","path":path}],products)
+            errors.append(str(error.exception))
+        self.assertEqual(errors[0],errors[1])
+        self.assertNotIn("/tmp/",errors[0])
+        groups,report=build_domains([{"id":"ref","format":"surge","status":"disabled"}],products)
+        self.assertEqual(groups["category/test"],[])
+        self.assertEqual(len(report["unavailable_selectors"]),1)
+
+    def test_selected_available_malformed_official_json_is_not_optional_success(self):
+        root=self.temporary_dlc({"cn":"local.example\n"})
+        path=root/"broken.json";path.write_text("{broken")
+        products={"schema":1,"groups":[{"id":"region/cn-domain","selectors":[]},
+            {"id":"provider/m365","selectors":[{"source":"m365","format":"official-json","adapter":"microsoft365"}]}]}
+        with self.assertRaisesRegex(RuleError,"selected selector"):
+            build_domains([{"id":"m365","path":str(path),"format":"official-json"}],products)
 
     def test_output_validation_checks_format_and_region_types_not_identity(self):
         valid = {"region/cn-domain": ["DOMAIN-SUFFIX,cn", "DOMAIN,cn.mixed.example"],

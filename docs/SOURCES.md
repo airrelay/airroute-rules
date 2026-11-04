@@ -14,13 +14,23 @@
 | [IP2Location LITE DB1](https://lite.ip2location.com/database/db1-ip-country) | IPv4/IPv6 分别下载 ZIP CSV，十进制首末地址 | 免费账号，`IP2LOCATION_TOKEN`；遵守官方免费频率及令牌要求 | 国家位置估计；IPv6 明确按 128 位解析，不按数值大小猜地址族 |
 | [IPLocate Country](https://github.com/iplocate/ip-address-databases) | 官方双栈 Country CSV ZIP，固定 Git commit 的载体 | 无令牌、官方公开发布链 | `country_code` 为国家位置估计；不改用 ASN-holder country；CC BY-SA 4.0 |
 
-当前固定顺序为 **IPLocate → MaxMind → DB-IP → IPinfo → IP2Location**。IPLocate 是必需主源；某段无有效地域结果时才向后补缺。主源整库失败不静默替换。可选来源缺凭据、未选择、失败或禁用不是一票“国外”，也不伪称五源成功。来源冲突保存其他原始值及范围，不删除有效主源结果。
+当前固定顺序为 **IPLocate → MaxMind → DB-IP → IPinfo → IP2Location**。IPLocate 是必需主源；某段无有效地域结果时才向后补缺。DB-IP IPv6 在策略配置中设为只比较，不参与优先选择或补缺；DB-IP IPv4 仍按顺序使用。主源整库失败不静默替换。来源冲突保存其他原始值及范围，不删除有效主源结果。
+
+本轮已选择且启用的来源若缺凭据、下载/解析失败或不满足其格式的必需完整性要求，明确使构建失败；不悄悄跳过，不使用旧快照或缓存顶替。确实不参与的可选源必须明确禁用或未选择，记录其状态，不能算成成功来源。必需主源、正式 ASN 与冻结 IANA 资料仍须存在。
 
 五家有不同发行链，不代表统计独立；同源镜像、格式转换及已知衍生保留血缘，不重复计为独立支持。本策略不使用投票或准确率评分。2026-11-04 的旧运行 [41778397925](https://github.com/airrelay/airroute-rules/actions/runs/41778397925) 曾实际取得并解析五家双栈输入，但它使用旧融合策略且未发布，不是本版新策略的验收。
 
 MaxMind 按已确认要求直接参与派生构建，随其他来源记录版本、摘要与贡献，保留署名、CC BY-SA 和 GeoLite EULA 相关义务。免费可下载不等于可无条件再分发；Git 历史及下游删除义务不因开关自动解决，不擅自清理历史。其他来源同样保留各自许可和归因。凭据只来自环境变量或 Actions Secrets，不写入 URL 日志、配置快照或产物。
 
-## BGP、ASN、登记与 geofeed
+## 正式 ASN 与冻结 IANA
+
+`maxmind-asn`（`maxmind-asn-csv`）是 `special/asn.ardb` 的唯一正式输入。下载 MaxMind GeoLite ASN CSV 的 IPv4/IPv6 Blocks，使用 `network`、`autonomous_system_number` 和组织说明；复用 `MAXMIND_ACCOUNT_ID` / `MAXMIND_LICENSE_KEY`，与 Country 是不同文件和不同语义。两族均须解析，不由国家库、ASN 注册国、RIS 或 IPtoASN 顶替。许可和署名仍按来源配置记录。
+
+`iana-alloc-v4`、`iana-alloc-v6` 与 `iana-special-v4`、`iana-special-v6` 是本轮冻结的必需资格输入。分配状态决定已分配/legacy 边界，特殊用途的更具体字段用于不同 Geo/ASN 资格处理。Geo 排除全部特殊用途；ASN 按 Globally Reachable 的 TRUE 例外及 FALSE/N/A 边界处理。它们是地址资格而非位置、通告或所有权证明。原始路由比较不被这些输出资格静默删除。
+
+## BGP、IPtoASN、登记与 geofeed 比较
+
+以下来源保留各自输入及实际观测/衍生含义，只比较正式 ASN/地域结果，不参与正式 ASN 写入，也不是地域替代票。
 
 - [RIPE RISwhois](https://www.ris.ripe.net/docs/ris-whois/)：批量 IPv4/IPv6 origin/prefix 聚合及 peer 数，缺少逐 peer 身份不能伪装为同一 peer。用于当前观察，不证明物理位置。
 - [Route Views](https://archive.routeviews.org/)：固定 collector、月份和完整 MRT RIB；保留真实 collector/peer、AS_SET、多起源及更具体前缀。TABLE_DUMP_V2 的合成夹具能力不等于当轮采集器真实提供所有地址族。
@@ -64,4 +74,4 @@ DLC NTP/STUN 与 [DustinWin fakeip-filter](https://github.com/DustinWin/ruleset_
 
 下载先于计算；GitHub 输入先固定 commit，HTTP 输入记录实际摘要、ETag/Last-Modified（如有）。解压拒绝路径穿越、链接、特殊文件、重复覆盖；跨源重定向剥离授权头，不降级 HTTP。构建复核快照路径、长度与树摘要，原始厂商归档不公开发布。
 
-`fetched_at` 是获取时间，不伪装成发布日期或准确性。来源版本相同不要求重复提交。缺少可选输入及辅助报告如实记录；必需主源缺失、文件损坏和格式错误保留真实失败，不靠历史数量阈值掩盖。失败诊断尽力保存，诊断整理失败不覆盖主错误。查询方法与保留时间见 [BUILD_RECORDS](BUILD_RECORDS.md)。
+`fetched_at` 是获取时间，不伪装成发布日期或准确性。来源版本相同不要求重复提交。明确未参与的可选输入或没有执行的辅助报告如实标记；启用参与的来源获取、解析失败不可用“可选报告”掩盖。必需主源、正式 MaxMind ASN、冻结 IANA 缺失、文件损坏和格式错误保留真实失败，不靠历史数量阈值掩盖。失败诊断尽力保存，诊断整理失败不覆盖主错误。查询方法与保留时间见 [BUILD_RECORDS](BUILD_RECORDS.md)。

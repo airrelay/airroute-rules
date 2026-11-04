@@ -115,11 +115,14 @@ class DomainTraceTests(unittest.TestCase):
         self.assertTrue(any(x['group'] == 'special/realip' and x['stage'] == 'compaction' for x in sink.domain))
 
     def test_special_selector_parse_failure_and_exact_endpoint_provenance(self):
-        source = self.dlc({'category-ntp': 'full:ntp.clock.example\nclock.example\n', 'private': 'home.arpa\n'})
+        source = self.dlc({'category-ntp': 'full:ntp.clock.example\nclock.example\n', 'category-stun':'full:stun.clock.example\n', 'private': 'home.arpa\n'})
         sink = Sink()
         self.assertEqual(build_special([source]), build_special([source], trace=sink))
         self.assertTrue(any(x['stage'] == 'scope' and x['predicate'] == 'DOMAIN,ntp.clock.example' and x['status'] == 'accept' and x['snapshot'] for x in sink.domain))
         self.assertTrue(any(x['stage'] == 'scope' and x['predicate'] == 'DOMAIN-SUFFIX,clock.example' and x['status'] == 'accept' for x in sink.domain))
+        (Path(source['path'])/'data/category-stun').unlink()
+        with self.assertRaisesRegex(RuleError,'participating special source'):
+            build_special([source],trace=sink)
         self.assertTrue(any(x['stage'] == 'special-selector' and x['status'] == 'failed' for x in sink.source))
 
 

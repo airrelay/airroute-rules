@@ -93,7 +93,14 @@ def _download(url, target, headers, limit):
     tmp = target.with_name(target.name + ".part")
     try:
         with _request(url, headers) as response, tmp.open("wb") as output:
+            declared_length = response.headers.get("Content-Length")
+            if declared_length is not None:
+                if not str(declared_length).isdecimal() or int(declared_length) > limit:
+                    raise AcquisitionError("invalid or oversized dataset Content-Length")
+                declared_length = int(declared_length)
             digest, size = _stream_copy(response, output, limit)
+            if declared_length is not None and size != declared_length:
+                raise AcquisitionError("dataset transfer length mismatch")
             metadata = {"url": _safe_url(url), "sha256": digest, "bytes": size,
                         "etag": response.headers.get("ETag", ""),
                         "last_modified": response.headers.get("Last-Modified", "")}
@@ -309,7 +316,11 @@ def _get_source(source, directory, now, commits):
 
 def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=None,
                     now=None, source_ids: Iterable[str] | None = None, trace=None) -> dict[str, Any]:
-    """Fix bytes once; each missing optional source is reported independently."""
+    """Freeze participating inputs; fail at the first preparation failure.
+
+    The partial snapshot records the original failure for diagnostics only and
+    can never be consumed as a complete build input.
+    """
     config_path, output_dir = Path(config_path), Path(output_dir)
     if output_dir.exists() and any(output_dir.iterdir()):
         raise AcquisitionError("snapshot output must be a new empty directory")
@@ -326,6 +337,19 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
     timestamp = now.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
     output_dir.mkdir(parents=True, exist_ok=True)
     result = {"schema": 1, "created_at": timestamp, "sources": []}; commits = {}
+    def persist():
+        output_dir.joinpath("snapshot.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+        if trace is not None: trace.inputs(result, config_path.parent)
+
+    def fail(entry):
+        result["status"] = "failed"
+        try:
+            persist()
+        except Exception:
+            # A diagnostic write failure must not replace the source failure.
+            pass
+        raise AcquisitionError(f"{entry['id']}: {entry['status']}: {entry.get('error', 'required environment credential is absent')}")
+
     for source in sources:
         entry = {k: v for k, v in source.items() if k not in {"auth", "url", "files"}}
         entry["fetched_at"] = timestamp
@@ -343,7 +367,8 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
         if missing and fixture_dir is None:
             entry.update(status="missing-credentials", missing_env=missing)
             if trace is not None: trace.source_event(source['id'], 'acquisition', 'missing-credentials', missing_env=missing)
-            result["sources"].append(entry); continue
+            result["sources"].append(entry)
+            fail(entry)
         directory = output_dir / "sources" / source["id"]
         try:
             if fixture_dir is not None:
@@ -364,6 +389,8 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
             else:
                 raise AcquisitionError("network acquisition is disabled")
             data["path"] = data["path"].relative_to(output_dir).as_posix()
+            if not data["bytes"]:
+                raise AcquisitionError("input payload is empty")
             entry.update(data, status="available")
         except Exception as exc:
             if directory.exists():
@@ -380,8 +407,11 @@ def acquire_sources(config_path, output_dir, *, allow_network=True, fixture_dir=
             diagnostic_status = 'downloaded' if entry['status']=='available' else 'missing-configuration' if missing_fields else 'download-failed'
             trace.source_event(source['id'], 'acquisition', diagnostic_status,
                                bytes=entry.get('bytes'), sha256=entry.get('sha256'), error=entry.get('error'), missing_fields=missing_fields)
-    output_dir.joinpath("snapshot.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
-    if trace is not None: trace.inputs(result, config_path.parent)
+        if entry["status"] != "available":
+            fail(entry)
+        persist()
+    result["status"] = "complete"
+    persist()
     return result
 
 
@@ -390,9 +420,13 @@ def verify_snapshot(snapshot_dir, trace=None):
     result = json.loads((snapshot_dir / "snapshot.json").read_text())
     if result.get("schema") != 1:
         raise AcquisitionError("unsupported input snapshot")
+    if result.get("status") == "failed":
+        raise AcquisitionError("input snapshot preparation failed; partial inputs cannot build")
     for source in result["sources"]:
-        if source["status"] != "available":
+        if source["status"] in {"disabled", "not-selected"}:
             continue
+        if source["status"] != "available":
+            raise AcquisitionError(f"{source['id']}: participating source is not available ({source['status']})")
         path = snapshot_dir.joinpath(*_member_path(source["path"]).parts)
         if not path.resolve().is_relative_to(snapshot_dir):
             raise AcquisitionError("snapshot path escapes input root")

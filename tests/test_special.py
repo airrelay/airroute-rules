@@ -102,13 +102,15 @@ class SpecialTests(unittest.TestCase):
             self.assertEqual(report["registry_checks"][src["id"]]["status"], "consistent")
             self.assertEqual(report["registry_checks"][src["id"]]["checked_prefixes"], len(lines))
 
-    def test_unavailable_optional_category_is_reported_without_erasing_rfc_data(self):
+    def test_selected_source_missing_required_content_is_fatal(self):
         root = self.root / "partial"
         root.mkdir()
         (root / "private").write_text("home.arpa\n")
-        groups, report = build_special([{"id": "dlc", "path": str(root)}])
+        with self.assertRaisesRegex(RuleError, "participating special source dlc"):
+            build_special([{"id": "dlc", "path": str(root)}])
+        groups, report = build_special([])
         self.assertEqual(len(groups["special/lan"]), 11)
-        self.assertTrue(any(x.get("selector") == "category-ntp" and x["status"] == "failed" for x in report["selector_health"]))
+        self.assertTrue(any(x.get("selector") == "category-ntp" and x["status"] == "unavailable" for x in report["selector_health"]))
 
     def test_config_evidence_and_output_completeness_are_enforced(self):
         config = copy.deepcopy(load_special_config())
