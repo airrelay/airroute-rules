@@ -47,6 +47,9 @@ def parser() -> argparse.ArgumentParser:
     publish.add_argument("--attempt", type=int, default=1)
     publish.add_argument("--remote", default="origin")
     publish.add_argument("--branch", default="release")
+    publish.add_argument("--source-remote", help="source fence remote; defaults to the publication remote")
+    publish.add_argument("--source-branch", default="main")
+    publish.add_argument("--replace-legacy-head", help="explicitly replace this exact target SHA only when no release manifest exists")
     rollback = commands.add_parser("rollback")
     rollback.add_argument("--version", required=True)
     rollback.add_argument("--repo", type=Path, default=Path("."))
@@ -55,6 +58,8 @@ def parser() -> argparse.ArgumentParser:
     rollback.add_argument("--attempt", type=int, default=1)
     rollback.add_argument("--remote", default="origin")
     rollback.add_argument("--branch", default="release")
+    rollback.add_argument("--source-remote", help="source fence remote; defaults to the publication remote")
+    rollback.add_argument("--source-branch", default="main")
     return root
 
 
@@ -81,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "publish":
             from .publish import publish
             result = publish(args.candidate, args.repo, args.source_sha, sequence=args.sequence, attempt=args.attempt,
-                             remote=args.remote, branch=args.branch)
+                             remote=args.remote, branch=args.branch, source_remote=args.source_remote, source_branch=args.source_branch,
+                             replace_legacy_head=args.replace_legacy_head)
         elif args.command == "compare":
             from .coverage import compare_directories
             report = compare_directories(args.before, args.after)
@@ -90,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             from .publish import rollback
             result = rollback(args.repo, args.version, args.source_sha, sequence=args.sequence, attempt=args.attempt,
-                              remote=args.remote, branch=args.branch)
+                              remote=args.remote, branch=args.branch, source_remote=args.source_remote, source_branch=args.source_branch)
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return 0
     except (ValueError, OSError, KeyError, RuntimeError) as error:

@@ -6,13 +6,13 @@
 
 | 发布链 | 免费格式 / 双栈 | 注册、配额与更新 | 字段与默认状态 |
 | --- | --- | --- | --- |
-| [MaxMind GeoLite Country](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/) | Country CSV ZIP，IPv4/IPv6 Blocks 和 Locations | 免费账户，`MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY`；HTTP Basic；每日最多30次库下载；周二/五及临时更新 | Blocks `geoname_id` 对应位置国家；`registered_country_geoname_id` 是注册地，不能补作位置。默认可下载/解析/内部比较，不进入公开派生，原因见下文 |
+| [MaxMind GeoLite Country](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/) | Country CSV ZIP，IPv4/IPv6 Blocks 和 Locations | 免费账户，`MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY`；HTTP Basic；每日最多30次库下载；周二/五及临时更新 | Blocks `geoname_id` 对应位置国家；`registered_country_geoname_id` 是注册地，不能补作位置。已启用获取、解析和派生融合；许可义务见下文 |
 | [DB-IP Country Lite](https://db-ip.com/db/lite.php) | 月度 CSV gzip，IPv4+IPv6同文件 | 无账户或令牌；月度完整快照，不是增量 | `ip_start,ip_end,country` 为国家位置估计；Lite覆盖及精度有降级；CC BY4.0，随产物署名 |
 | [IPinfo Lite](https://ipinfo.io/developers/ipinfo-lite-database) | `ipinfo_lite.csv.gz`，双栈；亦有JSON/MMDB/Parquet，本项目只取CSV | 免费账户及 `IPINFO_TOKEN`；每日更新 | 当前 `network,country,country_code,continent,continent_code,asn,as_name,as_domain`；国家字段是IP位置估计，ASN主体另论。CC BY-SA4.0。无令牌的公开100行sample只能测试，不能冒充完整来源 |
 | [IP2Location LITE DB1](https://lite.ip2location.com/database/db1-ip-country) | IPv4/IPv6两份CSV ZIP，十进制起止地址 | 免费账户及 `IP2LOCATION_TOKEN`；LITE下载已迁至IP2Location.com。当前DB1页显示半月更新，FAQ/下载器仍建议每月首周随机一天下载，以实际载体为准 | `ip_from,ip_to,country_code,country_name` 为国家位置估计；IPv6按128位解释，不能按数值大小猜族。免费署名/share-alike条款；无凭据明确缺源 |
 | [IPLocate Country](https://github.com/iplocate/ip-address-databases) | 官方Country CSV ZIP，双栈；固定commit的LFS media原文件 | 无账户/令牌，无逐IP API；每日发布链 | `network,continent_code,country_code,country_name` 是国家位置估计；不能替换成ASN-holder country。CC BY-SA4.0，随产物署名 |
 
-免费不代表没有分发条件。[GeoLite EULA](https://www.maxmind.com/en/geolite/eula) 和[适用义务说明](https://support.maxmind.com/knowledge-base/articles/who-is-covered-by-the-geolite-end-user-license-agreement) 要求维护更新、删除旧版本，并向再分发使用者传递相应义务。当前 release 分支虽然平铺文件，但 Git 历史仍保留旧派生数据，不自动满足这些义务，因此 MaxMind 默认 `publish_allowed=false`：可获取/分析，不参与公开 Geo 派生。不是仅增加一行署名就宣称解决。未来调整需要同时解决保留期限与使用条款；不绕过或购买额外许可。
+按项目要求，MaxMind 已启用公开派生构建，处理位置国家字段，跟其他有效地理来源一起融合。保留 MaxMind 署名、CC BY-SA 及 GeoLite EULA 条款。该开关不表示 Git 历史保留已经满足旧数据删除及下游义务，历史清理需另行安排；不自动删除或重写历史。
 
 [IP2Location官方下载器](https://www.ip2location.com/free/downloader)定义现行端点、令牌与HTTPS重定向。实际download code如发生变更应修订配置，不能猜测或绕过登录权限。官方免费频率要求优先于本项目计划。
 

@@ -1,3 +1,21 @@
+# 当前跨仓库发布
+
+源码和 Actions 位于 `airrelay/airroute-rules/main`，生成数据发布到 `airrelay/rules/main`；原源码仓库的 release 分支不再更新。当前工作流保留源码 origin，另加 products 目标 remote；源码前移检查与产物分支竞争检查分别作用于两个仓库。
+
+发布需要源码仓库 Actions Secret `RULES_PUBLISH_TOKEN`，使用仅选择 `airrelay/rules`、Contents 读写权限的 fine-grained PAT。普通工作流 GITHUB_TOKEN 不能跨仓库写入；不要将 Token 放入 remote URL、产物或日志。
+
+首次迁移旧目标布局使用精确的 `--replace-legacy-head`，目标已更新时拒绝替换。新 manifest 出现后恢复正常序号、基线与普通非 force push 保护。首次构建的语义基线沿用旧源码仓库的最后成功 release，以后从新目标读取；不会抹除目标 Git 历史。
+
+手动调用示意（products remote 指向目标仓库）：
+
+```sh
+python3.12 -m airroute_data publish --candidate .build/candidate --repo . \
+  --source-sha <源码提交> --sequence <递增序号> --attempt 1 \
+  --remote products --branch main --source-remote origin
+```
+
+下文的 release/default remote 示例为通用单仓库机制，当前部署以工作流中的显式目标参数为准。
+
 # 发布与回退
 
 `main` 保存 Python、配置、测试和文档；**同一仓库**的 `release` 分支仅保存公开产物。不存在常驻控制器、节点、Globalping、数据库或 GitHub Releases 发布服务。工作流每日 03:17 UTC 或手动运行，手动可关闭发布以只生成候选。

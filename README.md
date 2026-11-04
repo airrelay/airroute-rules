@@ -1,6 +1,6 @@
 # AirRoute Data
 
-面向 **AirRoute** 的被动数据生产系统：GitHub Actions 编排，Python 3.11+ 批处理。源码在 `main`，同一仓库的 `release` 分支保存生成产物。它从零替换了旧的 Rust 控制中心、Web Console、数据库服务、节点和 Globalping 调度；没有旧接口或兼容层。
+面向 **AirRoute** 的被动数据生产系统：GitHub Actions 编排，Python 3.11+ 批处理。源码在 `main`，`airrelay/rules` 仓库的 `main` 分支保存生成产物。它从零替换了旧的 Rust 控制中心、Web Console、数据库服务、节点和 Globalping 调度；没有旧接口或兼容层。
 
 只下载已经存在的公开资料。**不会对规则目标进行 DNS、TLS、HTTP、ping 或 traceroute 测量**，不使用 MITM，不生成 UA，不决定客户端最终出口，也不输出其他客户端格式。
 
@@ -37,7 +37,7 @@ python3.12 -m airroute_data validate .build/domain-candidate \
 
 | 来源 | 免费获取条件 | 默认公开派生 |
 | --- | --- | --- |
-| MaxMind GeoLite Country | 免费账号、`MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY` | 暂不使用：长期保留旧版本与其删除义务需要先解决 |
+| MaxMind GeoLite Country | 免费账号、`MAXMIND_ACCOUNT_ID`、`MAXMIND_LICENSE_KEY` | 已启用派生构建，保留署名和更新/删除义务 |
 | DB-IP Country Lite | 匿名月度 CSV | 可用，保留署名 |
 | IPinfo Lite | 免费账号、`IPINFO_TOKEN` | 有完整库凭据时使用，样本不充当整库 |
 | IP2Location LITE DB1 | 免费账号、`IP2LOCATION_TOKEN` | 有凭据时使用，遵守下载与署名条款 |
@@ -88,16 +88,16 @@ special/*.list
 dns/*.list
 ```
 
-没有 `versions/`、哈希目录、`current.json` 或运行报告。保留分类目录，直接使用稳定规则路径。manifest 绑定同版本的全部公开文件；整个文件树在同一个 Git 提交中替换。整包下载需先固定 release 的提交 SHA，再从该提交读取 manifest 和文件，防止多个请求跨版本；只使用移动分支 URL 无法保证整包一致。旧数据保留在 Git 历史，回退是正常向前提交。失败、异常覆盖变化、过期源码、旧发布序号或分支竞争不能覆盖成功版本；内容相同不提交。普通非 force push，超时按已保存提交 SHA 对账。
+没有 `versions/`、哈希目录、`current.json` 或运行报告。保留分类目录，直接使用稳定规则路径。manifest 绑定同版本的全部公开文件；整个文件树在同一个 Git 提交中替换。整包下载需先固定产物仓库 main 的提交 SHA，再从该提交读取 manifest 和文件，防止多个请求跨版本；只使用移动分支 URL 无法保证整包一致。旧数据保留在 Git 历史，回退是正常向前提交。失败、异常覆盖变化、过期源码、旧发布序号或分支竞争不能覆盖成功版本；内容相同不提交。普通非 force push，超时按已保存提交 SHA 对账。
 
 本地发布命令会实际写远端，需自行确认账号与仓库；日常构建不隐式发布：
 
 ```sh
 python3.12 -m airroute_data publish --candidate .build/candidate \
-  --repo . --source-sha "$(git rev-parse HEAD)" --sequence 123 --attempt 1
+  --repo . --source-sha "$(git rev-parse HEAD)" --sequence 123 --attempt 1 --remote products --branch main --source-remote origin
 # 回退是一个正常向前提交，序号必须更新：
 python3.12 -m airroute_data rollback --repo . --version <已有版本> \
-  --source-sha "$(git rev-parse HEAD)" --sequence 124
+  --source-sha "$(git rev-parse HEAD)" --sequence 124 --remote products --branch main --source-remote origin
 ```
 
 序号对应工作流 `run_number`，重试对应 `run_attempt`。手动运行也必须保持递增。历史目录保留用于回退；来源许可不允许历史保留时，不可直接加入公开生成链。恢复限制与隔离 Git 验证见 [发布说明](docs/PUBLISHING.md)。
@@ -116,3 +116,5 @@ AIRROUTE_CORE_IP_DATA=/path/to/AirRoute/crates/ip-data/src/lib.rs \
 实际验证范围与缺源见 [验证记录](docs/VALIDATION.md)。
 
 当前目录扩展的逐项结果、语义覆盖前后比较、旧目录归并及仍未接入客户端的部分见 [最新覆盖验收](docs/COVERAGE.md)。本地与真实 Actions / release 的验收分别记录，源码提交、数据版本和远端校验见该报告。
+
+跨仓库发布使用 `RULES_PUBLISH_TOKEN`（仅 `airrelay/rules` 的 Contents 读写权限）；源码校验仍绑定 `airrelay/airroute-rules/main`。首次替换旧产物绑定目标提交 SHA，随后普通非 force push，旧内容保留在目标 Git 历史。原源码仓库 release 不再更新。

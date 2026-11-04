@@ -1,4 +1,4 @@
-"""Atomic, non-force publication to a branch of the source repository.
+"""Atomic, non-force publication, with a separately fenced source repository.
 
 The public data files and their manifest enter one Git commit. A durable
 local journal names the exact commit before push, so an interrupted push is
@@ -327,7 +327,10 @@ def _push_recorded(repo: Path, remote: str, branch: str, source_branch: str,
     reconciled = _reconcile(repo, remote, branch, root, state)
     if reconciled:
         return reconciled
-    latest = _remote_sha(repo, remote, source_branch)
+    # Retry the recorded attempt against its original source fence, even if a
+    # caller now supplies a different source remote. Old journals predate the
+    # split and used the publication remote for both responsibilities.
+    latest = _remote_sha(repo, state.get("source_remote", remote), state.get("source_branch", source_branch))
     if latest != state["source_sha"]:
         return _finish(root, state, "superseded", state["base_commit"])
     worker = root / "work"
@@ -348,9 +351,13 @@ def _push_recorded(repo: Path, remote: str, branch: str, source_branch: str,
 
 def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, attempt: int = 1,
             remote: str = "origin",
-            branch: str = "release", source_branch: str = "main") -> dict:
+            branch: str = "release", source_branch: str = "main", source_remote: str | None = None,
+            replace_legacy_head: str | None = None) -> dict:
     candidate, repo = Path(candidate).resolve(), Path(repo).resolve()
     order = _publication_order(sequence, attempt)
+    source_remote = remote if source_remote is None else source_remote
+    if replace_legacy_head is not None and not re.fullmatch(r"[0-9a-f]{40,64}", replace_legacy_head):
+        raise PublicationError("Legacy replacement requires the exact expected target commit SHA")
     manifest = validate_candidate(candidate)
     version = _version(manifest.get("data_version", manifest.get("version")))
     manifest_sha = _digest(candidate / "manifest.json")
@@ -364,7 +371,7 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
                 if state["manifest_sha256"] != manifest_sha or state["source_sha"] != source_sha:
                     # An obsolete source can be discarded only after readback
                     # proves the remote has not advanced to its commit.
-                    if _remote_sha(repo, remote, source_branch) != state["source_sha"]:
+                    if _remote_sha(repo, state.get("source_remote", remote), state.get("source_branch", source_branch)) != state["source_sha"]:
                         _finish(root, state, "superseded", _remote_sha(repo, remote, branch))
                     else:
                         raise PublicationUncertain("Another candidate has an unresolved publication; reconcile it first")
@@ -372,7 +379,7 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
                     return _push_recorded(repo, remote, branch, source_branch, root, state)
             elif resolved["version"] == version and resolved["status"] == "published":
                 return resolved
-        if _remote_sha(repo, remote, source_branch) != source_sha:
+        if _remote_sha(repo, source_remote, source_branch) != source_sha:
             raise PublicationError("Source main advanced; refusing an obsolete build")
         worker = root / "work"
         if worker.exists():
@@ -395,7 +402,14 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
         baseline = None
         previous = None
         if base:
-            previous, baseline = _read_release(worker)
+            has_layout = any((worker / name).exists() or (worker / name).is_symlink()
+                             for name in ("manifest.json", "current.json"))
+            if has_layout:
+                previous, baseline = _read_release(worker)
+            elif replace_legacy_head != base:
+                raise PublicationError("Target has no AirRoute manifest; explicit matching legacy head is required")
+            # An explicitly named legacy commit stays in Git history. Only the
+            # checked-out payload changes; the normal forward push is retained.
         # One full validation of the original candidate, including private
         # diagnostics, against the freshly fetched public coverage baseline.
         _semantic_validation(candidate, repo, baseline)
@@ -424,6 +438,7 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
         commit = _git(worker, "rev-parse", "HEAD").stdout.strip()
         state = {"schema": 1, "version": version, "manifest_sha256": manifest_sha,
                  "source_sha": source_sha, "base_commit": base, "commit": commit,
+                 "source_remote": source_remote, "source_branch": source_branch,
                  "status": "prepared", "publication": public["publication"]}
         _json_write(pending, state)
         return _push_recorded(repo, remote, branch, source_branch, root, state)
@@ -431,16 +446,17 @@ def publish(candidate: Path, repo: Path, source_sha: str, *, sequence: int, atte
 
 def rollback(repo: Path, version: str, source_sha: str, *, sequence: int, attempt: int = 1,
              remote: str = "origin",
-             branch: str = "release", source_branch: str = "main") -> dict:
+             branch: str = "release", source_branch: str = "main", source_remote: str | None = None) -> dict:
     """Restore historical data as a normal forward flat-layout commit."""
     repo = Path(repo).resolve()
     order = _publication_order(sequence, attempt)
+    source_remote = remote if source_remote is None else source_remote
     version = _version(version)
     root = _state_root(repo, remote, branch)
     with _lock(root):
         if (root / "pending.json").exists():
             raise PublicationUncertain("Reconcile the pending publication before rollback")
-        if _remote_sha(repo, remote, source_branch) != source_sha:
+        if _remote_sha(repo, source_remote, source_branch) != source_sha:
             raise PublicationError("Source main advanced; refusing stale rollback")
         worker = root / "work"
         if worker.exists():
@@ -503,6 +519,7 @@ def rollback(repo: Path, version: str, source_sha: str, *, sequence: int, attemp
         _git(worker, "commit", "--quiet", "-m", "Roll back AirRoute data to " + version)
         state = {"schema": 1, "version": version, "manifest_sha256": _digest(worker / "manifest.json"),
                  "source_sha": source_sha, "base_commit": base,
+                 "source_remote": source_remote, "source_branch": source_branch,
                  "commit": _git(worker, "rev-parse", "HEAD").stdout.strip(), "status": "prepared",
                  "publication": public["publication"]}
         _json_write(root / "pending.json", state)

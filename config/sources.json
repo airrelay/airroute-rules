@@ -31,8 +31,8 @@
         6
       ],
       "license": "GeoLite EULA + CC-BY-SA-4.0 elements",
-      "publish_allowed": false,
-      "publication_reason": "Default evaluation only: Git release history retains obsolete GeoLite-derived data; required deletion/update obligations need an explicit compliant retention policy or agreement before public derivation.",
+      "publish_allowed": true,
+      "publication_reason": "Enabled for derived Geo generation by operator. Attribution, share-alike and GeoLite EULA update/deletion/downstream duties remain applicable; this switch does not certify retention compliance.",
       "documentation": "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/",
       "terms": "https://www.maxmind.com/en/geolite/eula"
     },
