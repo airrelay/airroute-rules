@@ -1,0 +1,41 @@
+name: Isolated IPv6 fusion diagnosis
+on:
+  push:
+    branches: [codex/ipv6-fusion-audit]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Geo regression
+        run: python -m unittest discover -s tests -p 'test_geo.py' -v
+      - name: Read previous successful Geo
+        run: |
+          git fetch --depth=1 origin 956eb16c427fb044fd9b0e6dce1eefe32bef23c2
+          mkdir -p .build
+          git show FETCH_HEAD:geo.ardb > .build/previous-geo.ardb
+      - name: Freeze only the five country sources
+        env:
+          MAXMIND_ACCOUNT_ID: ${{ secrets.MAXMIND_ACCOUNT_ID }}
+          MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+          IP2LOCATION_TOKEN: ${{ secrets.IP2LOCATION_TOKEN }}
+        run: python -m airroute_data snapshot --output .build/snapshot --source-ids maxmind dbip ipinfo ip2location iplocate
+      - name: Replay production IPv6 fusion without publication
+        run: python -m tools.audit_ipv6 --snapshot .build/snapshot/snapshot.json --previous .build/previous-geo.ardb --output .build/diagnosis
+      - name: Keep bounded nonsecret diagnostic summaries only
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ipv6-diagnosis-${{ github.run_id }}
+          path: .build/diagnosis/*.json
+          if-no-files-found: warn
+          retention-days: 7
